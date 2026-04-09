@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id         String       @id @default(cuid())
+  email      String       @unique
+  firstName  String?
+  lastName   String?
+  status     RecordStatus @default(ACTIVE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  userRoles  UserRole[]
+  auditLogs  AuditLog[]
+}
+
+model Role {
+  id           String           @id @default(cuid())
+  code         String           @unique
+  name         String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  userRoles    UserRole[]
+  permissions  RolePermission[]
+}
+
+model Permission {
+  id           String           @id @default(cuid())
+  code         String           @unique
+  name         String
+  createdAt    DateTime         @default(now())
+  roleLinks    RolePermission[]
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+}
+
+model RolePermission {
+  id           String      @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  @@unique([roleId, permissionId])
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  actorUserId String?
+  entityType  String
+  entityId    String
+  action      String
+  beforeJson  Json?
+  afterJson   Json?
+  createdAt   DateTime  @default(now())
+  actorUser   User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+}
+
+model CustomFieldDefinition {
+  id           String             @id @default(cuid())
+  entityType   String
+  internalName String             @unique
+  label        String
+  dataType     String
+  isRequired   Boolean            @default(false)
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  fieldValues  CustomFieldValue[]
+}
+
+model CustomFieldValue {
+  id                      String                @id @default(cuid())
+  customFieldDefinitionId String
+  entityType              String
+  entityId                String
+  valueJson               Json
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  customFieldDefinition   CustomFieldDefinition @relation(fields: [customFieldDefinitionId], references: [id], onDelete: Cascade)
+}
+
+model WorkflowDefinition {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String
+  entityType     String
+  version        Int      @default(1)
+  isActive       Boolean  @default(true)
+  definitionJson Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
