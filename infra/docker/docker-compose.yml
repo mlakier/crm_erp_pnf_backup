@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: crm_erp_pnf_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm_erp_pnf
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - crm_erp_pnf_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  crm_erp_pnf_postgres_data:
