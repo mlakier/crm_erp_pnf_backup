@@ -1,0 +1,24 @@
+ALTER TABLE "leads" ADD COLUMN "leadNumber" TEXT;
+ALTER TABLE "leads" ADD COLUMN "title" TEXT;
+ALTER TABLE "leads" ADD COLUMN "website" TEXT;
+ALTER TABLE "leads" ADD COLUMN "industry" TEXT;
+ALTER TABLE "leads" ADD COLUMN "address" TEXT;
+ALTER TABLE "leads" ADD COLUMN "rating" TEXT;
+ALTER TABLE "leads" ADD COLUMN "notes" TEXT;
+ALTER TABLE "leads" ADD COLUMN "expectedValue" REAL;
+ALTER TABLE "leads" ADD COLUMN "qualifiedAt" DATETIME;
+ALTER TABLE "leads" ADD COLUMN "convertedAt" DATETIME;
+ALTER TABLE "leads" ADD COLUMN "lastContactedAt" DATETIME;
+ALTER TABLE "leads" ADD COLUMN "entityId" TEXT REFERENCES "entities" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "leads" ADD COLUMN "currencyId" TEXT REFERENCES "currencies" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "leads" ADD COLUMN "customerId" TEXT REFERENCES "customers" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "leads" ADD COLUMN "contactId" TEXT REFERENCES "contacts" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "leads" ADD COLUMN "opportunityId" TEXT REFERENCES "opportunities" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+CREATE UNIQUE INDEX "leads_leadNumber_key" ON "leads"("leadNumber");
+CREATE INDEX "leads_status_idx" ON "leads"("status");
+CREATE INDEX "leads_entityId_idx" ON "leads"("entityId");
+CREATE INDEX "leads_currencyId_idx" ON "leads"("currencyId");
+CREATE INDEX "leads_customerId_idx" ON "leads"("customerId");
+CREATE INDEX "leads_contactId_idx" ON "leads"("contactId");
+CREATE INDEX "leads_opportunityId_idx" ON "leads"("opportunityId");

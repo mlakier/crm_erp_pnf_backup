@@ -1,0 +1,39 @@
+{
+  "customer": {
+    "industry": [
+      "AAA",
+      "BBB"
+    ]
+  },
+  "item": {
+    "type": [
+      "service",
+      "product",
+      "expense"
+    ]
+  },
+  "lead": {
+    "source": [
+      "Website",
+      "Referral",
+      "Trade Show",
+      "Inbound Demo",
+      "Webinar"
+    ],
+    "rating": [
+      "hot",
+      "warm",
+      "cold"
+    ]
+  },
+  "opportunity": {
+    "stage": [
+      "prospecting",
+      "qualification",
+      "proposal",
+      "negotiation",
+      "won",
+      "lost"
+    ]
+  }
+}

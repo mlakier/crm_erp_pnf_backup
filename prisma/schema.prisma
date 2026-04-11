@@ -1,0 +1,818 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.db"
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  password     String
+  role         String      @default("user")
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  customers      Customer[]
+  contacts       Contact[]
+  deals          Deal[]
+  orders         Order[]
+  projects       Project[]
+  tasks          Task[]
+  leads          Lead[]
+  opportunities  Opportunity[]
+  quotes         Quote[]
+  salesOrders    SalesOrder[]
+  requisitions   Requisition[]
+  purchaseOrders PurchaseOrder[]
+  employee       Employee?
+
+  @@map("users")
+}
+
+model Customer {
+  id             String   @id @default(cuid())
+  customerNumber String?  @unique
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  industry       String?
+  entityId       String?
+  currencyId     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  contacts      Contact[]
+  leads         Lead[]
+  deals         Deal[]
+  opportunities Opportunity[]
+  quotes        Quote[]
+  salesOrders   SalesOrder[]
+  invoices      Invoice[]
+  entity        Entity?       @relation(fields: [entityId], references: [id])
+  currency      Currency?     @relation(fields: [currencyId], references: [id])
+
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("customers")
+}
+
+model Contact {
+  id            String   @id @default(cuid())
+  contactNumber String?  @unique
+  firstName     String
+  lastName      String
+  email         String?
+  phone         String?
+  position      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  leads      Lead[]
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@map("contacts")
+}
+
+model Deal {
+  id        String    @id @default(cuid())
+  title     String
+  value     Float?
+  stage     String    @default("prospect")
+  closeDate DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@map("deals")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  sku         String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  inventories Inventory[]
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+model Inventory {
+  id          String    @id @default(cuid())
+  quantity    Int
+  location    String?
+  locationId  String?
+  locationRef Location? @relation(fields: [locationId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("inventories")
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  status    String   @default("pending")
+  total     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId String
+  user   User        @relation(fields: [userId], references: [id])
+  items  OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id       String @id @default(cuid())
+  quantity Int
+  price    Float
+
+  // Relations
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String    @default("planning")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  tasks  Task[]
+
+  @@map("projects")
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("todo")
+  priority    String    @default("medium")
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+
+  @@map("tasks")
+}
+
+model Vendor {
+  id           String   @id @default(cuid())
+  vendorNumber String?  @unique
+  name         String
+  email        String?
+  phone        String?
+  address      String?
+  taxId        String?
+  entityId     String?
+  currencyId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  requisitions   Requisition[]
+  purchaseOrders PurchaseOrder[]
+  apInvoices     APInvoice[]
+  entity         Entity?         @relation(fields: [entityId], references: [id])
+  currency       Currency?       @relation(fields: [currencyId], references: [id])
+
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("vendors")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  managerId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users        User[]
+  requisitions Requisition[]
+  employees    Employee[]
+
+  @@map("departments")
+}
+
+model LegalEntity {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  journalEntries JournalEntry[]
+
+  @@map("legal_entities")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  inventories Inventory[]
+
+  @@map("locations")
+}
+
+model CostCenter {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cost_centers")
+}
+
+model ChartOfAccounts {
+  id            String   @id @default(cuid())
+  accountNumber String   @unique
+  name          String
+  type          String // Asset, Liability, Equity, Revenue, Expense
+  category      String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  journalEntries JournalEntry[]
+
+  @@map("chart_of_accounts")
+}
+
+model CustomFieldDefinition {
+  id           String   @id @default(cuid())
+  name         String
+  label        String
+  type         String // text, number, date, select, etc.
+  required     Boolean  @default(false)
+  defaultValue String?
+  options      String? // JSON for select options
+  entityType   String // Customer, Order, etc.
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  values CustomFieldValue[]
+
+  @@map("custom_field_definitions")
+}
+
+model CustomFieldValue {
+  id         String   @id @default(cuid())
+  fieldId    String
+  recordId   String // ID of the record
+  entityType String // Type of entity
+  value      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  field CustomFieldDefinition @relation(fields: [fieldId], references: [id])
+
+  @@map("custom_field_values")
+}
+
+model CustomTransactionType {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  entityType  String // Quote, Order, Invoice, etc.
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("custom_transaction_types")
+}
+
+model Lead {
+  id              String    @id @default(cuid())
+  leadNumber      String?   @unique
+  firstName       String?
+  lastName        String?
+  email           String?
+  phone           String?
+  company         String?
+  title           String?
+  website         String?
+  industry        String?
+  address         String?
+  status          String    @default("new")
+  source          String?
+  rating          String?
+  notes           String?
+  expectedValue   Float?
+  qualifiedAt     DateTime?
+  convertedAt     DateTime?
+  lastContactedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  entityId      String?
+  entity        Entity?      @relation(fields: [entityId], references: [id])
+  currencyId    String?
+  currency      Currency?    @relation(fields: [currencyId], references: [id])
+  customerId    String?
+  customer      Customer?    @relation(fields: [customerId], references: [id])
+  contactId     String?
+  contact       Contact?     @relation(fields: [contactId], references: [id])
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
+
+  @@index([status])
+  @@index([entityId])
+  @@index([currencyId])
+  @@index([customerId])
+  @@index([contactId])
+  @@index([opportunityId])
+  @@map("leads")
+}
+
+model Opportunity {
+  id                String    @id @default(cuid())
+  opportunityNumber String?   @unique
+  name              String
+  amount            Float?
+  stage             String    @default("prospecting")
+  closeDate         DateTime?
+  probability       Float?
+  entityId          String?
+  currencyId        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  leads      Lead[]
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  quote      Quote?
+  entity     Entity?   @relation(fields: [entityId], references: [id])
+  currency   Currency? @relation(fields: [currencyId], references: [id])
+
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("opportunities")
+}
+
+model Quote {
+  id         String    @id @default(cuid())
+  number     String    @unique
+  status     String    @default("draft")
+  total      Float
+  validUntil DateTime?
+  notes      String?
+  entityId   String?
+  currencyId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  customerId    String
+  customer      Customer     @relation(fields: [customerId], references: [id])
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  opportunityId String?      @unique
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
+  salesOrder    SalesOrder?
+  entity        Entity?      @relation(fields: [entityId], references: [id])
+  currency      Currency?    @relation(fields: [currencyId], references: [id])
+
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("quotes")
+}
+
+model SalesOrder {
+  id         String   @id @default(cuid())
+  number     String   @unique
+  status     String   @default("draft")
+  total      Float
+  entityId   String?
+  currencyId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  quoteId    String?   @unique
+  quote      Quote?    @relation(fields: [quoteId], references: [id])
+  invoices   Invoice[]
+  entity     Entity?   @relation(fields: [entityId], references: [id])
+  currency   Currency? @relation(fields: [currencyId], references: [id])
+
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("sales_orders")
+}
+
+model Invoice {
+  id         String    @id @default(cuid())
+  number     String    @unique
+  status     String    @default("draft")
+  total      Float
+  dueDate    DateTime?
+  paidDate   DateTime?
+  entityId   String?
+  currencyId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  salesOrderId String
+  salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  cashReceipts CashReceipt[]
+  entity       Entity?       @relation(fields: [entityId], references: [id])
+  currency     Currency?     @relation(fields: [currencyId], references: [id])
+
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("invoices")
+}
+
+model CashReceipt {
+  id        String   @id @default(cuid())
+  amount    Float
+  date      DateTime
+  method    String // check, wire, etc.
+  reference String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("cash_receipts")
+}
+
+model Requisition {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  status      String   @default("draft")
+  description String?
+  total       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  departmentId  String
+  department    Department     @relation(fields: [departmentId], references: [id])
+  vendorId      String?
+  vendor        Vendor?        @relation(fields: [vendorId], references: [id])
+  purchaseOrder PurchaseOrder?
+
+  @@map("requisitions")
+}
+
+model PurchaseOrder {
+  id         String   @id @default(cuid())
+  number     String   @unique
+  status     String   @default("draft")
+  total      Float
+  entityId   String?
+  currencyId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  vendorId      String
+  vendor        Vendor                  @relation(fields: [vendorId], references: [id])
+  userId        String
+  user          User                    @relation(fields: [userId], references: [id])
+  requisitionId String?                 @unique
+  requisition   Requisition?            @relation(fields: [requisitionId], references: [id])
+  lineItems     PurchaseOrderLineItem[]
+  receipts      Receipt[]
+  entity        Entity?                 @relation(fields: [entityId], references: [id])
+  currency      Currency?               @relation(fields: [currencyId], references: [id])
+
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int
+  unitPrice   Float
+  lineTotal   Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  itemId          String?
+  item            Item?         @relation(fields: [itemId], references: [id])
+
+  @@index([itemId])
+  @@map("purchase_order_line_items")
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  summary    String
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("activities")
+}
+
+model Receipt {
+  id        String   @id @default(cuid())
+  quantity  Int
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+
+  @@map("receipts")
+}
+
+model APInvoice {
+  id        String    @id @default(cuid())
+  number    String?
+  vendorId  String
+  amount    Float
+  date      DateTime
+  dueDate   DateTime?
+  status    String    @default("received")
+  ocrData   String? // JSON
+  coded     Boolean   @default(false)
+  approved  Boolean   @default(false)
+  paid      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  @@map("ap_invoices")
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  date        DateTime
+  description String?
+  status      String   @default("draft")
+  total       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  legalEntityId String
+  legalEntity   LegalEntity     @relation(fields: [legalEntityId], references: [id])
+  accountId     String
+  account       ChartOfAccounts @relation(fields: [accountId], references: [id])
+
+  @@map("journal_entries")
+}
+
+model AccountingPeriod {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  closed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("accounting_periods")
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  type       String
+  entityId   String
+  entityType String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("attachments")
+}
+
+model IntegrationLog {
+  id          String   @id @default(cuid())
+  integration String
+  action      String
+  status      String
+  message     String?
+  createdAt   DateTime @default(now())
+
+  @@map("integration_logs")
+}
+
+model ApprovalRecord {
+  id         String   @id @default(cuid())
+  entityId   String
+  entityType String
+  approverId String
+  status     String
+  comments   String?
+  createdAt  DateTime @default(now())
+
+  @@map("approval_records")
+}
+
+model Currency {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  symbol    String?
+  decimals  Int      @default(2)
+  isBase    Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  entities       Entity[]        @relation("EntityDefaultCurrency")
+  items          Item[]
+  customers      Customer[]
+  vendors        Vendor[]
+  leads          Lead[]
+  opportunities  Opportunity[]
+  quotes         Quote[]
+  salesOrders    SalesOrder[]
+  invoices       Invoice[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("currencies")
+}
+
+model Entity {
+  id                 String   @id @default(cuid())
+  code               String   @unique
+  name               String
+  legalName          String?
+  entityType         String?
+  taxId              String?
+  registrationNumber String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  defaultCurrencyId String?
+  defaultCurrency   Currency?       @relation("EntityDefaultCurrency", fields: [defaultCurrencyId], references: [id])
+  employees         Employee[]
+  items             Item[]
+  customers         Customer[]
+  vendors           Vendor[]
+  leads             Lead[]
+  opportunities     Opportunity[]
+  quotes            Quote[]
+  salesOrders       SalesOrder[]
+  invoices          Invoice[]
+  purchaseOrders    PurchaseOrder[]
+
+  @@index([defaultCurrencyId])
+  @@map("entities")
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  itemNumber  String?  @unique
+  sku         String?  @unique
+  name        String
+  description String?
+  itemType    String   @default("service")
+  uom         String? // unit of measure
+  listPrice   Float    @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  currencyId             String?
+  currency               Currency?               @relation(fields: [currencyId], references: [id])
+  entityId               String?
+  entity                 Entity?                 @relation(fields: [entityId], references: [id])
+  purchaseOrderLineItems PurchaseOrderLineItem[]
+
+  @@index([currencyId])
+  @@index([entityId])
+  @@map("items")
+}
+
+model Employee {
+  id              String    @id @default(cuid())
+  employeeNumber  String?   @unique
+  firstName       String
+  lastName        String
+  email           String?   @unique
+  phone           String?
+  title           String?
+  department      String?
+  active          Boolean   @default(true)
+  hireDate        DateTime?
+  terminationDate DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  entityId      String?
+  entity        Entity?     @relation(fields: [entityId], references: [id])
+  departmentId  String?
+  departmentRef Department? @relation(fields: [departmentId], references: [id])
+  userId        String?     @unique
+  user          User?       @relation(fields: [userId], references: [id])
+  managerId     String?
+  manager       Employee?   @relation("EmployeeManager", fields: [managerId], references: [id])
+  directReports Employee[]  @relation("EmployeeManager")
+
+  @@index([entityId])
+  @@index([departmentId])
+  @@index([managerId])
+  @@map("employees")
+}

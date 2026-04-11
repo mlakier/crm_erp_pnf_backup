@@ -1,0 +1,38 @@
+{
+  "customerCreate": {
+    "name": true,
+    "email": true,
+    "phone": true,
+    "address": true,
+    "primaryContact": true,
+    "contactFirstName": true,
+    "contactLastName": true,
+    "addressStreet1": true,
+    "addressCity": true,
+    "addressStateProvince": true,
+    "addressPostalCode": true,
+    "addressCountry": true
+  },
+  "contactCreate": {
+    "firstName": true,
+    "lastName": true,
+    "customerId": true,
+    "email": false,
+    "phone": false,
+    "position": false
+  },
+  "vendorCreate": {
+    "name": true,
+    "email": false,
+    "phone": false,
+    "address": false,
+    "taxId": false
+  },
+  "opportunityCreate": {
+    "name": true,
+    "customerId": true,
+    "amount": false,
+    "stage": false,
+    "closeDate": false
+  }
+}
