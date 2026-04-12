@@ -8,8 +8,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -20,6 +20,7 @@ model User {
   role         String      @default("user")
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
+  inactive     Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -51,6 +52,7 @@ model Customer {
   industry       String?
   entityId       String?
   currencyId     String?
+  inactive       Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -80,6 +82,7 @@ model Contact {
   email         String?
   phone         String?
   position      String?
+  active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -99,6 +102,7 @@ model Deal {
   value     Float?
   stage     String    @default("prospect")
   closeDate DateTime?
+  inactive  Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -117,6 +121,7 @@ model Product {
   description String?
   price       Float
   sku         String   @unique
+  inactive    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -133,6 +138,7 @@ model Inventory {
   location    String?
   locationId  String?
   locationRef Location? @relation(fields: [locationId], references: [id])
+  inactive    Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -147,6 +153,7 @@ model Order {
   id        String   @id @default(cuid())
   status    String   @default("pending")
   total     Float
+  inactive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -162,6 +169,9 @@ model OrderItem {
   id       String @id @default(cuid())
   quantity Int
   price    Float
+  inactive Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   orderId   String
@@ -179,6 +189,7 @@ model Project {
   startDate   DateTime?
   endDate     DateTime?
   status      String    @default("planning")
+  inactive    Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -197,6 +208,7 @@ model Task {
   status      String    @default("todo")
   priority    String    @default("medium")
   dueDate     DateTime?
+  inactive    Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -219,6 +231,7 @@ model Vendor {
   taxId        String?
   entityId     String?
   currencyId   String?
+  inactive     Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -238,6 +251,10 @@ model Department {
   id        String   @id @default(cuid())
   name      String
   code      String   @unique
+  description String?
+  division  String?
+  entityId  String?
+  active    Boolean  @default(true)
   managerId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -246,7 +263,9 @@ model Department {
   users        User[]
   requisitions Requisition[]
   employees    Employee[]
+  entity       Entity? @relation(fields: [entityId], references: [id])
 
+  @@index([entityId])
   @@map("departments")
 }
 
@@ -255,6 +274,7 @@ model LegalEntity {
   name      String
   code      String   @unique
   currency  String   @default("USD")
+  inactive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -269,6 +289,7 @@ model Location {
   name      String
   code      String   @unique
   address   String?
+  inactive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -282,6 +303,7 @@ model CostCenter {
   id        String   @id @default(cuid())
   name      String
   code      String   @unique
+  inactive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -371,6 +393,7 @@ model Lead {
   qualifiedAt     DateTime?
   convertedAt     DateTime?
   lastContactedAt DateTime?
+  inactive        Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -407,6 +430,7 @@ model Opportunity {
   probability       Float?
   entityId          String?
   currencyId        String?
+  inactive          Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -595,6 +619,7 @@ model Activity {
   summary    String
   userId     String?
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([entityType, entityId])
   @@index([createdAt])
@@ -688,6 +713,7 @@ model IntegrationLog {
   status      String
   message     String?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("integration_logs")
 }
@@ -700,6 +726,7 @@ model ApprovalRecord {
   status     String
   comments   String?
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("approval_records")
 }
@@ -745,6 +772,7 @@ model Entity {
   // Relations
   defaultCurrencyId String?
   defaultCurrency   Currency?       @relation("EntityDefaultCurrency", fields: [defaultCurrencyId], references: [id])
+  departments       Department[]
   employees         Employee[]
   items             Item[]
   customers         Customer[]
@@ -815,4 +843,59 @@ model Employee {
   @@index([departmentId])
   @@index([managerId])
   @@map("employees")
+}
+
+model CustomerIndustryOption {
+  id        String   @id @default(cuid())
+  value     String   @unique
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("customer_industry_options")
+}
+
+model ItemTypeOption {
+  id        String   @id @default(cuid())
+  value     String   @unique
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("item_type_options")
+}
+
+model LeadSourceOption {
+  id        String   @id @default(cuid())
+  value     String   @unique
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("lead_source_options")
+}
+
+model LeadRatingOption {
+  id        String   @id @default(cuid())
+  value     String   @unique
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("lead_rating_options")
+}
+
+model OpportunityStageOption {
+  id        String   @id @default(cuid())
+  value     String   @unique
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("opportunity_stage_options")
 }

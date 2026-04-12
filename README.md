@@ -1,36 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM/ERP PNF
 
-## Getting Started
+Next.js + Prisma CRM/ERP application using PostgreSQL.
 
-First, run the development server:
+## Stack
+
+- Next.js 16
+- Prisma 5
+- PostgreSQL
+- NextAuth
+
+## Prerequisites
+
+- Node.js 20+
+- npm 10+
+- PostgreSQL 14+ running locally (or a reachable PostgreSQL instance)
+
+## Environment
+
+Create/update `.env` with at least:
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/crm_erp_pnf?schema=public"
+NEXTAUTH_URL="http://localhost:3003"
+NEXTAUTH_SECRET="change-this-to-a-secure-random-value"
+```
+
+Adjust credentials/host/port for your environment.
+
+## Install
+
+```bash
+npm install
+```
+
+## Database Setup (PostgreSQL)
+
+Use migration-driven setup for local/dev consistency.
+
+```bash
+npx prisma migrate dev
+npm run seed
+```
+
+If you need a clean local reset:
+
+```bash
+npx prisma migrate reset
+```
+
+This reapplies migrations and runs seed.
+
+## Run Locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Default app URL: http://localhost:3003
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Prisma Workflow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Create a schema change
 
-## Learn More
+1. Update `prisma/schema.prisma`
+2. Create/apply migration:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx prisma migrate dev --name <change_name>
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. Commit:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Updated `prisma/schema.prisma`
+- New folder under `prisma/migrations/<timestamp>_<change_name>/migration.sql`
 
-## Deploy on Vercel
+### Deploy migrations (non-dev)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npx prisma migrate deploy
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Regenerate Prisma client manually (if needed)
+
+```bash
+npx prisma generate
+```
+
+## Notes About SQLite History
+
+- The active database provider is PostgreSQL.
+- Legacy SQLite migration files were intentionally archived in `prisma/migrations_sqlite_legacy` for reference.
+- Active migrations for current environments are under `prisma/migrations`.
+
+## Useful Commands
+
+```bash
+npm run dev
+npm run build
+npm run start
+npm run seed
+```
