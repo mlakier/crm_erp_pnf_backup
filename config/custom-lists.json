@@ -1,0 +1,28 @@
+{
+  "lists": [
+    {
+      "id": "86bc9a4e-cd4a-443d-9e5c-064bae74e98c",
+      "label": "Division",
+      "pages": [],
+      "code": "DIVISION",
+      "orderMode": "table",
+      "rows": [
+        {
+          "id": "LIST-DIVISION-0001",
+          "value": "G&A",
+          "sortOrder": 0
+        },
+        {
+          "id": "LIST-DIVISION-0002",
+          "value": "P&D",
+          "sortOrder": 1
+        },
+        {
+          "id": "LIST-DIVISION-0003",
+          "value": "S&M",
+          "sortOrder": 2
+        }
+      ]
+    }
+  ]
+}

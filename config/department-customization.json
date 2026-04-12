@@ -1,0 +1,43 @@
+{
+  "fields": {
+    "description": {
+      "visible": true,
+      "required": false
+    },
+    "division": {
+      "visible": true,
+      "required": false
+    },
+    "entityId": {
+      "visible": true,
+      "required": false
+    },
+    "managerId": {
+      "visible": true,
+      "required": false
+    }
+  },
+  "listBindings": {
+    "divisionCustomListId": "86bc9a4e-cd4a-443d-9e5c-064bae74e98c"
+  },
+  "tableVisibility": {
+    "name": true,
+    "description": true,
+    "division": true,
+    "subsidiary": true,
+    "manager": true,
+    "status": true
+  },
+  "columnOrder": [
+    "code",
+    "name",
+    "division",
+    "description",
+    "subsidiary",
+    "manager",
+    "status",
+    "created",
+    "last-modified",
+    "actions"
+  ]
+}
