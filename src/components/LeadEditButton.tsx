@@ -28,6 +28,32 @@ type LeadEditValues = {
   address: string
 }
 
+function parseAddress(raw: string) {
+  if (!raw.trim()) {
+    return { street1: '', street2: '', street3: '', city: '', stateProvince: '', postalCode: '', country: 'US' }
+  }
+  const parts = raw.split(', ')
+  if (parts.length < 3) {
+    return { street1: raw, street2: '', street3: '', city: '', stateProvince: '', postalCode: '', country: 'US' }
+  }
+  const country = parts[parts.length - 1]
+  const statePostal = parts[parts.length - 2]
+  const city = parts[parts.length - 3]
+  const streetParts = parts.slice(0, parts.length - 3)
+  const lastSpace = statePostal.lastIndexOf(' ')
+  const stateProvince = lastSpace !== -1 ? statePostal.slice(0, lastSpace) : statePostal
+  const postalCode = lastSpace !== -1 ? statePostal.slice(lastSpace + 1) : ''
+  return {
+    street1: streetParts[0] ?? '',
+    street2: streetParts[1] ?? '',
+    street3: streetParts[2] ?? '',
+    city,
+    stateProvince,
+    postalCode,
+    country,
+  }
+}
+
 export default function LeadEditButton({
   leadId,
   values,
@@ -55,13 +81,14 @@ export default function LeadEditButton({
   const [addressModalPrompt, setAddressModalPrompt] = useState('')
   const [addressValidationError, setAddressValidationError] = useState('')
   const [validatingAddress, setValidatingAddress] = useState(false)
-  const [street1, setStreet1] = useState(values.address)
-  const [street2, setStreet2] = useState('')
-  const [street3, setStreet3] = useState('')
-  const [city, setCity] = useState('')
-  const [stateProvince, setStateProvince] = useState('')
-  const [postalCode, setPostalCode] = useState('')
-  const [country, setCountry] = useState('US')
+  const parsed = parseAddress(values.address)
+  const [street1, setStreet1] = useState(parsed.street1)
+  const [street2, setStreet2] = useState(parsed.street2)
+  const [street3, setStreet3] = useState(parsed.street3)
+  const [city, setCity] = useState(parsed.city)
+  const [stateProvince, setStateProvince] = useState(parsed.stateProvince)
+  const [postalCode, setPostalCode] = useState(parsed.postalCode)
+  const [country, setCountry] = useState(parsed.country || 'US')
 
   useEffect(() => {
     setMounted(true)
@@ -69,14 +96,15 @@ export default function LeadEditButton({
 
   function resetFromProps() {
     setFormValues(values)
+    const p = parseAddress(values.address)
     setAddress(values.address)
-    setStreet1(values.address)
-    setStreet2('')
-    setStreet3('')
-    setCity('')
-    setStateProvince('')
-    setPostalCode('')
-    setCountry('US')
+    setStreet1(p.street1)
+    setStreet2(p.street2)
+    setStreet3(p.street3)
+    setCity(p.city)
+    setStateProvince(p.stateProvince)
+    setPostalCode(p.postalCode)
+    setCountry(p.country || 'US')
     setAddressModalOpen(false)
     setAddressModalPrompt('')
     setAddressValidationError('')
