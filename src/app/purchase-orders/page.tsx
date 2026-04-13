@@ -13,7 +13,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const PURCHASE_ORDER_COLUMNS = [
-  { id: 'number', label: 'Number' },
+  { id: 'number', label: 'Purchase Order #' },
   { id: 'vendor', label: 'Vendor' },
   { id: 'status', label: 'Status' },
   { id: 'total', label: 'Total' },
@@ -152,7 +152,7 @@ export default async function PurchaseOrdersPage({
           <table className="min-w-full" id="purchase-orders-list">
                   <thead>
                     <tr>
-                      <th data-column="number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-muted)', backgroundColor: 'var(--card)' }}>Number</th>
+                      <th data-column="number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-muted)', backgroundColor: 'var(--card)' }}>Purchase Order #</th>
                       <th data-column="vendor" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-muted)', backgroundColor: 'var(--card)' }}>Vendor</th>
                       <th data-column="status" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-muted)', backgroundColor: 'var(--card)' }}>Status</th>
                       <th data-column="total" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-muted)', backgroundColor: 'var(--card)' }}>Total</th>

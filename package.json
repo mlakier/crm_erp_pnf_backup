@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3003",
+    "clean:next": "node scripts/clear-next-cache.js",
+    "clean:dev": "npm run clean:next && next dev --port 3003",
     "build": "next build",
     "start": "next start --port 3003",
     "lint": "eslint",

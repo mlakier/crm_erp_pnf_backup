@@ -13,12 +13,12 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const CUSTOMER_COLUMNS = [
-  { id: 'number', label: 'Number' },
+  { id: 'number', label: 'Customer Id' },
   { id: 'name', label: 'Name' },
-  { id: 'status', label: 'Status' },
   { id: 'subsidiary', label: 'Primary Subsidiary' },
   { id: 'currency', label: 'Primary Currency' },
   { id: 'address', label: 'Billing Address' },
+  { id: 'inactive', label: 'Inactive' },
   { id: 'created', label: 'Created' },
   { id: 'last-modified', label: 'Last Modified' },
   { id: 'actions', label: 'Actions', locked: true },
@@ -36,7 +36,7 @@ export default async function CRMPage({
   const where = query
     ? {
         OR: [
-          { customerNumber: { contains: query } },
+          { customerId: { contains: query } },
           { name: { contains: query } },
           { email: { contains: query } },
           { industry: { contains: query } },
@@ -140,12 +140,12 @@ export default async function CRMPage({
           <table className="min-w-full" id="customers-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Number</th>
+                <th data-column="number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Customer Id</th>
                 <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
-                <th data-column="status" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Status</th>
                 <th data-column="subsidiary" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Primary Subsidiary</th>
                 <th data-column="currency" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Primary Currency</th>
                 <th data-column="address" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Billing Address</th>
+                <th data-column="inactive" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Inactive</th>
                 <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
                 <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
                 <th data-column="actions" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
@@ -163,16 +163,18 @@ export default async function CRMPage({
                   <tr key={customer.id} style={index < customers.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
                     <td data-column="number" className="px-4 py-2 text-sm">
                       <Link href={`/customers/${customer.id}`} className="font-medium hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {customer.customerNumber ?? 'Pending'}
+                        {customer.customerId ?? 'Pending'}
                       </Link>
                     </td>
                     <td data-column="name" className="px-4 py-2 text-sm text-white">{customer.name}</td>
-                    <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>active</td>
                     <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {customer.entity ? `${customer.entity.code} (${customer.entity.name})` : 'N/A'}
                     </td>
                     <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{customer.currency?.code ?? 'N/A'}</td>
                     <td data-column="address" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{customer.address ?? 'N/A'}</td>
+                    <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {customer.inactive ? 'Yes' : 'No'}
+                    </td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(customer.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(customer.updatedAt).toLocaleDateString()}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
@@ -186,6 +188,7 @@ export default async function CRMPage({
                             { name: 'phone', label: 'Phone', value: normalizePhone(customer.phone) ?? '' },
                             { name: 'address', label: 'Billing Address', value: customer.address ?? '' },
                             { name: 'industry', label: 'Industry', value: customer.industry ?? '' },
+                            { name: 'inactive', label: 'Inactive', value: String(customer.inactive), type: 'checkbox' },
                           ]}
                         />
                         <DeleteButton resource="customers" id={customer.id} />

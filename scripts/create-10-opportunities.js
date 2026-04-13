@@ -36,9 +36,9 @@ async function getStartingSequence() {
 
 async function main() {
   const customers = await prisma.customer.findMany({
-    where: { customerNumber: { not: null } },
-    orderBy: { customerNumber: 'asc' },
-    select: { id: true, name: true, userId: true, customerNumber: true },
+    where: { customerId: { not: null } },
+    orderBy: { customerId: 'asc' },
+    select: { id: true, name: true, userId: true, customerId: true },
   })
 
   const targetCustomers = customers.slice(1, 11)
@@ -81,7 +81,7 @@ async function main() {
       opportunityNumber: record.opportunityNumber,
       name: record.name,
       customer: customer.name,
-      customerNumber: customer.customerNumber,
+      customerId: customer.customerId,
       stage: record.stage,
       amount: record.amount,
     })

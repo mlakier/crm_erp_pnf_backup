@@ -58,8 +58,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                   value: String(!contact.active),
                   type: 'select',
                   options: [
-                    { value: 'false', label: 'False' },
-                    { value: 'true', label: 'True' },
+                    { value: 'false', label: 'No' },
+                    { value: 'true', label: 'Yes' },
                   ],
                 },
               ]}
@@ -77,11 +77,11 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Contact details</h2>
           <dl className="grid gap-4 sm:grid-cols-2">
-            <Field label="Contact #" value={contact.contactNumber} />
+            <Field label="Contact Id" value={contact.contactNumber} />
             <Field label="Email" value={contact.email} />
             <Field label="Phone" value={fmtPhone(contact.phone)} />
             <Field label="Position" value={contact.position} />
-            <Field label="Inactive" value={contact.active ? 'False' : 'True'} />
+            <Field label="Inactive" value={contact.active ? 'No' : 'Yes'} />
             <Field label="Created" value={new Date(contact.createdAt).toLocaleDateString()} />
           </dl>
         </div>

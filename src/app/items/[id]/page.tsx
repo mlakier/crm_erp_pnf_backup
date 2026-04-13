@@ -66,7 +66,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                 { name: 'currencyId', label: 'Currency', value: item.currencyId ?? '', type: 'select', placeholder: 'Select currency', options: currencies.map((c) => ({ value: c.id, label: `${c.code} – ${c.name}` })) },
                 { name: 'entityId', label: 'Subsidiary', value: item.entityId ?? '', type: 'select', placeholder: 'Select subsidiary', options: subsidiaries.map((s) => ({ value: s.id, label: `${s.code} – ${s.name}` })) },
                 { name: 'description', label: 'Description', value: item.description ?? '' },
-                { name: 'inactive', label: 'Inactive', value: String(!item.active), type: 'select', options: [{ value: 'false', label: 'False' }, { value: 'true', label: 'True' }] },
+                { name: 'inactive', label: 'Inactive', value: String(!item.active), type: 'select', options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }] },
               ]}
             />
             <DeleteButton resource="items" id={item.id} />

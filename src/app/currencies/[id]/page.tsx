@@ -10,7 +10,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
     where: { id },
     include: {
       entities: { orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } },
-      customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerNumber: true } },
+      customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerId: true } },
       vendors: { orderBy: { name: 'asc' }, select: { id: true, name: true, vendorNumber: true } },
     },
   })
@@ -50,8 +50,8 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
                   value: String(currency.isBase),
                   type: 'select',
                   options: [
-                    { value: 'false', label: 'False' },
-                    { value: 'true', label: 'True' },
+                    { value: 'false', label: 'No' },
+                    { value: 'true', label: 'Yes' },
                   ],
                 },
                 {
@@ -60,8 +60,8 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
                   value: String(!currency.active),
                   type: 'select',
                   options: [
-                    { value: 'false', label: 'False' },
-                    { value: 'true', label: 'True' },
+                    { value: 'false', label: 'No' },
+                    { value: 'true', label: 'Yes' },
                   ],
                 },
               ]}
@@ -136,7 +136,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
                   <tr key={c.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <Td>
                       <Link href={`/customers/${c.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {c.customerNumber ?? 'Pending'}
+                        {c.customerId ?? 'Pending'}
                       </Link>
                     </Td>
                     <Td>{c.name}</Td>

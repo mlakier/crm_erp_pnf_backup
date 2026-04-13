@@ -5,20 +5,24 @@ import { useRouter } from 'next/navigation'
 
 export default function EntityCreateForm({
   currencies,
+  parentEntities,
+  initialCode,
   onSuccess,
   onCancel,
 }: {
   currencies: Array<{ id: string; code: string; name: string }>
+  parentEntities?: Array<{ id: string; code: string; name: string }>
+  initialCode: string
   onSuccess?: () => void
   onCancel?: () => void
 }) {
   const router = useRouter()
   const [currencyOptions, setCurrencyOptions] = useState(currencies)
-  const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [legalName, setLegalName] = useState('')
   const [entityType, setEntityType] = useState('')
   const [defaultCurrencyId, setDefaultCurrencyId] = useState('')
+  const [parentEntityId, setParentEntityId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,7 +69,7 @@ export default function EntityCreateForm({
       const response = await fetch('/api/entities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, name, legalName, entityType, defaultCurrencyId, inactive: false }),
+        body: JSON.stringify({ name, legalName, entityType, defaultCurrencyId, parentEntityId, inactive: false }),
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json?.error ?? 'Create failed')
@@ -83,7 +87,7 @@ export default function EntityCreateForm({
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <span>Code *</span>
-          <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          <input value={initialCode} readOnly disabled className="w-full rounded-md border px-3 py-2 text-white bg-transparent opacity-80" style={{ borderColor: 'var(--border-muted)' }} />
         </label>
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <span>Name *</span>
@@ -100,6 +104,22 @@ export default function EntityCreateForm({
           <input value={entityType} onChange={(e) => setEntityType(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
         </label>
       </div>
+      <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <span>Parent Subsidiary</span>
+        <select
+          value={parentEntityId}
+          onChange={(e) => setParentEntityId(e.target.value)}
+          className="w-full rounded-md border px-3 py-2"
+          style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)', backgroundColor: 'var(--card)' }}
+        >
+          <option value="" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--card)' }}>None</option>
+          {(parentEntities ?? []).map((entity) => (
+            <option key={entity.id} value={entity.id} style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--card)' }}>
+              {entity.code} - {entity.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
         <span>Default Currency</span>
         <select

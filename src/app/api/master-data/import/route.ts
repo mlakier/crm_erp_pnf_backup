@@ -655,7 +655,7 @@ async function importCustomers(rows: Array<Record<string, string>>, mode: Import
       // Check if record exists for mode validation (only if customerNumber is provided)
       let exists = false
       if (customerNumber) {
-        const found = await prisma.customer.findUnique({ where: { customerNumber } })
+        const found = await prisma.customer.findUnique({ where: { customerId: customerNumber } })
         exists = !!found
       }
 
@@ -683,13 +683,13 @@ async function importCustomers(rows: Array<Record<string, string>>, mode: Import
           }
 
           await prisma.customer.upsert({
-            where: { customerNumber },
+            where: { customerId: customerNumber },
             update: updateData,
-            create: { ...updateData, customerNumber, userId: systemUser.id },
+            create: { ...updateData, customerId: customerNumber, userId: systemUser.id },
           })
         }
       } else {
-        // Create without customerNumber - it will be auto-generated
+        // Create without customerId - it will be auto-generated
         const updateData = {
           name,
           email: email || null,
@@ -731,10 +731,10 @@ async function importContacts(rows: Array<Record<string, string>>, mode: ImportM
 
   const customerNumbers = Array.from(new Set(rows.map((row) => (row.customernumber ?? '').trim()).filter(Boolean)))
   const customers = await prisma.customer.findMany({
-    where: { customerNumber: { in: customerNumbers } },
-    select: { id: true, customerNumber: true },
+    where: { customerId: { in: customerNumbers } },
+    select: { id: true, customerId: true },
   })
-  const customerMap = new Map(customers.map((c) => [c.customerNumber ?? '', c.id]))
+  const customerMap = new Map(customers.map((c) => [c.customerId ?? '', c.id]))
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]

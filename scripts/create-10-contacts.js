@@ -36,7 +36,7 @@ async function getStartingSequence() {
 
 async function main() {
   const customers = await prisma.customer.findMany({
-    orderBy: { customerNumber: 'asc' },
+    orderBy: { customerId: 'asc' },
     take: 10,
     select: { id: true, name: true, userId: true },
   })

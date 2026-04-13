@@ -21,6 +21,7 @@ const VENDOR_COLUMNS = [
   { id: 'phone', label: 'Phone' },
   { id: 'address', label: 'Address' },
   { id: 'tax-id', label: 'Tax ID' },
+  { id: 'inactive', label: 'Inactive' },
   { id: 'created', label: 'Created' },
   { id: 'last-modified', label: 'Last Modified' },
   { id: 'actions', label: 'Actions', locked: true },
@@ -143,6 +144,7 @@ export default async function VendorsPage({
                 <th data-column="phone" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Phone</th>
                 <th data-column="address" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Address</th>
                 <th data-column="tax-id" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Tax ID</th>
+                <th data-column="inactive" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Inactive</th>
                 <th data-column="created" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
                 <th data-column="last-modified" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
                 <th data-column="actions" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
@@ -173,6 +175,7 @@ export default async function VendorsPage({
                   <td data-column="phone" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(vendor.phone)}</td>
                   <td data-column="address" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{vendor.address ?? '—'}</td>
                   <td data-column="tax-id" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{vendor.taxId ?? '—'}</td>
+                  <td data-column="inactive" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{vendor.inactive ? 'Yes' : 'No'}</td>
                   <td data-column="created" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(vendor.createdAt).toLocaleDateString()}</td>
                   <td data-column="last-modified" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(vendor.updatedAt).toLocaleDateString()}</td>
                   <td data-column="actions" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>

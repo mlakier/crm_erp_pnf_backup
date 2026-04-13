@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     const customer = await prisma.customer.create({
       data: {
-        customerNumber,
+        customerId: customerNumber,
         name,
         email,
         phone: normalizePhone(phone),
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       entityType: 'customer',
       entityId: customer.id,
       action: 'create',
-      summary: `Created customer ${customer.customerNumber ?? customer.name} ${customer.name}`,
+      summary: `Created customer ${customer.customerId ?? customer.name} ${customer.name}`,
       userId,
     })
 
@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Missing customer id' }, { status: 400 })
 
     const body = await request.json()
-    const { name, email, phone, address, industry, primarySubsidiaryId, primaryCurrencyId } = body
+    const { name, email, phone, address, industry, primarySubsidiaryId, primaryCurrencyId, inactive } = body
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
     const customer = await prisma.customer.update({
@@ -125,6 +125,7 @@ export async function PUT(request: NextRequest) {
         industry: industry || null,
         entityId: primarySubsidiaryId || null,
         currencyId: primaryCurrencyId || null,
+        ...(inactive !== undefined ? { inactive: inactive === true || inactive === 'true' } : {}),
       },
     })
 

@@ -3,12 +3,17 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DepartmentCustomizationConfig } from '@/lib/department-customization'
+import {
+  CustomFieldDefinitionSummary,
+  parseCustomFieldOptions,
+} from '@/lib/custom-fields'
 
 export default function DepartmentCreateForm({
   managers,
   subsidiaries,
   customization,
   divisionOptions,
+  customFields,
   onSuccess,
   onCancel,
 }: {
@@ -16,6 +21,7 @@ export default function DepartmentCreateForm({
   subsidiaries?: Array<{ id: string; code: string; name: string }>
   customization?: DepartmentCustomizationConfig
   divisionOptions?: string[]
+  customFields?: CustomFieldDefinitionSummary[]
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -23,9 +29,13 @@ export default function DepartmentCreateForm({
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [division, setDivision] = useState('')
   const [entityId, setEntityId] = useState('')
   const [managerId, setManagerId] = useState('')
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (customFields ?? []).map((field) => [field.id, field.defaultValue ?? (field.type === 'checkbox' ? 'false' : '')])
+    )
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,6 +51,7 @@ export default function DepartmentCreateForm({
   const requireManager = fieldConfig?.managerId?.required ?? false
 
   const useDivisionDropdown = Boolean(customization?.listBindings.divisionCustomListId && (divisionOptions?.length ?? 0) > 0)
+  const [division, setDivision] = useState(() => customization?.listBindings.divisionDefaultValue ?? '')
 
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -55,6 +66,37 @@ export default function DepartmentCreateForm({
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json?.error ?? 'Create failed')
+
+      const createdDepartmentId = String(json?.id ?? '')
+      if (createdDepartmentId) {
+        const valueRequests = (customFields ?? [])
+          .map((field) => ({
+            fieldId: field.id,
+            type: field.type,
+            value: customFieldValues[field.id] ?? '',
+          }))
+          .filter(({ type, value }) => type === 'checkbox' || value.trim() !== '')
+          .map(async ({ fieldId, value }) => {
+            const saveResponse = await fetch('/api/custom-field-values', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fieldId,
+                entityType: 'department',
+                recordId: createdDepartmentId,
+                value,
+              }),
+            })
+
+            if (!saveResponse.ok) {
+              const body = await saveResponse.json().catch(() => null)
+              throw new Error(body?.error ?? 'Failed to save custom field values')
+            }
+          })
+
+        await Promise.all(valueRequests)
+      }
+
       router.refresh()
       onSuccess?.()
     } catch (err) {
@@ -134,6 +176,89 @@ export default function DepartmentCreateForm({
             ))}
           </select>
         </label>
+      ) : null}
+
+      {(customFields?.length ?? 0) > 0 ? (
+        <section className="space-y-4 rounded-lg border p-4" style={{ borderColor: 'var(--border-muted)' }}>
+          <div>
+            <h3 className="text-sm font-semibold text-white">Custom Fields</h3>
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Department-specific fields configured in the customization window.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {(customFields ?? []).map((field) => {
+              const value = customFieldValues[field.id] ?? ''
+              const options = parseCustomFieldOptions(field.options)
+
+              if (field.type === 'textarea') {
+                return (
+                  <label key={field.id} className="space-y-1 text-sm md:col-span-2" style={{ color: 'var(--text-secondary)' }}>
+                    <span>{field.label}{field.required ? ' *' : ''}</span>
+                    <textarea
+                      value={value}
+                      onChange={(event) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: event.target.value }))}
+                      rows={3}
+                      required={field.required}
+                      className="w-full rounded-md border bg-transparent px-3 py-2 text-white"
+                      style={{ borderColor: 'var(--border-muted)' }}
+                    />
+                  </label>
+                )
+              }
+
+              if (field.type === 'select') {
+                return (
+                  <label key={field.id} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <span>{field.label}{field.required ? ' *' : ''}</span>
+                    <select
+                      value={value}
+                      onChange={(event) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: event.target.value }))}
+                      required={field.required}
+                      className="w-full rounded-md border bg-transparent px-3 py-2 text-white"
+                      style={{ borderColor: 'var(--border-muted)' }}
+                    >
+                      <option value="">Select {field.label}</option>
+                      {options.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )
+              }
+
+              if (field.type === 'checkbox') {
+                return (
+                  <label key={field.id} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-muted)' }}>
+                    <input
+                      type="checkbox"
+                      checked={value === 'true'}
+                      onChange={(event) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: event.target.checked ? 'true' : 'false' }))}
+                    />
+                    <span>{field.label}{field.required ? ' *' : ''}</span>
+                  </label>
+                )
+              }
+
+              return (
+                <label key={field.id} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  <span>{field.label}{field.required ? ' *' : ''}</span>
+                  <input
+                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                    value={value}
+                    onChange={(event) => setCustomFieldValues((prev) => ({ ...prev, [field.id]: event.target.value }))}
+                    required={field.required}
+                    className="w-full rounded-md border bg-transparent px-3 py-2 text-white"
+                    style={{ borderColor: 'var(--border-muted)' }}
+                  />
+                </label>
+              )
+            })}
+          </div>
+        </section>
       ) : null}
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <div className="flex items-center justify-end gap-2">

@@ -42,18 +42,18 @@ function customerNameFromLead(lead: {
 async function getNextSequenceNumber(
   tx: Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>,
   model: 'customer' | 'contact' | 'opportunity',
-  field: 'customerNumber' | 'contactNumber' | 'opportunityNumber',
+  field: 'customerId' | 'contactNumber' | 'opportunityNumber',
   prefix: string
 ) {
   let raw: string | null | undefined
 
-  if (model === 'customer' && field === 'customerNumber') {
+  if (model === 'customer' && field === 'customerId') {
     const latest = await tx.customer.findFirst({
-      where: { customerNumber: { not: null } },
-      orderBy: { customerNumber: 'desc' },
-      select: { customerNumber: true },
+      where: { customerId: { not: null } },
+      orderBy: { customerId: 'desc' },
+      select: { customerId: true },
     })
-    raw = latest?.customerNumber
+    raw = latest?.customerId
   } else if (model === 'contact' && field === 'contactNumber') {
     const latest = await tx.contact.findFirst({
       where: { contactNumber: { not: null } },
@@ -123,10 +123,10 @@ export async function POST(request: NextRequest) {
         if (existingCustomer) {
           customerId = existingCustomer.id
         } else {
-          const customerSequence = await getNextSequenceNumber(tx, 'customer', 'customerNumber', 'CUST-')
+          const customerSequence = await getNextSequenceNumber(tx, 'customer', 'customerId', 'CUST-')
           const customer = await tx.customer.create({
             data: {
-              customerNumber: formatCustomerNumber(customerSequence),
+              customerId: formatCustomerNumber(customerSequence),
               name: customerNameFromLead(lead),
               email: lead.email || null,
               phone: normalizePhone(lead.phone),

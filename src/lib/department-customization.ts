@@ -11,6 +11,7 @@ export type DepartmentCustomizationConfig = {
   fields: Record<DepartmentOptionalFieldKey, DepartmentFieldConfig>
   listBindings: {
     divisionCustomListId: string | null
+    divisionDefaultValue: string | null
   }
   tableVisibility: {
     name: boolean
@@ -45,6 +46,7 @@ export const DEPARTMENT_DEFAULT_CUSTOMIZATION: DepartmentCustomizationConfig = {
   },
   listBindings: {
     divisionCustomListId: null,
+    divisionDefaultValue: null,
   },
   tableVisibility: {
     name: true,
@@ -105,7 +107,7 @@ export function mergeDepartmentCustomization(overrides: unknown): DepartmentCust
 
   const root = overrides as {
     fields?: Record<string, unknown>
-    listBindings?: { divisionCustomListId?: unknown }
+    listBindings?: { divisionCustomListId?: unknown; divisionDefaultValue?: unknown }
     tableVisibility?: Record<string, unknown>
     columnOrder?: unknown
   }
@@ -119,7 +121,9 @@ export function mergeDepartmentCustomization(overrides: unknown): DepartmentCust
 
   if (root.listBindings && typeof root.listBindings === 'object') {
     const rawId = String(root.listBindings.divisionCustomListId ?? '').trim()
+    const rawDefaultValue = String(root.listBindings.divisionDefaultValue ?? '').trim()
     merged.listBindings.divisionCustomListId = rawId || null
+    merged.listBindings.divisionDefaultValue = rawDefaultValue || null
   }
 
   if (root.tableVisibility && typeof root.tableVisibility === 'object') {

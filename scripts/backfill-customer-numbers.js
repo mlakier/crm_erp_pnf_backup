@@ -14,7 +14,7 @@ async function main() {
     ],
     select: {
       id: true,
-      customerNumber: true,
+      customerId: true,
     },
   })
 
@@ -22,11 +22,11 @@ async function main() {
   let updated = 0
 
   for (const customer of customers) {
-    const nextNumber = customer.customerNumber ?? formatCustomerNumber(sequence)
+    const nextNumber = customer.customerId ?? formatCustomerNumber(sequence)
 
     await prisma.customer.update({
       where: { id: customer.id },
-      data: { customerNumber: nextNumber },
+      data: { customerId: nextNumber },
     })
 
     sequence += 1

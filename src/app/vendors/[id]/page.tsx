@@ -142,13 +142,13 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           )}
         </Section>
 
-        {/* AP Invoices */}
+        {/* Bills */}
         {vendor.apInvoices.length > 0 && (
-          <Section title="AP Invoices" count={vendor.apInvoices.length}>
+          <Section title="Bills" count={vendor.apInvoices.length}>
             <table className="min-w-full">
               <thead>
                 <tr>
-                  <Th>Number</Th>
+                  <Th>Bill #</Th>
                   <Th>Amount</Th>
                   <Th>Due Date</Th>
                   <Th>Status</Th>
@@ -157,7 +157,11 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
               <tbody>
                 {vendor.apInvoices.map((inv) => (
                   <tr key={inv.id}>
-                    <Td>{inv.number ?? '—'}</Td>
+                    <Td>
+                      <Link href={`/bills/${inv.id}`} style={{ color: 'var(--accent-primary-strong)' }} className="hover:underline">
+                        {inv.number}
+                      </Link>
+                    </Td>
                     <Td>{fmtCurrency(inv.amount)}</Td>
                     <Td>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</Td>
                     <Td>

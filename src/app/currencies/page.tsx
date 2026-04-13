@@ -16,6 +16,7 @@ const COLS = [
   { id: 'name', label: 'Name' },
   { id: 'symbol', label: 'Symbol' },
   { id: 'decimals', label: 'Decimals' },
+  { id: 'inactive', label: 'Inactive' },
   { id: 'created', label: 'Created' },
   { id: 'last-modified', label: 'Last Modified' },
   { id: 'actions', label: 'Actions', locked: true },
@@ -103,6 +104,7 @@ export default async function CurrenciesPage({
                 <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
                 <th data-column="symbol" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Symbol</th>
                 <th data-column="decimals" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Decimals</th>
+                <th data-column="inactive" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Inactive</th>
                 <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
                 <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
                 <th data-column="actions" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
@@ -122,6 +124,7 @@ export default async function CurrenciesPage({
                     <td data-column="name" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{currency.name}</td>
                     <td data-column="symbol" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{currency.symbol ?? '—'}</td>
                     <td data-column="decimals" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{currency.decimals}</td>
+                    <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{currency.active ? 'No' : 'Yes'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(currency.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(currency.updatedAt).toLocaleDateString()}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">

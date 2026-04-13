@@ -90,7 +90,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                 },
                 { name: 'hireDate', label: 'Hire Date', value: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : '', type: 'date' },
                 { name: 'terminationDate', label: 'Termination Date', value: employee.terminationDate ? new Date(employee.terminationDate).toISOString().split('T')[0] : '', type: 'date' },
-                { name: 'inactive', label: 'Inactive', value: String(!employee.active), type: 'select', options: [{ value: 'false', label: 'False' }, { value: 'true', label: 'True' }] },
+                { name: 'inactive', label: 'Inactive', value: String(!employee.active), type: 'select', options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }] },
               ]}
             />
             <DeleteButton resource="employees" id={employee.id} />

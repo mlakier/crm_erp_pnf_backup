@@ -13,7 +13,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const CONTACT_COLUMNS = [
-  { id: 'contact-number', label: 'Contact #' },
+  { id: 'contact-number', label: 'Contact Id' },
   { id: 'name', label: 'Name' },
   { id: 'customer', label: 'Customer' },
   { id: 'email', label: 'Email' },
@@ -139,7 +139,7 @@ export default async function ContactsPage({
           <table className="min-w-full" id="contacts-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="contact-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Contact #</th>
+                <th data-column="contact-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Contact Id</th>
                 <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
                 <th data-column="customer" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Customer</th>
                 <th data-column="email" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Email</th>
@@ -170,7 +170,7 @@ export default async function ContactsPage({
                   <td data-column="email" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{contact.email ?? '—'}</td>
                   <td data-column="phone" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(contact.phone)}</td>
                   <td data-column="position" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{contact.position ?? '—'}</td>
-                  <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{contact.active ? 'False' : 'True'}</td>
+                  <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{contact.active ? 'No' : 'Yes'}</td>
                   <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(contact.createdAt).toLocaleDateString()}</td>
                   <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(contact.updatedAt).toLocaleDateString()}</td>
                   <td data-column="actions" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -190,8 +190,8 @@ export default async function ContactsPage({
                             value: String(!contact.active),
                             type: 'select',
                             options: [
-                              { value: 'false', label: 'False' },
-                              { value: 'true', label: 'True' },
+                              { value: 'false', label: 'No' },
+                              { value: 'true', label: 'Yes' },
                             ],
                           },
                         ]}

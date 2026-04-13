@@ -2,10 +2,15 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import DepartmentCustomFieldForm from '@/components/DepartmentCustomFieldForm'
 import {
   DepartmentCustomizationConfig,
   DepartmentOptionalFieldKey,
 } from '@/lib/department-customization'
+import {
+  CustomFieldDefinitionSummary,
+  formatCustomFieldValue,
+} from '@/lib/custom-fields'
 
 const FIELD_LABELS: Record<DepartmentOptionalFieldKey, string> = {
   description: 'Description',
@@ -17,6 +22,11 @@ const FIELD_LABELS: Record<DepartmentOptionalFieldKey, string> = {
 type CustomListOption = {
   id: string
   label: string
+}
+
+type CustomListRow = {
+  id: string
+  value: string
 }
 
 type FieldRow = {
@@ -47,20 +57,32 @@ const FIELD_ROWS: FieldRow[] = [
 export default function DepartmentCustomizeForm({
   initialConfig,
   customLists,
+  customListRows,
+  customFields,
   onSuccess,
   onCancel,
 }: {
   initialConfig: DepartmentCustomizationConfig
   customLists: CustomListOption[]
+  customListRows: Record<string, CustomListRow[]>
+  customFields: CustomFieldDefinitionSummary[]
   onSuccess?: () => void
   onCancel?: () => void
 }) {
   const router = useRouter()
   const [config, setConfig] = useState<DepartmentCustomizationConfig>(initialConfig)
+  const [departmentCustomFields, setDepartmentCustomFields] = useState(customFields)
   const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null)
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [customFieldModalOpen, setCustomFieldModalOpen] = useState(false)
+  const [customFieldPrompt, setCustomFieldPrompt] = useState('')
+  const divisionDefaultOptions = useMemo(() => {
+    const listId = config.listBindings.divisionCustomListId
+    if (!listId) return []
+    return (customListRows[listId] ?? []).map((row) => row.value).filter(Boolean)
+  }, [config.listBindings.divisionCustomListId, customListRows])
 
   const orderedRows = useMemo(() => {
     const byKey = new Map(FIELD_ROWS.map((row) => [row.key, row]))
@@ -201,6 +223,63 @@ export default function DepartmentCustomizeForm({
   return (
     <div className="space-y-5">
       <section className="rounded-lg border p-4" style={{ borderColor: 'var(--border-muted)' }}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Department custom fields</h3>
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Custom fields created here are stored in the shared custom field schema and will appear on department create and detail screens.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCustomFieldPrompt('')
+              setCustomFieldModalOpen(true)
+            }}
+            className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-sm font-semibold text-white"
+            style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+          >
+            <span className="mr-1.5 text-lg leading-none">+</span>Custom Field
+          </button>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Field Name</th>
+                <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Field Type</th>
+                <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Field Id</th>
+                <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Required</th>
+                <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Default Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {departmentCustomFields.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-2 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    No custom fields defined yet.
+                  </td>
+                </tr>
+              ) : (
+                departmentCustomFields.map((field) => (
+                  <tr key={field.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                    <td className="px-2 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{field.label}</td>
+                    <td className="px-2 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{field.type}</td>
+                    <td className="px-2 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{field.name}</td>
+                    <td className="px-2 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{field.required ? 'Yes' : 'No'}</td>
+                    <td className="px-2 py-2 text-sm" style={{ color: field.defaultValue ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                      {formatCustomFieldValue(field.type, field.defaultValue) ?? '-'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-lg border p-4" style={{ borderColor: 'var(--border-muted)' }}>
         <h3 className="text-sm font-semibold text-white">Department field customization</h3>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full">
@@ -212,6 +291,7 @@ export default function DepartmentCustomizeForm({
                 <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Show</th>
                 <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Required</th>
                 <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Sourcing (List fields)</th>
+                <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Default Value</th>
                 <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Column Order</th>
                 <th className="px-2 py-2 text-left text-xs uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Drag</th>
               </tr>
@@ -312,11 +392,15 @@ export default function DepartmentCustomizeForm({
                           value={config.listBindings.divisionCustomListId ?? ''}
                           onChange={(event) => {
                             const next = event.target.value.trim()
+                            const nextOptions = next ? (customListRows[next] ?? []).map((row) => row.value).filter(Boolean) : []
                             setConfig((prev) => ({
                               ...prev,
                               listBindings: {
                                 ...prev.listBindings,
                                 divisionCustomListId: next || null,
+                                divisionDefaultValue: nextOptions.includes(prev.listBindings.divisionDefaultValue ?? '')
+                                  ? prev.listBindings.divisionDefaultValue
+                                  : null,
                               },
                             }))
                           }}
@@ -334,6 +418,34 @@ export default function DepartmentCustomizeForm({
                         <span style={{ color: 'var(--text-secondary)' }}>Subsidiaries</span>
                       ) : row.key === 'manager' ? (
                         <span style={{ color: 'var(--text-secondary)' }}>Employees</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>-</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-sm">
+                      {row.key === 'division' && config.listBindings.divisionCustomListId ? (
+                        <select
+                          value={config.listBindings.divisionDefaultValue ?? ''}
+                          onChange={(event) => {
+                            const next = event.target.value.trim()
+                            setConfig((prev) => ({
+                              ...prev,
+                              listBindings: {
+                                ...prev.listBindings,
+                                divisionDefaultValue: next || null,
+                              },
+                            }))
+                          }}
+                          className="w-full rounded-md border bg-transparent px-2 py-1 text-sm text-white"
+                          style={{ borderColor: 'var(--border-muted)' }}
+                        >
+                          <option value="">None</option>
+                          {divisionDefaultOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
                         <span style={{ color: 'var(--text-muted)' }}>-</span>
                       )}
@@ -386,6 +498,52 @@ export default function DepartmentCustomizeForm({
           {saving ? 'Saving...' : 'Save customization'}
         </button>
       </div>
+
+      {customFieldModalOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setCustomFieldPrompt('Use Create field or Cancel to close this window.')
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-2xl rounded-xl border p-6 shadow-2xl"
+            style={{ backgroundColor: 'var(--card-elevated)', borderColor: 'var(--border-muted)' }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-2xl font-semibold text-white">New Department Custom Field</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomFieldPrompt('')
+                  setCustomFieldModalOpen(false)
+                }}
+                className="rounded-md px-2 py-1 text-sm"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Cancel
+              </button>
+            </div>
+            {customFieldPrompt ? <p className="mb-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{customFieldPrompt}</p> : null}
+            <DepartmentCustomFieldForm
+              existingFields={departmentCustomFields}
+              onCancel={() => {
+                setCustomFieldPrompt('')
+                setCustomFieldModalOpen(false)
+              }}
+              onCreated={(field) => {
+                setDepartmentCustomFields((prev) => [...prev, field].sort((a, b) => a.label.localeCompare(b.label)))
+                setCustomFieldPrompt('')
+                setCustomFieldModalOpen(false)
+                router.refresh()
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

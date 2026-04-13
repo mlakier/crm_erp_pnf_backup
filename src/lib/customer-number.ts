@@ -10,20 +10,20 @@ export function formatCustomerNumber(sequence: number) {
 export async function generateNextCustomerNumber() {
   const latestCustomer = await prisma.customer.findFirst({
     where: {
-      customerNumber: {
+      customerId: {
         not: null,
       },
     },
     orderBy: {
-      customerNumber: 'desc',
+      customerId: 'desc',
     },
     select: {
-      customerNumber: true,
+      customerId: true,
     },
   })
 
-  const latestSequence = latestCustomer?.customerNumber
-    ? Number.parseInt(latestCustomer.customerNumber.replace(CUSTOMER_NUMBER_PREFIX, ''), 10)
+  const latestSequence = latestCustomer?.customerId
+    ? Number.parseInt(latestCustomer.customerId.replace(CUSTOMER_NUMBER_PREFIX, ''), 10)
     : 0
 
   return formatCustomerNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)

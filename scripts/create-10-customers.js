@@ -21,16 +21,16 @@ function formatCustomerNumber(sequence) {
 
 async function getStartingSequence() {
   const latest = await prisma.customer.findFirst({
-    where: { customerNumber: { not: null } },
-    orderBy: { customerNumber: 'desc' },
-    select: { customerNumber: true },
+    where: { customerId: { not: null } },
+    orderBy: { customerId: 'desc' },
+    select: { customerId: true },
   })
 
-  if (!latest || !latest.customerNumber) {
+  if (!latest || !latest.customerId) {
     return 1
   }
 
-  const parsed = Number.parseInt(latest.customerNumber.replace('CUST-', ''), 10)
+  const parsed = Number.parseInt(latest.customerId.replace('CUST-', ''), 10)
   return Number.isNaN(parsed) ? 1 : parsed + 1
 }
 
@@ -50,7 +50,7 @@ async function main() {
   for (const customer of sampleCustomers) {
     const record = await prisma.customer.create({
       data: {
-        customerNumber: formatCustomerNumber(sequence),
+        customerId: formatCustomerNumber(sequence),
         name: customer.name,
         email: customer.email,
         phone: customer.phone,
@@ -65,12 +65,12 @@ async function main() {
         entityType: 'customer',
         entityId: record.id,
         action: 'create',
-        summary: `Created customer ${record.customerNumber} ${record.name}`,
+        summary: `Created customer ${record.customerId} ${record.name}`,
         userId: owner.id,
       },
     })
 
-    created.push({ id: record.id, customerNumber: record.customerNumber, name: record.name })
+    created.push({ id: record.id, customerId: record.customerId, name: record.name })
     sequence += 1
   }
 

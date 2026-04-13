@@ -4,7 +4,7 @@ const prisma = new PrismaClient()
 
 ;(async () => {
   const [customers, vendors] = await Promise.all([
-    prisma.customer.findMany({ select: { id: true, customerNumber: true, name: true, address: true } }),
+    prisma.customer.findMany({ select: { id: true, customerId: true, name: true, address: true } }),
     prisma.vendor.findMany({ select: { id: true, vendorNumber: true, name: true, address: true } }),
   ])
 

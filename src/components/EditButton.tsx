@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { isValidEmail } from '@/lib/validation'
 
@@ -8,7 +9,7 @@ export interface EditField {
   name: string
   label: string
   value: string
-  type?: 'text' | 'number' | 'date' | 'email' | 'select'
+  type?: 'text' | 'number' | 'date' | 'email' | 'select' | 'checkbox'
   options?: Array<{ value: string; label: string }>
   placeholder?: string
 }
@@ -29,7 +30,10 @@ export default function EditButton({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [dismissPrompt, setDismissPrompt] = useState('')
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
+
+  useEffect(() => { setMounted(true) }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -92,9 +96,9 @@ export default function EditButton({
       >
         Edit
       </button>
-      {open && (
+      {open && mounted && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setDismissPrompt('Use Save changes to keep updates or Cancel to discard.')
@@ -102,7 +106,7 @@ export default function EditButton({
           }}
         >
           <div
-            className="w-full max-w-md rounded-xl border p-6 shadow-xl"
+            className="relative w-full max-w-md rounded-xl border p-6 shadow-xl"
             style={{ backgroundColor: 'var(--card-elevated)', borderColor: 'var(--border-muted)' }}
           >
             <h3 className="mb-4 text-base font-semibold text-white">Edit record</h3>
@@ -111,7 +115,20 @@ export default function EditButton({
               {fields.map((f) => (
                 <div key={f.name}>
                   <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{f.label}</label>
-                  {f.type === 'select' ? (
+                  {f.type === 'checkbox' ? (
+                    <div className="mt-1 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`field-${f.name}`}
+                        checked={values[f.name] === 'true'}
+                        onChange={(e) =>
+                          setValues((prev) => ({ ...prev, [f.name]: e.target.checked ? 'true' : 'false' }))
+                        }
+                        className="h-4 w-4 rounded"
+                      />
+                      <label htmlFor={`field-${f.name}`} className="text-sm text-white">{f.placeholder ?? f.label}</label>
+                    </div>
+                  ) : f.type === 'select' ? (
                     <select
                       value={values[f.name]}
                       onChange={(e) =>
@@ -170,7 +187,8 @@ export default function EditButton({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

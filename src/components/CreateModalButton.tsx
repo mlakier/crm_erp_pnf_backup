@@ -1,6 +1,7 @@
 'use client'
 
-import { cloneElement, isValidElement, ReactElement, useMemo, useState } from 'react'
+import { cloneElement, isValidElement, ReactElement, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
 
 type CreateModalButtonProps = {
@@ -22,6 +23,9 @@ export default function CreateModalButton({
 }: CreateModalButtonProps) {
   const [open, setOpen] = useState(false)
   const [dismissPrompt, setDismissPrompt] = useState('')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   const close = () => {
     setDismissPrompt('')
@@ -49,9 +53,9 @@ export default function CreateModalButton({
         <span className="mr-1.5 text-lg leading-none">+</span>{buttonLabel}
       </button>
 
-      {open ? (
+      {open && mounted ? createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               setDismissPrompt('Use Save or Cancel in the form to close this window.')
@@ -59,7 +63,7 @@ export default function CreateModalButton({
           }}
         >
           <div
-            className={`w-full ${modalWidthClassName ?? 'max-w-2xl'} rounded-xl border p-6 shadow-2xl`}
+            className={`relative w-full ${modalWidthClassName ?? 'max-w-2xl'} rounded-xl border p-6 shadow-2xl`}
             style={{ backgroundColor: 'var(--card-elevated)', borderColor: 'var(--border-muted)' }}
             onClick={(event) => event.stopPropagation()}
           >
@@ -77,7 +81,8 @@ export default function CreateModalButton({
             {dismissPrompt ? <p className="mb-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{dismissPrompt}</p> : null}
             {content}
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </>
   )

@@ -21,7 +21,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     include: {
       entity: true,
       currency: true,
-      customer: { select: { id: true, name: true, customerNumber: true } },
+      customer: { select: { id: true, name: true, customerId: true } },
       contact: { select: { id: true, firstName: true, lastName: true, contactNumber: true } },
       opportunity: { select: { id: true, name: true, opportunityNumber: true } },
     },
@@ -114,7 +114,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <RelatedLink
               label="Customer"
               href={lead.customer ? `/customers/${lead.customer.id}` : null}
-              value={lead.customer ? `${lead.customer.customerNumber ?? 'Pending'} ${lead.customer.name}` : '—'}
+              value={lead.customer ? `${lead.customer.customerId ?? 'Pending'} ${lead.customer.name}` : '—'}
             />
             <RelatedLink
               label="Contact"

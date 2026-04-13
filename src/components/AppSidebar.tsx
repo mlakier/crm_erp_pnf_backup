@@ -40,6 +40,7 @@ const NAV: NavGroup[] = [
       { label: 'Subsidiaries', href: '/subsidiaries' },
       { label: 'Currencies', href: '/currencies' },
       { label: 'Items', href: '/items' },
+      { label: 'Chart of Accounts', href: '/chart-of-accounts' },
       { label: 'Departments', href: '/departments' },
       { label: 'Employees', href: '/employees' },
       { label: 'Lists', href: '/lists' },

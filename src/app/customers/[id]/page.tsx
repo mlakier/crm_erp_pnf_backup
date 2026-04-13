@@ -48,10 +48,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             <Link href="/customers" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to CRM
             </Link>
-            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{customer.customerNumber ?? 'Pending'}</p>
+            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{customer.customerId ?? 'Pending'}</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">{customer.name}</h1>
             {customer.industry && (
-              <span className="mt-1 inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
+              <span className="mt-2 inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
                 {customer.industry}
               </span>
             )}
@@ -110,6 +110,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     label: `${currency.code} - ${currency.name}`,
                   })),
                 },
+                { name: 'inactive', label: 'Inactive', value: String(customer.inactive), type: 'checkbox' },
               ]}
             />
             <DeleteButton resource="customers" id={customer.id} />
@@ -127,12 +128,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Customer details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Customer #" value={customer.customerNumber} />
+            <Field label="Customer Id" value={customer.customerId} />
             <Field label="Email" value={customer.email} />
             <Field label="Phone" value={fmtPhone(customer.phone)} />
             <Field label="Billing Address" value={customer.address} />
             <Field label="Primary Subsidiary" value={customer.entity ? `${customer.entity.code} - ${customer.entity.name}` : null} />
             <Field label="Primary Currency" value={customer.currency?.code ?? null} />
+            <Field label="Inactive" value={customer.inactive ? 'Yes' : 'No'} />
             <Field label="Customer since" value={new Date(customer.createdAt).toLocaleDateString()} />
           </dl>
         </div>

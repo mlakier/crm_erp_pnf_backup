@@ -13,6 +13,10 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadDepartmentCustomization } from '@/lib/department-customization-store'
 import { loadCustomListState } from '@/lib/custom-list-store'
+import {
+  CUSTOM_FIELD_TYPES,
+  CustomFieldDefinitionSummary,
+} from '@/lib/custom-fields'
 
 const COLS = [
   { id: 'code', label: 'Code' },
@@ -21,7 +25,7 @@ const COLS = [
   { id: 'division', label: 'Division' },
   { id: 'subsidiary', label: 'Subsidiary' },
   { id: 'manager', label: 'Manager' },
-  { id: 'status', label: 'Status' },
+  { id: 'status', label: 'Inactive' },
   { id: 'created', label: 'Created' },
   { id: 'last-modified', label: 'Last Modified' },
   { id: 'actions', label: 'Actions', locked: true },
@@ -34,7 +38,7 @@ const COLUMN_LABELS: Record<string, string> = {
   division: 'Division',
   subsidiary: 'Subsidiary',
   manager: 'Manager',
-  status: 'Status',
+  status: 'Inactive',
   created: 'Created',
   'last-modified': 'Last Modified',
   actions: 'Actions',
@@ -55,7 +59,7 @@ export default async function DepartmentsPage({
   const total = await prisma.department.count({ where })
   const pagination = getPagination(total, params.page)
 
-  const [departments, managers, subsidiaries, companySettings, cabinetFiles, customization, customListState] = await Promise.all([
+  const [departments, managers, subsidiaries, companySettings, cabinetFiles, customization, customListState, customFields] = await Promise.all([
     prisma.department.findMany({ where, include: { entity: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }], skip: pagination.skip, take: pagination.pageSize }),
     prisma.employee.findMany({
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
@@ -66,6 +70,11 @@ export default async function DepartmentsPage({
     loadCompanyCabinetFiles(),
     loadDepartmentCustomization(),
     loadCustomListState(),
+    prisma.customFieldDefinition.findMany({
+      where: { entityType: 'department', active: true },
+      orderBy: [{ label: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, name: true, label: true, type: true, required: true, defaultValue: true, options: true, entityType: true },
+    }),
   ])
 
   const configuredColumnOrder = Array.isArray(customization.columnOrder) ? customization.columnOrder : []
@@ -94,6 +103,14 @@ export default async function DepartmentsPage({
   const divisionRows = divisionCustomListId ? customListState.customRows[divisionCustomListId] ?? [] : []
   const divisionOptions = divisionRows.map((row) => row.value)
   const customListOptions = customListState.customLists.map((list) => ({ id: list.id, label: list.label }))
+  const normalizedCustomFields: CustomFieldDefinitionSummary[] = customFields.flatMap((field) => (
+    CUSTOM_FIELD_TYPES.includes(field.type as (typeof CUSTOM_FIELD_TYPES)[number])
+      ? [{
+          ...field,
+          type: field.type as CustomFieldDefinitionSummary['type'],
+        }]
+      : []
+  ))
 
   const managerById = new Map(
     managers.map((manager) => [manager.id, `${manager.firstName} ${manager.lastName}${manager.employeeNumber ? ` (${manager.employeeNumber})` : ''}`])
@@ -130,10 +147,10 @@ export default async function DepartmentsPage({
         </div>
         <div className="flex items-center gap-2">
           <CreateModalButton buttonLabel="Customize" title="Customize Departments" buttonClassName="!text-sm" buttonStyle={{ backgroundColor: 'transparent', border: '1px solid var(--border-muted)' }} modalWidthClassName="max-w-6xl">
-            <DepartmentCustomizeForm initialConfig={customization} customLists={customListOptions} />
+            <DepartmentCustomizeForm initialConfig={customization} customLists={customListOptions} customListRows={customListState.customRows} customFields={normalizedCustomFields} />
           </CreateModalButton>
           <CreateModalButton buttonLabel="New Department" title="New Department">
-            <DepartmentCreateForm managers={managers} subsidiaries={subsidiaries} customization={customization} divisionOptions={divisionOptions} />
+            <DepartmentCreateForm managers={managers} subsidiaries={subsidiaries} customization={customization} divisionOptions={divisionOptions} customFields={normalizedCustomFields} />
           </CreateModalButton>
         </div>
       </div>
@@ -209,7 +226,7 @@ export default async function DepartmentsPage({
                       }
 
                       if (columnId === 'status') {
-                        return <td key={`${department.id}-${columnId}`} data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{department.active ? 'Active' : 'Inactive'}</td>
+                        return <td key={`${department.id}-${columnId}`} data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{department.active ? 'No' : 'Yes'}</td>
                       }
 
                       if (columnId === 'created') {
@@ -265,8 +282,8 @@ export default async function DepartmentsPage({
                           value: String(!department.active),
                           type: 'select' as const,
                           options: [
-                            { value: 'false', label: 'False' },
-                            { value: 'true', label: 'True' },
+                            { value: 'false', label: 'No' },
+                            { value: 'true', label: 'Yes' },
                           ],
                         },
                       ]

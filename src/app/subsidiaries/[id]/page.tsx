@@ -6,17 +6,24 @@ import DeleteButton from '@/components/DeleteButton'
 
 export default async function SubsidiaryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [entity, currencies] = await Promise.all([
+  const [entity, currencies, parentEntities] = await Promise.all([
     prisma.entity.findUnique({
       where: { id },
       include: {
         defaultCurrency: true,
+        parentEntity: true,
+        childEntities: { orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } },
         employees: { orderBy: { lastName: 'asc' }, select: { id: true, firstName: true, lastName: true, title: true, email: true } },
-        customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerNumber: true } },
+        customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerId: true } },
         vendors: { orderBy: { name: 'asc' }, select: { id: true, name: true, vendorNumber: true } },
       },
     }),
     prisma.currency.findMany({
+      orderBy: { code: 'asc' },
+      select: { id: true, code: true, name: true },
+    }),
+    prisma.entity.findMany({
+      where: { NOT: { id } },
       orderBy: { code: 'asc' },
       select: { id: true, code: true, name: true },
     }),
@@ -49,6 +56,14 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
               fields={[
                 { name: 'code', label: 'Code', value: entity.code },
                 { name: 'name', label: 'Name', value: entity.name },
+                {
+                  name: 'parentEntityId',
+                  label: 'Parent Subsidiary',
+                  value: entity.parentEntityId ?? '',
+                  type: 'select',
+                  placeholder: 'Select parent subsidiary',
+                  options: parentEntities.map((candidate) => ({ value: candidate.id, label: `${candidate.code} - ${candidate.name}` })),
+                },
                 { name: 'legalName', label: 'Legal Name', value: entity.legalName ?? '' },
                 { name: 'entityType', label: 'Type', value: entity.entityType ?? '' },
                 { name: 'taxId', label: 'Tax ID', value: entity.taxId ?? '' },
@@ -70,8 +85,8 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
                   value: String(!entity.active),
                   type: 'select',
                   options: [
-                    { value: 'false', label: 'False' },
-                    { value: 'true', label: 'True' },
+                    { value: 'false', label: 'No' },
+                    { value: 'true', label: 'Yes' },
                   ],
                 },
               ]}
@@ -93,6 +108,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
           <dl className="grid gap-3 sm:grid-cols-2">
             <Field label="Code" value={entity.code} />
             <Field label="Name" value={entity.name} />
+            <Field label="Parent Subsidiary" value={entity.parentEntity ? `${entity.parentEntity.code} – ${entity.parentEntity.name}` : null} />
             <Field label="Legal Name" value={entity.legalName} />
             <Field label="Type" value={entity.entityType} />
             <Field label="Tax ID" value={entity.taxId} />
@@ -102,6 +118,33 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
             <Field label="Created" value={new Date(entity.createdAt).toLocaleDateString()} />
           </dl>
         </div>
+
+        <Section title="Child Subsidiaries" count={entity.childEntities.length}>
+          {entity.childEntities.length === 0 ? (
+            <EmptyRow message="No child subsidiaries" />
+          ) : (
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <Th>Code</Th>
+                  <Th>Name</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {entity.childEntities.map((child) => (
+                  <tr key={child.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                    <Td>
+                      <Link href={`/subsidiaries/${child.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+                        {child.code}
+                      </Link>
+                    </Td>
+                    <Td>{child.name}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Section>
 
         {/* Employees */}
         <Section title="Employees" count={entity.employees.length}>
@@ -150,7 +193,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
                   <tr key={c.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <Td>
                       <Link href={`/customers/${c.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {c.customerNumber ?? 'Pending'}
+                        {c.customerId ?? 'Pending'}
                       </Link>
                     </Td>
                     <Td>{c.name}</Td>

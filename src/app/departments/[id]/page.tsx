@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import EditButton from '@/components/EditButton'
 import DeleteButton from '@/components/DeleteButton'
+import { formatCustomFieldValue } from '@/lib/custom-fields'
 
 export default async function DepartmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [department, managers, subsidiaries] = await Promise.all([
+  const [department, managers, subsidiaries, customFields, customFieldValues] = await Promise.all([
     prisma.department.findUnique({
       where: { id },
       include: {
@@ -20,11 +21,21 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
       select: { id: true, firstName: true, lastName: true, employeeNumber: true },
     }),
     prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.customFieldDefinition.findMany({
+      where: { entityType: 'department', active: true },
+      orderBy: [{ label: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, label: true, type: true, defaultValue: true },
+    }),
+    prisma.customFieldValue.findMany({
+      where: { entityType: 'department', recordId: id },
+      select: { fieldId: true, value: true },
+    }),
   ])
 
   if (!department) notFound()
 
   const selectedManager = managers.find((manager) => manager.id === department.managerId)
+  const customFieldValueMap = new Map(customFieldValues.map((entry) => [entry.fieldId, entry.value]))
 
   return (
     <div className="min-h-full px-8 py-8">
@@ -71,8 +82,8 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
                   value: String(!department.active),
                   type: 'select',
                   options: [
-                    { value: 'false', label: 'False' },
-                    { value: 'true', label: 'True' },
+                    { value: 'false', label: 'No' },
+                    { value: 'true', label: 'Yes' },
                   ],
                 },
               ]}
@@ -90,9 +101,16 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
             <Field label="Division" value={department.division} />
             <Field label="Subsidiary" value={department.entity ? `${department.entity.code} - ${department.entity.name}` : null} />
             <Field label="Manager" value={selectedManager ? `${selectedManager.firstName} ${selectedManager.lastName}${selectedManager.employeeNumber ? ` (${selectedManager.employeeNumber})` : ''}` : null} />
-            <Field label="Active" value={department.active ? 'Yes' : 'No'} />
+            <Field label="Inactive" value={department.active ? 'No' : 'Yes'} />
             <Field label="Created" value={new Date(department.createdAt).toLocaleDateString()} />
             <Field label="Last Modified" value={new Date(department.updatedAt).toLocaleDateString()} />
+            {customFields.map((field) => (
+              <Field
+                key={field.id}
+                label={field.label}
+                value={formatCustomFieldValue(field.type as 'text' | 'textarea' | 'number' | 'date' | 'select' | 'checkbox', customFieldValueMap.get(field.id) ?? field.defaultValue)}
+              />
+            ))}
           </dl>
         </div>
 

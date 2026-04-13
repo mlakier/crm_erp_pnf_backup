@@ -18,6 +18,7 @@ const COLS = [
   { id: 'title', label: 'Title' },
   { id: 'department', label: 'Department' },
   { id: 'subsidiary', label: 'Subsidiary' },
+  { id: 'inactive', label: 'Inactive' },
   { id: 'created', label: 'Created' },
   { id: 'last-modified', label: 'Last Modified' },
   { id: 'actions', label: 'Actions', locked: true },
@@ -110,6 +111,7 @@ export default async function EmployeesPage({
                 <th data-column="title" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Title</th>
                 <th data-column="department" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Department</th>
                 <th data-column="subsidiary" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Subsidiary</th>
+                <th data-column="inactive" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Inactive</th>
                 <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
                 <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
                 <th data-column="actions" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
@@ -131,6 +133,7 @@ export default async function EmployeesPage({
                     <td data-column="title" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.title ?? '—'}</td>
                     <td data-column="department" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.departmentRef?.code ?? employee.department ?? '—'}</td>
                     <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.entity?.code ?? '—'}</td>
+                    <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.active ? 'No' : 'Yes'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(employee.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(employee.updatedAt).toLocaleDateString()}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
