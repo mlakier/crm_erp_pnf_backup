@@ -10,20 +10,20 @@ export function formatEntityCode(sequence: number) {
 export async function generateNextEntityCode() {
   const latestEntity = await prisma.entity.findFirst({
     where: {
-      code: {
+      subsidiaryId: {
         startsWith: ENTITY_CODE_PREFIX,
       },
     },
     orderBy: {
-      code: 'desc',
+      subsidiaryId: 'desc',
     },
     select: {
-      code: true,
+      subsidiaryId: true,
     },
   })
 
-  const latestSequence = latestEntity?.code
-    ? Number.parseInt(latestEntity.code.replace(ENTITY_CODE_PREFIX, ''), 10)
+  const latestSequence = latestEntity?.subsidiaryId
+    ? Number.parseInt(latestEntity.subsidiaryId.replace(ENTITY_CODE_PREFIX, ''), 10)
     : 0
 
   return formatEntityCode(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)

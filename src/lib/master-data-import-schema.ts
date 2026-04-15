@@ -60,7 +60,7 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
   'chart-of-accounts': {
     label: 'Chart of Accounts',
     fields: [
-      { key: 'accountNumber', required: true },
+      { key: 'accountId', required: true },
       { key: 'name', required: true },
       { key: 'accountType', required: true },
       { key: 'description', required: false },
@@ -81,12 +81,12 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
   departments: {
     label: 'Departments',
     fields: [
-      { key: 'code', required: true },
+      { key: 'departmentId', required: true },
       { key: 'name', required: true },
       { key: 'description', required: false },
       { key: 'division', required: false },
       { key: 'subsidiaryCode', required: false },
-      { key: 'managerEmployeeNumber', required: false },
+      { key: 'managerEmployeeId', required: false },
       { key: 'active', required: false },
     ],
     sampleRows: [
@@ -98,7 +98,7 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
   items: {
     label: 'Items',
     fields: [
-      { key: 'itemNumber', required: false },
+      { key: 'itemId', required: false },
       { key: 'sku', required: false },
       { key: 'name', required: true },
       { key: 'description', required: false },
@@ -118,7 +118,7 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
   employees: {
     label: 'Employees',
     fields: [
-      { key: 'employeeNumber', required: false },
+      { key: 'employeeId', required: false },
       { key: 'firstName', required: true },
       { key: 'lastName', required: true },
       { key: 'email', required: false },
@@ -126,7 +126,7 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
       { key: 'title', required: false },
       { key: 'departmentCode', required: false },
       { key: 'subsidiaryCode', required: false },
-      { key: 'managerEmployeeNumber', required: false },
+      { key: 'managerEmployeeId', required: false },
       { key: 'active', required: false },
     ],
     sampleRows: [

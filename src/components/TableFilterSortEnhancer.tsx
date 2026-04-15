@@ -11,6 +11,75 @@ type TableState = {
 
 const TABLE_STATE = new WeakMap<HTMLTableElement, TableState>()
 
+function setImportantStyles(element: HTMLElement, styles: Record<string, string>) {
+  for (const [property, value] of Object.entries(styles)) {
+    element.style.setProperty(property, value, 'important')
+  }
+}
+
+function getPinnedColumnIds(table: HTMLTableElement): string[] {
+  const headerCells = Array.from(table.tHead?.rows[0]?.cells ?? [])
+  return headerCells
+    .map((cell) => cell.getAttribute('data-column') ?? '')
+    .filter((columnId) => columnId && columnId !== 'actions')
+    .slice(0, 2)
+}
+
+function enforcePinnedColumns(table: HTMLTableElement) {
+  const pinnedColumnIds = getPinnedColumnIds(table)
+  if (pinnedColumnIds.length === 0) return
+
+  let leftOffset = 0
+
+  for (const [index, columnId] of pinnedColumnIds.entries()) {
+    const headerCell = table.tHead?.rows[0]?.querySelector<HTMLTableCellElement>(`th[data-column="${columnId}"]`)
+    if (!headerCell) continue
+
+    const measuredWidth = Math.ceil(headerCell.getBoundingClientRect().width)
+    const fallbackWidth = index === 0 ? 120 : 180
+    const columnWidth = Math.max(measuredWidth, fallbackWidth)
+    const left = `${leftOffset}px`
+
+    setImportantStyles(headerCell, {
+      display: 'table-cell',
+      visibility: 'visible',
+      position: 'sticky',
+      left,
+      'z-index': '20',
+      'min-width': `${columnWidth}px`,
+      'background-color': 'var(--card)',
+    })
+
+    const filterCell = table.tHead?.querySelector<HTMLTableCellElement>(`tr[data-filter-row] th[data-column="${columnId}"]`)
+    if (filterCell) {
+      setImportantStyles(filterCell, {
+        display: 'table-cell',
+        visibility: 'visible',
+        position: 'sticky',
+        left,
+        'z-index': '20',
+        'min-width': `${columnWidth}px`,
+        'background-color': 'var(--card)',
+      })
+    }
+
+    const dataCells = table.querySelectorAll<HTMLTableCellElement>(`td[data-column="${columnId}"]`)
+    for (const cell of dataCells) {
+      setImportantStyles(cell, {
+        display: 'table-cell',
+        visibility: 'visible',
+        position: 'sticky',
+        left,
+        'z-index': '10',
+        'min-width': `${columnWidth}px`,
+        'background-color': 'var(--card)',
+      })
+    }
+
+    leftOffset += columnWidth
+  }
+}
+
 function parseComparable(value: string): number | string {
   const trimmed = value.trim()
   if (!trimmed) return ''
@@ -81,10 +150,15 @@ function applyTableState(table: HTMLTableElement) {
   for (const row of visibleRows) {
     tbody.appendChild(row)
   }
+
+  enforcePinnedColumns(table)
 }
 
 function enhanceTable(table: HTMLTableElement) {
-  if (table.dataset.filterSortEnhanced === 'true') return
+  if (table.dataset.filterSortEnhanced === 'true') {
+    enforcePinnedColumns(table)
+    return
+  }
 
   const header = table.tHead
   const body = table.tBodies[0]
@@ -167,6 +241,7 @@ function enhanceTable(table: HTMLTableElement) {
 
   header.appendChild(filterRow)
   table.dataset.filterSortEnhanced = 'true'
+  enforcePinnedColumns(table)
   applyTableState(table)
 }
 

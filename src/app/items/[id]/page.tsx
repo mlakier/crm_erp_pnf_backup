@@ -20,8 +20,8 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         },
       },
     }),
-    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
     loadListOptions(),
   ])
 
@@ -37,7 +37,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             <Link href="/items" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to Items
             </Link>
-            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{item.itemNumber ?? 'No item #'}</p>
+            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{item.itemId ?? 'No Item Id'}</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">{item.name}</h1>
             {item.itemType && (
               <span className="mt-1 inline-block rounded-full px-3 py-0.5 text-sm capitalize" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
@@ -51,7 +51,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
               id={item.id}
               fields={[
                 { name: 'name', label: 'Name', value: item.name },
-                { name: 'itemNumber', label: 'Item #', value: item.itemNumber ?? '' },
+                { name: 'itemId', label: 'Item Id', value: item.itemId ?? '' },
                 { name: 'sku', label: 'SKU', value: item.sku ?? '' },
                 {
                   name: 'itemType',
@@ -63,8 +63,8 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                 },
                 { name: 'uom', label: 'UOM', value: item.uom ?? '' },
                 { name: 'listPrice', label: 'List Price', value: String(item.listPrice), type: 'number' },
-                { name: 'currencyId', label: 'Currency', value: item.currencyId ?? '', type: 'select', placeholder: 'Select currency', options: currencies.map((c) => ({ value: c.id, label: `${c.code} – ${c.name}` })) },
-                { name: 'entityId', label: 'Subsidiary', value: item.entityId ?? '', type: 'select', placeholder: 'Select subsidiary', options: subsidiaries.map((s) => ({ value: s.id, label: `${s.code} – ${s.name}` })) },
+                { name: 'currencyId', label: 'Currency', value: item.currencyId ?? '', type: 'select', placeholder: 'Select currency', options: currencies.map((c) => ({ value: c.id, label: `${c.currencyId} – ${c.name}` })) },
+                { name: 'entityId', label: 'Subsidiary', value: item.entityId ?? '', type: 'select', placeholder: 'Select subsidiary', options: subsidiaries.map((s) => ({ value: s.id, label: `${s.subsidiaryId} – ${s.name}` })) },
                 { name: 'description', label: 'Description', value: item.description ?? '' },
                 { name: 'inactive', label: 'Inactive', value: String(!item.active), type: 'select', options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }] },
               ]}
@@ -75,7 +75,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-3 mb-8">
-          <StatCard label="List Price" value={`${item.currency?.code ?? ''} ${item.listPrice.toFixed(2)}`} accent />
+          <StatCard label="List Price" value={`${item.currency?.currencyId ?? ''} ${item.listPrice.toFixed(2)}`} accent />
           <StatCard label="PO Lines" value={item.purchaseOrderLineItems.length} />
           <StatCard label="Active" value={item.active ? 'Yes' : 'No'} />
         </div>
@@ -84,14 +84,14 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Item details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Item #" value={item.itemNumber} />
+            <Field label="Item Id" value={item.itemId} />
             <Field label="SKU" value={item.sku} />
             <Field label="Name" value={item.name} />
             <Field label="Type" value={item.itemType} />
             <Field label="Unit of Measure" value={item.uom} />
             <Field label="List Price" value={item.listPrice.toFixed(2)} />
-            <Field label="Currency" value={item.currency ? `${item.currency.code} – ${item.currency.name}` : null} />
-            <Field label="Subsidiary" value={item.entity ? `${item.entity.code} – ${item.entity.name}` : null} />
+            <Field label="Currency" value={item.currency ? `${item.currency.currencyId} – ${item.currency.name}` : null} />
+            <Field label="Subsidiary" value={item.entity ? `${item.entity.subsidiaryId} – ${item.entity.name}` : null} />
             <Field label="Description" value={item.description} />
             <Field label="Created" value={new Date(item.createdAt).toLocaleDateString()} />
           </dl>

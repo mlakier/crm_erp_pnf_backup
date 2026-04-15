@@ -8,7 +8,7 @@ export function formatBillNumber(sequence: number) {
 }
 
 export async function generateNextBillNumber() {
-  const latestBills = await prisma.aPInvoice.findMany({
+  const latestBills = await prisma.bill.findMany({
     orderBy: {
       number: 'desc',
     },

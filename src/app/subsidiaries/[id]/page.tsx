@@ -13,20 +13,20 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
       include: {
         defaultCurrency: true,
         parentEntity: true,
-        childEntities: { orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } },
+        childEntities: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
         employees: { orderBy: { lastName: 'asc' }, select: { id: true, firstName: true, lastName: true, title: true, email: true } },
         customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerId: true } },
         vendors: { orderBy: { name: 'asc' }, select: { id: true, name: true, vendorNumber: true } },
       },
     }),
     prisma.currency.findMany({
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
+      orderBy: { currencyId: 'asc' },
+      select: { id: true, currencyId: true, name: true },
     }),
     prisma.entity.findMany({
       where: { NOT: { id } },
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
+      orderBy: { subsidiaryId: 'asc' },
+      select: { id: true, subsidiaryId: true, name: true },
     }),
   ])
 
@@ -42,7 +42,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
             <Link href="/subsidiaries" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to Subsidiaries
             </Link>
-            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{entity.code}</p>
+            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{entity.subsidiaryId}</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">{entity.name}</h1>
             {entity.entityType && (
               <span className="mt-1 inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
@@ -55,7 +55,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
               resource="entities"
               id={entity.id}
               fields={[
-                { name: 'code', label: 'Code', value: entity.code },
+                { name: 'subsidiaryId', label: 'Subsidiary Id', value: entity.subsidiaryId },
                 { name: 'name', label: 'Name', value: entity.name },
                 {
                   name: 'parentEntityId',
@@ -63,7 +63,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
                   value: entity.parentEntityId ?? '',
                   type: 'select',
                   placeholder: 'Select parent subsidiary',
-                  options: parentEntities.map((candidate) => ({ value: candidate.id, label: `${candidate.code} - ${candidate.name}` })),
+                  options: parentEntities.map((candidate) => ({ value: candidate.id, label: `${candidate.subsidiaryId} - ${candidate.name}` })),
                 },
                 {
                   name: 'country',
@@ -89,7 +89,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
                   placeholder: 'Select currency',
                   options: currencies.map((currency) => ({
                     value: currency.id,
-                    label: `${currency.code} - ${currency.name}`,
+                    label: `${currency.currencyId} - ${currency.name}`,
                   })),
                 },
                 {
@@ -119,16 +119,16 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Subsidiary details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Code" value={entity.code} />
+            <Field label="Subsidiary Id" value={entity.subsidiaryId} />
             <Field label="Name" value={entity.name} />
-            <Field label="Parent Subsidiary" value={entity.parentEntity ? `${entity.parentEntity.code} – ${entity.parentEntity.name}` : null} />
+            <Field label="Parent Subsidiary" value={entity.parentEntity ? `${entity.parentEntity.subsidiaryId} – ${entity.parentEntity.name}` : null} />
             <Field label="Country" value={entity.country} />
             <Field label="Address" value={entity.address} />
             <Field label="Legal Name" value={entity.legalName} />
             <Field label="Type" value={entity.entityType} />
             <Field label="Tax ID" value={entity.taxId} />
             <Field label="Registration #" value={entity.registrationNumber} />
-            <Field label="Default Currency" value={entity.defaultCurrency ? `${entity.defaultCurrency.code} – ${entity.defaultCurrency.name}` : null} />
+            <Field label="Default Currency" value={entity.defaultCurrency ? `${entity.defaultCurrency.currencyId} – ${entity.defaultCurrency.name}` : null} />
             <Field label="Active" value={entity.active ? 'Yes' : 'No'} />
             <Field label="Created" value={new Date(entity.createdAt).toLocaleDateString()} />
           </dl>
@@ -141,7 +141,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
             <table className="min-w-full">
               <thead>
                 <tr>
-                  <Th>Code</Th>
+                  <Th>Subsidiary Id</Th>
                   <Th>Name</Th>
                 </tr>
               </thead>
@@ -150,7 +150,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
                   <tr key={child.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <Td>
                       <Link href={`/subsidiaries/${child.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {child.code}
+                        {child.subsidiaryId}
                       </Link>
                     </Td>
                     <Td>{child.name}</Td>
@@ -227,7 +227,7 @@ export default async function SubsidiaryDetailPage({ params }: { params: Promise
             <table className="min-w-full">
               <thead>
                 <tr>
-                  <Th>Vendor #</Th>
+                  <Th>Vendor Id</Th>
                   <Th>Name</Th>
                 </tr>
               </thead>

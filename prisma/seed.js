@@ -15,18 +15,26 @@ function currencyDisplayName(code) {
 async function main() {
   const passwordHash = await bcrypt.hash('Admin123!', 10)
 
+  // Ensure admin role exists
+  const adminRole = await prisma.role.upsert({
+    where: { roleId: 'ROLE-0001' },
+    update: { name: 'admin' },
+    create: { roleId: 'ROLE-0001', name: 'admin' },
+  })
+
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
     update: {
       name: 'Admin',
       password: passwordHash,
-      role: 'admin',
+      roleId: adminRole.id,
     },
     create: {
       email: 'admin@example.com',
+      userId: 'USER-000001',
       name: 'Admin',
       password: passwordHash,
-      role: 'admin',
+      roleId: adminRole.id,
     },
   })
 
@@ -38,7 +46,7 @@ async function main() {
 
   for (const currency of currencies) {
     await prisma.currency.upsert({
-      where: { code: currency.code },
+      where: { currencyId: currency.code },
       update: {
         name: currencyDisplayName(currency.code),
         symbol: currency.symbol,
@@ -47,7 +55,7 @@ async function main() {
         active: true,
       },
       create: {
-        code: currency.code,
+        currencyId: currency.code,
         name: currencyDisplayName(currency.code),
         symbol: currency.symbol,
         decimals: currency.decimals,
@@ -58,27 +66,27 @@ async function main() {
   }
 
   const currencyRecords = await prisma.currency.findMany({
-    where: { code: { in: currencies.map((currency) => currency.code) } },
+    where: { currencyId: { in: currencies.map((currency) => currency.code) } },
   })
-  const currencyByCode = new Map(currencyRecords.map((currency) => [currency.code, currency]))
+  const currencyByCode = new Map(currencyRecords.map((currency) => [currency.currencyId, currency]))
 
   const subsidiarySeeds = [
     {
-      code: 'SUB-001',
+      subsidiaryId: 'SUB-001',
       name: 'Main Subsidiary',
       legalName: 'Main Subsidiary LLC',
       entityType: 'Corporation',
       defaultCurrencyCode: 'USD',
     },
     {
-      code: 'SUB-002',
+      subsidiaryId: 'SUB-002',
       name: 'Europe Subsidiary',
       legalName: 'Europe Subsidiary GmbH',
       entityType: 'Corporation',
       defaultCurrencyCode: 'EUR',
     },
     {
-      code: 'SUB-003',
+      subsidiaryId: 'SUB-003',
       name: 'UK Subsidiary',
       legalName: 'UK Subsidiary Ltd',
       entityType: 'Corporation',
@@ -88,7 +96,7 @@ async function main() {
 
   for (const subsidiary of subsidiarySeeds) {
     await prisma.entity.upsert({
-      where: { code: subsidiary.code },
+      where: { subsidiaryId: subsidiary.subsidiaryId },
       update: {
         name: subsidiary.name,
         legalName: subsidiary.legalName,
@@ -97,7 +105,7 @@ async function main() {
         active: true,
       },
       create: {
-        code: subsidiary.code,
+        subsidiaryId: subsidiary.subsidiaryId,
         name: subsidiary.name,
         legalName: subsidiary.legalName,
         entityType: subsidiary.entityType,
@@ -108,34 +116,34 @@ async function main() {
   }
 
   const subsidiaryRecords = await prisma.entity.findMany({
-    where: { code: { in: subsidiarySeeds.map((subsidiary) => subsidiary.code) } },
+    where: { subsidiaryId: { in: subsidiarySeeds.map((subsidiary) => subsidiary.subsidiaryId) } },
   })
-  const subsidiaryByCode = new Map(subsidiaryRecords.map((subsidiary) => [subsidiary.code, subsidiary]))
+  const subsidiaryByCode = new Map(subsidiaryRecords.map((subsidiary) => [subsidiary.subsidiaryId, subsidiary]))
 
   const departmentSeeds = [
     {
-      code: 'FIN',
+      departmentId: 'FIN',
       name: 'Finance',
       description: 'Accounting, AP, AR, and treasury operations.',
       division: 'Corporate',
       subsidiaryCode: 'SUB-001',
     },
     {
-      code: 'HR',
+      departmentId: 'HR',
       name: 'Human Resources',
       description: 'Talent acquisition, payroll, and employee operations.',
       division: 'Corporate',
       subsidiaryCode: 'SUB-001',
     },
     {
-      code: 'OPS',
+      departmentId: 'OPS',
       name: 'Operations',
       description: 'Core operations, fulfillment, and process execution.',
       division: 'Operations',
       subsidiaryCode: 'SUB-002',
     },
     {
-      code: 'SALES',
+      departmentId: 'SALES',
       name: 'Sales',
       description: 'Pipeline management and revenue generation.',
       division: 'Commercial',
@@ -145,7 +153,7 @@ async function main() {
 
   for (const department of departmentSeeds) {
     await prisma.department.upsert({
-      where: { code: department.code },
+      where: { departmentId: department.departmentId },
       update: {
         name: department.name,
         description: department.description,
@@ -154,7 +162,7 @@ async function main() {
         active: false,
       },
       create: {
-        code: department.code,
+        departmentId: department.departmentId,
         name: department.name,
         description: department.description,
         division: department.division,
@@ -165,9 +173,9 @@ async function main() {
   }
 
   const departmentRecords = await prisma.department.findMany({
-    where: { code: { in: departmentSeeds.map((department) => department.code) } },
+    where: { departmentId: { in: departmentSeeds.map((department) => department.departmentId) } },
   })
-  const departmentByCode = new Map(departmentRecords.map((department) => [department.code, department]))
+  const departmentByCode = new Map(departmentRecords.map((department) => [department.departmentId, department]))
 
   const employeeSeeds = [
     {
@@ -236,7 +244,7 @@ async function main() {
     await prisma.employee.upsert({
       where: { email: employee.email },
       update: {
-        employeeNumber: employee.employeeNumber,
+        employeeId: employee.employeeNumber,
         firstName: employee.firstName,
         lastName: employee.lastName,
         title: employee.title,
@@ -245,7 +253,7 @@ async function main() {
         active: true,
       },
       create: {
-        employeeNumber: employee.employeeNumber,
+        employeeId: employee.employeeNumber,
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,
@@ -258,9 +266,9 @@ async function main() {
   }
 
   const employeeRecords = await prisma.employee.findMany({
-    where: { employeeNumber: { in: employeeSeeds.map((employee) => employee.employeeNumber) } },
+    where: { employeeId: { in: employeeSeeds.map((employee) => employee.employeeNumber) } },
   })
-  const employeeByNumber = new Map(employeeRecords.map((employee) => [employee.employeeNumber, employee]))
+  const employeeByNumber = new Map(employeeRecords.map((employee) => [employee.employeeId, employee]))
 
   for (const employee of employeeSeeds) {
     if (!employee.managerEmployeeNumber) continue
@@ -282,7 +290,7 @@ async function main() {
 
   for (const [departmentCode, managerEmployeeNumber] of managerAssignments) {
     await prisma.department.update({
-      where: { code: departmentCode },
+      where: { departmentId: departmentCode },
       data: {
         managerId: employeeByNumber.get(managerEmployeeNumber)?.id ?? null,
       },
@@ -475,7 +483,7 @@ async function main() {
 
   const itemSeeds = [
     {
-      itemNumber: 'ITM-0001',
+      itemId: 'ITM-0001',
       sku: 'SKU-0001',
       name: 'Implementation Package',
       description: 'Initial implementation services package',
@@ -486,7 +494,7 @@ async function main() {
       currencyCode: 'USD',
     },
     {
-      itemNumber: 'ITM-0002',
+      itemId: 'ITM-0002',
       sku: 'SKU-0002',
       name: 'Analytics Subscription',
       description: 'Annual analytics platform subscription',
@@ -497,7 +505,7 @@ async function main() {
       currencyCode: 'EUR',
     },
     {
-      itemNumber: 'ITM-0003',
+      itemId: 'ITM-0003',
       sku: 'SKU-0003',
       name: 'Warehouse Scanner',
       description: 'Mobile barcode scanning device',
@@ -508,7 +516,7 @@ async function main() {
       currencyCode: 'GBP',
     },
     {
-      itemNumber: 'ITM-0004',
+      itemId: 'ITM-0004',
       sku: 'SKU-0004',
       name: 'Support Retainer',
       description: 'Monthly support retainer',
@@ -522,7 +530,7 @@ async function main() {
 
   for (const item of itemSeeds) {
     await prisma.item.upsert({
-      where: { itemNumber: item.itemNumber },
+      where: { itemId: item.itemId },
       update: {
         sku: item.sku,
         name: item.name,
@@ -535,7 +543,7 @@ async function main() {
         active: true,
       },
       create: {
-        itemNumber: item.itemNumber,
+        itemId: item.itemId,
         sku: item.sku,
         name: item.name,
         description: item.description,

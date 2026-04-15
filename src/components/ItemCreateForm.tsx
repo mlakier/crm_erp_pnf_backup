@@ -10,14 +10,14 @@ export default function ItemCreateForm({
   onSuccess,
   onCancel,
 }: {
-  entities: Array<{ id: string; code: string; name: string }>
-  currencies: Array<{ id: string; code: string; name: string }>
+  entities: Array<{ id: string; subsidiaryId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; name: string }>
   onSuccess?: () => void
   onCancel?: () => void
 }) {
   const router = useRouter()
   const [name, setName] = useState('')
-  const [itemNumber, setItemNumber] = useState('')
+  const [itemId, setItemId] = useState('')
   const [sku, setSku] = useState('')
   const [itemType, setItemType] = useState('service')
   const [uom, setUom] = useState('')
@@ -36,7 +36,7 @@ export default function ItemCreateForm({
       const response = await fetch('/api/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, itemNumber, sku, itemType, uom, listPrice: Number(listPrice), entityId, currencyId, inactive: false }),
+        body: JSON.stringify({ name, itemId, sku, itemType, uom, listPrice: Number(listPrice), entityId, currencyId, inactive: false }),
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json?.error ?? 'Create failed')
@@ -57,8 +57,8 @@ export default function ItemCreateForm({
           <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
         </label>
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <span>Item Number</span>
-          <input value={itemNumber} onChange={(e) => setItemNumber(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          <span>Item Id</span>
+          <input value={itemId} onChange={(e) => setItemId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
         </label>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -90,14 +90,14 @@ export default function ItemCreateForm({
           <span>Subsidiary</span>
           <select value={entityId} onChange={(e) => setEntityId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             <option value="">None</option>
-            {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.code} - {entity.name}</option>)}
+            {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.subsidiaryId} - {entity.name}</option>)}
           </select>
         </label>
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <span>Currency</span>
           <select value={currencyId} onChange={(e) => setCurrencyId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             <option value="">None</option>
-            {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.code} - {currency.name}</option>)}
+            {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.currencyId} - {currency.name}</option>)}
           </select>
         </label>
       </div>

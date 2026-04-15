@@ -42,7 +42,7 @@ export default async function PurchaseRequisitionDetailPage({
   const departments = await prisma.department.findMany({
     where: { active: true },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, code: true },
+    select: { id: true, name: true, departmentId: true },
   })
 
   const lineCount = req.lineItems.length
@@ -109,7 +109,7 @@ export default async function PurchaseRequisitionDetailPage({
                   value: req.departmentId ?? '',
                   type: 'select',
                   placeholder: 'None',
-                  options: departments.map((d) => ({ value: d.id, label: `${d.code} – ${d.name}` })),
+                  options: departments.map((d) => ({ value: d.id, label: `${d.departmentId} – ${d.name}` })),
                 },
                 { name: 'neededByDate', label: 'Needed By', value: req.neededByDate ? new Date(req.neededByDate).toISOString().split('T')[0] : '', type: 'date' },
                 { name: 'notes', label: 'Notes', value: req.notes ?? '' },
@@ -139,10 +139,10 @@ export default async function PurchaseRequisitionDetailPage({
             <Field label="Status" value={req.status} />
             <Field label="Priority" value={req.priority} />
             <Field label="Needed by" value={req.neededByDate ? new Date(req.neededByDate).toLocaleDateString() : undefined} />
-            <Field label="Department" value={req.department ? `${req.department.code} – ${req.department.name}` : undefined} />
+            <Field label="Department" value={req.department ? `${req.department.departmentId} – ${req.department.name}` : undefined} />
             <Field label="Preferred vendor" value={req.vendor?.name} />
-            <Field label="Subsidiary" value={req.entity ? `${req.entity.code} – ${req.entity.name}` : undefined} />
-            <Field label="Currency" value={req.currency ? `${req.currency.code} – ${req.currency.name}` : undefined} />
+            <Field label="Subsidiary" value={req.entity ? `${req.entity.subsidiaryId} – ${req.entity.name}` : undefined} />
+            <Field label="Currency" value={req.currency ? `${req.currency.currencyId} – ${req.currency.name}` : undefined} />
             <Field label="Total" value={fmtCurrency(req.total)} />
             <Field label="Created" value={new Date(req.createdAt).toLocaleDateString()} />
             <Field label="Last modified" value={new Date(req.updatedAt).toLocaleDateString()} />

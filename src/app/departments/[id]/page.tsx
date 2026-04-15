@@ -13,14 +13,14 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
       where: { id },
       include: {
         entity: true,
-        employees: { orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }], select: { id: true, firstName: true, lastName: true, employeeNumber: true, title: true } },
+        employees: { orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }], select: { id: true, firstName: true, lastName: true, employeeId: true, title: true } },
       },
     }),
     prisma.employee.findMany({
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-      select: { id: true, firstName: true, lastName: true, employeeNumber: true },
+      select: { id: true, firstName: true, lastName: true, employeeId: true },
     }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
     prisma.customFieldDefinition.findMany({
       where: { entityType: 'department', active: true },
       orderBy: [{ label: 'asc' }, { createdAt: 'asc' }],
@@ -45,7 +45,7 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
             <Link href="/departments" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to Departments
             </Link>
-            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{department.code}</p>
+            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{department.departmentId}</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">{department.name}</h1>
             <span className="mt-1 inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
               {department.active ? 'Active' : 'Inactive'}
@@ -56,7 +56,7 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
               resource="departments"
               id={department.id}
               fields={[
-                { name: 'code', label: 'Code', value: department.code },
+                { name: 'departmentId', label: 'Department Id', value: department.departmentId },
                 { name: 'name', label: 'Name', value: department.name },
                 { name: 'description', label: 'Description', value: department.description ?? '' },
                 { name: 'division', label: 'Division', value: department.division ?? '' },
@@ -66,7 +66,7 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
                   value: department.entityId ?? '',
                   type: 'select',
                   placeholder: 'Select subsidiary',
-                  options: subsidiaries.map((subsidiary) => ({ value: subsidiary.id, label: `${subsidiary.code} - ${subsidiary.name}` })),
+                  options: subsidiaries.map((subsidiary) => ({ value: subsidiary.id, label: `${subsidiary.subsidiaryId} - ${subsidiary.name}` })),
                 },
                 {
                   name: 'managerId',
@@ -74,7 +74,7 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
                   value: department.managerId ?? '',
                   type: 'select',
                   placeholder: 'Select manager',
-                  options: managers.map((m) => ({ value: m.id, label: `${m.firstName} ${m.lastName}${m.employeeNumber ? ` (${m.employeeNumber})` : ''}` })),
+                  options: managers.map((m) => ({ value: m.id, label: `${m.firstName} ${m.lastName}${m.employeeId ? ` (${m.employeeId})` : ''}` })),
                 },
                 {
                   name: 'inactive',
@@ -95,12 +95,12 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Department details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Code" value={department.code} />
+            <Field label="Department Id" value={department.departmentId} />
             <Field label="Name" value={department.name} />
             <Field label="Description" value={department.description} />
             <Field label="Division" value={department.division} />
-            <Field label="Subsidiary" value={department.entity ? `${department.entity.code} - ${department.entity.name}` : null} />
-            <Field label="Manager" value={selectedManager ? `${selectedManager.firstName} ${selectedManager.lastName}${selectedManager.employeeNumber ? ` (${selectedManager.employeeNumber})` : ''}` : null} />
+            <Field label="Subsidiary" value={department.entity ? `${department.entity.subsidiaryId} - ${department.entity.name}` : null} />
+            <Field label="Manager" value={selectedManager ? `${selectedManager.firstName} ${selectedManager.lastName}${selectedManager.employeeId ? ` (${selectedManager.employeeId})` : ''}` : null} />
             <Field label="Inactive" value={department.active ? 'No' : 'Yes'} />
             <Field label="Created" value={new Date(department.createdAt).toLocaleDateString()} />
             <Field label="Last Modified" value={new Date(department.updatedAt).toLocaleDateString()} />
@@ -121,7 +121,7 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
             <table className="min-w-full">
               <thead>
                 <tr>
-                  <Th>Employee #</Th>
+                  <Th>Employee Id</Th>
                   <Th>Name</Th>
                   <Th>Title</Th>
                 </tr>
@@ -131,7 +131,7 @@ export default async function DepartmentDetailPage({ params }: { params: Promise
                   <tr key={employee.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <Td>
                       <Link href={`/employees/${employee.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {employee.employeeNumber ?? 'Pending'}
+                        {employee.employeeId ?? 'Pending'}
                       </Link>
                     </Td>
                     <Td>{employee.firstName} {employee.lastName}</Td>

@@ -14,8 +14,8 @@ export default function LeadCreateForm({
   onCancel,
 }: {
   userId: string
-  entities: Array<{ id: string; code: string; name: string }>
-  currencies: Array<{ id: string; code: string; name: string }>
+  entities: Array<{ id: string; subsidiaryId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; name: string }>
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -175,14 +175,14 @@ export default function LeadCreateForm({
           <span>Subsidiary</span>
           <select value={entityId} onChange={(e) => setEntityId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             <option value="">None</option>
-            {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.code} - {entity.name}</option>)}
+            {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.subsidiaryId} - {entity.name}</option>)}
           </select>
         </label>
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <span>Currency</span>
           <select value={currencyId} onChange={(e) => setCurrencyId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             <option value="">None</option>
-            {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.code} - {currency.name}</option>)}
+            {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.currencyId} - {currency.name}</option>)}
           </select>
         </label>
       </div>

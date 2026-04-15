@@ -141,10 +141,7 @@ export default async function PurchaseOrdersPage({
               <option value="total-desc">Total high-low</option>
               <option value="total-asc">Total low-high</option>
             </select>
-            <div className="flex items-center gap-2">
-              <Link href="/purchase-orders" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="purchase-orders-list" fileName="purchase-orders" />
-            </div>
+            <ExportButton tableId="purchase-orders-list" fileName="purchase-orders" />
             <ColumnSelector tableId="purchase-orders-list" columns={PURCHASE_ORDER_COLUMNS} />
           </div>
         </form>

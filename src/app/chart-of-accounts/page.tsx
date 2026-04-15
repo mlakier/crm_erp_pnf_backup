@@ -13,7 +13,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const COLS = [
-  { id: 'account-number', label: 'Account #' },
+  { id: 'account-id', label: 'Account Id' },
   { id: 'name', label: 'Name' },
   { id: 'type', label: 'Account Type' },
   { id: 'inventory', label: 'Inventory' },
@@ -34,7 +34,7 @@ export default async function ChartOfAccountsPage({
   const where = query
     ? {
         OR: [
-          { accountNumber: { contains: query } },
+          { accountId: { contains: query } },
           { name: { contains: query } },
           { accountType: { contains: query } },
           { description: { contains: query } },
@@ -49,17 +49,17 @@ export default async function ChartOfAccountsPage({
     prisma.chartOfAccounts.findMany({
       where,
       include: {
-        parentSubsidiary: { select: { id: true, code: true, name: true } },
+        parentSubsidiary: { select: { id: true, subsidiaryId: true, name: true } },
         subsidiaryAssignments: {
-          include: { subsidiary: { select: { id: true, code: true, name: true } } },
-          orderBy: { subsidiary: { code: 'asc' } },
+          include: { subsidiary: { select: { id: true, subsidiaryId: true, name: true } } },
+          orderBy: { subsidiary: { subsidiaryId: 'asc' } },
         },
       },
-      orderBy: { accountNumber: 'asc' },
+      orderBy: { accountId: 'asc' },
       skip: pagination.skip,
       take: pagination.pageSize,
     }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
   ])
@@ -109,14 +109,11 @@ export default async function ChartOfAccountsPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search account #, name, type"
+              placeholder="Search Account Id, name, type"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
-            <div className="flex items-center gap-2">
-              <Link href="/chart-of-accounts" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="chart-of-accounts-list" fileName="chart_of_accounts" />
-            </div>
+            <ExportButton tableId="chart-of-accounts-list" fileName="chart_of_accounts" />
             <ColumnSelector tableId="chart-of-accounts-list" columns={COLS} />
           </div>
         </form>
@@ -125,7 +122,7 @@ export default async function ChartOfAccountsPage({
           <table className="min-w-full" id="chart-of-accounts-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="account-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Account #</th>
+                <th data-column="account-id" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Account Id</th>
                 <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
                 <th data-column="type" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Account Type</th>
                 <th data-column="inventory" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Inventory</th>
@@ -145,9 +142,9 @@ export default async function ChartOfAccountsPage({
               ) : (
                 accounts.map((account, index) => (
                   <tr key={account.id} style={index < accounts.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                    <td data-column="account-number" className="px-4 py-2 text-sm">
+                    <td data-column="account-id" className="px-4 py-2 text-sm">
                       <Link href={`/chart-of-accounts/${account.id}`} className="font-medium hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {account.accountNumber}
+                        {account.accountId}
                       </Link>
                     </td>
                     <td data-column="name" className="px-4 py-2 text-sm text-white">{account.name}</td>
@@ -156,9 +153,9 @@ export default async function ChartOfAccountsPage({
                     <td data-column="summary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{account.summary ? 'Yes' : 'No'}</td>
                     <td data-column="subsidiaries" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {account.parentSubsidiary
-                        ? `${account.parentSubsidiary.code}${account.includeChildren ? ' (+children)' : ''}`
+                        ? `${account.parentSubsidiary.subsidiaryId}${account.includeChildren ? ' (+children)' : ''}`
                         : account.subsidiaryAssignments.length > 0
-                          ? account.subsidiaryAssignments.map((entry) => entry.subsidiary.code).join(', ')
+                          ? account.subsidiaryAssignments.map((entry) => entry.subsidiary.subsidiaryId).join(', ')
                           : '—'}
                     </td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(account.createdAt).toLocaleDateString()}</td>
@@ -168,7 +165,7 @@ export default async function ChartOfAccountsPage({
                           resource="chart-of-accounts"
                           id={account.id}
                           fields={[
-                            { name: 'accountNumber', label: 'Account #', value: account.accountNumber },
+                            { name: 'accountId', label: 'Account Id', value: account.accountId },
                             { name: 'name', label: 'Name', value: account.name },
                             { name: 'description', label: 'Description', value: account.description ?? '' },
                             {

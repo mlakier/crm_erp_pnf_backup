@@ -1,0 +1,136 @@
+{
+  "steps": [
+    {
+      "id": "lead",
+      "label": "Lead",
+      "enabled": true,
+      "order": 1,
+      "entity": "lead",
+      "href": "/leads"
+    },
+    {
+      "id": "opportunity",
+      "label": "Opportunity",
+      "enabled": true,
+      "order": 2,
+      "entity": "opportunity",
+      "href": "/opportunities"
+    },
+    {
+      "id": "quote",
+      "label": "Quote",
+      "enabled": true,
+      "order": 3,
+      "entity": "quote",
+      "href": "/quotes"
+    },
+    {
+      "id": "sales-order",
+      "label": "Sales Order",
+      "enabled": true,
+      "order": 4,
+      "entity": "salesOrder",
+      "href": "/sales-orders"
+    },
+    {
+      "id": "invoice",
+      "label": "Invoice",
+      "enabled": true,
+      "order": 5,
+      "entity": "invoice",
+      "href": "/invoices"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "lead-qualified",
+      "label": "Lead → Opportunity",
+      "fromStep": "lead",
+      "toStep": "opportunity",
+      "enabled": false,
+      "condition": {
+        "field": "status",
+        "operator": "equals",
+        "value": "qualified"
+      },
+      "action": "create_next"
+    },
+    {
+      "id": "opportunity-won",
+      "label": "Opportunity → Quote",
+      "fromStep": "opportunity",
+      "toStep": "quote",
+      "enabled": false,
+      "condition": {
+        "field": "stage",
+        "operator": "equals",
+        "value": "closed_won"
+      },
+      "action": "create_next"
+    },
+    {
+      "id": "quote-accepted",
+      "label": "Quote → Sales Order",
+      "fromStep": "quote",
+      "toStep": "sales-order",
+      "enabled": false,
+      "condition": {
+        "field": "status",
+        "operator": "equals",
+        "value": "accepted"
+      },
+      "action": "create_next"
+    },
+    {
+      "id": "salesorder-fulfilled",
+      "label": "Sales Order → Invoice",
+      "fromStep": "sales-order",
+      "toStep": "invoice",
+      "enabled": false,
+      "condition": {
+        "field": "status",
+        "operator": "equals",
+        "value": "fulfilled"
+      },
+      "action": "create_next"
+    }
+  ],
+  "approvals": [
+    {
+      "id": "quote-approval",
+      "label": "Quote Approval",
+      "step": "quote",
+      "enabled": false,
+      "condition": {
+        "field": "total",
+        "operator": ">=",
+        "value": 10000
+      },
+      "approverRole": "manager"
+    },
+    {
+      "id": "sales-order-approval",
+      "label": "Sales Order Approval",
+      "step": "sales-order",
+      "enabled": false,
+      "condition": {
+        "field": "total",
+        "operator": ">=",
+        "value": 25000
+      },
+      "approverRole": "manager"
+    },
+    {
+      "id": "invoice-approval",
+      "label": "Invoice Approval",
+      "step": "invoice",
+      "enabled": false,
+      "condition": {
+        "field": "total",
+        "operator": ">=",
+        "value": 50000
+      },
+      "approverRole": "manager"
+    }
+  ]
+}

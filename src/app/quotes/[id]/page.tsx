@@ -23,7 +23,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
       <div className="max-w-4xl">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <Link href="/estimates" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+            <Link href="/quotes" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to Quotes
             </Link>
             <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{quote.number}</p>

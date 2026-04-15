@@ -8,7 +8,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
   // Auth pages and the root redirect don't get the sidebar
-  const isAuthPage = pathname === '/' || pathname?.startsWith('/auth')
+  const isAuthPage = pathname === '/' || pathname?.startsWith('/auth') || pathname?.startsWith('/login')
 
   if (isAuthPage) return <>{children}</>
 

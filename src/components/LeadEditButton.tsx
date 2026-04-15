@@ -37,8 +37,8 @@ export default function LeadEditButton({
 }: {
   leadId: string
   values: LeadEditValues
-  entities: Array<{ id: string; code: string; name: string }>
-  currencies: Array<{ id: string; code: string; name: string }>
+  entities: Array<{ id: string; subsidiaryId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; name: string }>
 }) {
   const router = useRouter()
   const leadSourceOptions = useListOptions('lead', 'source')
@@ -304,7 +304,7 @@ export default function LeadEditButton({
                     style={{ borderColor: 'var(--border-muted)' }}
                   >
                     <option value="">None</option>
-                    {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.code} - {entity.name}</option>)}
+                    {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.subsidiaryId} - {entity.name}</option>)}
                   </select>
                 </label>
                 <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -316,7 +316,7 @@ export default function LeadEditButton({
                     style={{ borderColor: 'var(--border-muted)' }}
                   >
                     <option value="">None</option>
-                    {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.code} - {currency.name}</option>)}
+                    {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.currencyId} - {currency.name}</option>)}
                   </select>
                 </label>
               </div>

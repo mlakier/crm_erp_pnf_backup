@@ -32,10 +32,10 @@ export default async function ChartOfAccountDetailPage({ params }: { params: Pro
   const account = await prisma.chartOfAccounts.findUnique({
     where: { id },
     include: {
-      parentSubsidiary: { select: { id: true, code: true, name: true } },
+      parentSubsidiary: { select: { id: true, subsidiaryId: true, name: true } },
       subsidiaryAssignments: {
-        include: { subsidiary: { select: { id: true, code: true, name: true } } },
-        orderBy: { subsidiary: { code: 'asc' } },
+        include: { subsidiary: { select: { id: true, subsidiaryId: true, name: true } } },
+        orderBy: { subsidiary: { subsidiaryId: 'asc' } },
       },
     },
   })
@@ -48,8 +48,8 @@ export default async function ChartOfAccountDetailPage({ params }: { params: Pro
       : account.parentSubsidiaryId
         ? { id: account.parentSubsidiaryId }
         : { id: { in: account.subsidiaryAssignments.map((entry) => entry.subsidiaryId) } },
-    select: { id: true, code: true, name: true },
-    orderBy: { code: 'asc' },
+    select: { id: true, subsidiaryId: true, name: true },
+    orderBy: { subsidiaryId: 'asc' },
   })
 
   return (
@@ -60,7 +60,7 @@ export default async function ChartOfAccountDetailPage({ params }: { params: Pro
             <Link href="/chart-of-accounts" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to Chart of Accounts
             </Link>
-            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{account.accountNumber}</p>
+            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{account.accountId}</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">{account.name}</h1>
             <span className="mt-1 inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
               {account.accountType}
@@ -71,7 +71,7 @@ export default async function ChartOfAccountDetailPage({ params }: { params: Pro
               resource="chart-of-accounts"
               id={account.id}
               fields={[
-                { name: 'accountNumber', label: 'Account #', value: account.accountNumber },
+                { name: 'accountId', label: 'Account Id', value: account.accountId },
                 { name: 'name', label: 'Name', value: account.name },
                 { name: 'description', label: 'Description', value: account.description ?? '' },
                 {
@@ -108,12 +108,12 @@ export default async function ChartOfAccountDetailPage({ params }: { params: Pro
         <div className="mb-6 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Account details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Account #" value={account.accountNumber} />
+            <Field label="Account Id" value={account.accountId} />
             <Field label="Name" value={account.name} />
             <Field label="Description" value={account.description} />
             <Field label="Account Type" value={account.accountType} />
             <Field label="Scope" value={account.parentSubsidiary ? 'Parent Subsidiary' : 'Selected Subsidiaries'} />
-            <Field label="Parent Subsidiary" value={account.parentSubsidiary ? `${account.parentSubsidiary.code} - ${account.parentSubsidiary.name}` : '—'} />
+            <Field label="Parent Subsidiary" value={account.parentSubsidiary ? `${account.parentSubsidiary.subsidiaryId} - ${account.parentSubsidiary.name}` : '—'} />
             <Field label="Include Children" value={account.includeChildren ? 'Yes' : 'No'} />
             <Field label="Created" value={new Date(account.createdAt).toLocaleDateString()} />
           </dl>
@@ -131,14 +131,14 @@ export default async function ChartOfAccountDetailPage({ params }: { params: Pro
               <table className="min-w-full">
                 <thead>
                   <tr>
-                    <Th>Code</Th>
+                    <Th>Subsidiary Id</Th>
                     <Th>Name</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {subsidiaries.map((subsidiary, index) => (
                     <tr key={subsidiary.id} style={index < subsidiaries.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                      <Td>{subsidiary.code}</Td>
+                      <Td>{subsidiary.subsidiaryId}</Td>
                       <Td>{subsidiary.name}</Td>
                     </tr>
                   ))}

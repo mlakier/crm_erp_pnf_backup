@@ -8,7 +8,7 @@ import EditButton from '@/components/EditButton'
 export default async function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const [bill, vendors] = await Promise.all([
-    prisma.aPInvoice.findUnique({
+    prisma.bill.findUnique({
       where: { id },
       include: {
         vendor: true,
@@ -47,7 +47,7 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
                   type: 'select',
                   options: vendors.map((vendor) => ({ value: vendor.id, label: vendor.name })),
                 },
-                { name: 'amount', label: 'Amount', value: String(bill.amount), type: 'number' },
+                { name: 'total', label: 'Total', value: String(bill.total), type: 'number' },
                 { name: 'date', label: 'Bill Date', value: new Date(bill.date).toISOString().split('T')[0], type: 'date' },
                 { name: 'dueDate', label: 'Due Date', value: bill.dueDate ? new Date(bill.dueDate).toISOString().split('T')[0] : '', type: 'date' },
                 {
@@ -64,9 +64,6 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
                   ],
                 },
                 { name: 'notes', label: 'Notes', value: bill.notes ?? '' },
-                { name: 'coded', label: 'Coded', value: String(bill.coded), type: 'checkbox' },
-                { name: 'approved', label: 'Approved', value: String(bill.approved), type: 'checkbox' },
-                { name: 'paid', label: 'Paid', value: String(bill.paid), type: 'checkbox' },
               ]}
             />
             <DeleteButton resource="bills" id={bill.id} />
@@ -76,11 +73,10 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-4 mb-8">
-          <StatCard label="Bill amount" value={fmtCurrency(bill.amount)} accent />
+        <div className="grid gap-4 sm:grid-cols-3 mb-8">
+          <StatCard label="Bill total" value={fmtCurrency(bill.total)} accent />
           <StatCard label="Status" value={bill.status} />
           <StatCard label="Due date" value={bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '—'} />
-          <StatCard label="Paid" value={bill.paid ? 'Yes' : 'No'} />
         </div>
 
         <div className="rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
@@ -91,9 +87,6 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
             <Field label="Bill Date" value={new Date(bill.date).toLocaleDateString()} />
             <Field label="Due Date" value={bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '—'} />
             <Field label="Status" value={bill.status} />
-            <Field label="Coded" value={bill.coded ? 'Yes' : 'No'} />
-            <Field label="Approved" value={bill.approved ? 'Yes' : 'No'} />
-            <Field label="Paid" value={bill.paid ? 'Yes' : 'No'} />
             <Field label="Created" value={new Date(bill.createdAt).toLocaleDateString()} />
             <Field label="Last Modified" value={new Date(bill.updatedAt).toLocaleDateString()} />
             <Field label="Notes" value={bill.notes ?? '—'} />

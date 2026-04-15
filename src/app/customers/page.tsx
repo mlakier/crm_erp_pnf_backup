@@ -10,11 +10,12 @@ import ColumnSelector from '@/components/ColumnSelector'
 import ExportButton from '@/components/ExportButton'
 import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
+import { withMasterDataDefaults } from '@/lib/master-data-columns'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListOptions } from '@/lib/list-options-store'
 
-const CUSTOMER_COLUMNS = [
+const CUSTOMER_COLUMNS = withMasterDataDefaults([
   { id: 'number', label: 'Customer Id' },
   { id: 'name', label: 'Name' },
   { id: 'subsidiary', label: 'Primary Subsidiary' },
@@ -24,7 +25,7 @@ const CUSTOMER_COLUMNS = [
   { id: 'created', label: 'Created' },
   { id: 'last-modified', label: 'Last Modified' },
   { id: 'actions', label: 'Actions', locked: true },
-]
+])
 
 export default async function CRMPage({
   searchParams,
@@ -58,8 +59,8 @@ export default async function CRMPage({
     prisma.user.findUnique({
       where: { email: 'admin@example.com' },
     }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
     loadListOptions(),
@@ -174,9 +175,9 @@ export default async function CRMPage({
                     </td>
                     <td data-column="name" className="px-4 py-2 text-sm text-white">{customer.name}</td>
                     <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {customer.entity ? `${customer.entity.code} (${customer.entity.name})` : 'N/A'}
+                      {customer.entity ? `${customer.entity.subsidiaryId} (${customer.entity.name})` : 'N/A'}
                     </td>
-                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{customer.currency?.code ?? 'N/A'}</td>
+                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{customer.currency?.currencyId ?? 'N/A'}</td>
                     <td data-column="address" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{customer.address ?? 'N/A'}</td>
                     <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {customer.inactive ? 'Yes' : 'No'}

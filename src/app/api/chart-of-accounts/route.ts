@@ -4,12 +4,12 @@ import { prisma } from '@/lib/prisma'
 type ScopeMode = 'selected' | 'parent'
 
 const INCLUDE = {
-  parentSubsidiary: { select: { id: true, code: true, name: true } },
+  parentSubsidiary: { select: { id: true, subsidiaryId: true, name: true } },
   subsidiaryAssignments: {
     include: {
-      subsidiary: { select: { id: true, code: true, name: true, parentEntityId: true } },
+      subsidiary: { select: { id: true, subsidiaryId: true, name: true, parentEntityId: true } },
     },
-    orderBy: { subsidiary: { code: 'asc' as const } },
+    orderBy: { subsidiary: { subsidiaryId: 'asc' as const } },
   },
 } as const
 
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
     const accounts = await prisma.chartOfAccounts.findMany({
       include: INCLUDE,
-      orderBy: [{ accountNumber: 'asc' }],
+      orderBy: [{ accountId: 'asc' }],
     })
 
     return NextResponse.json(accounts)
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const accountNumber = String(body?.accountNumber ?? '').trim()
+    const accountId = String(body?.accountId ?? '').trim()
     const name = String(body?.name ?? '').trim()
     const description = String(body?.description ?? '').trim() || null
     const accountType = String(body?.accountType ?? '').trim()
@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
     const includeChildren = parseBool(body?.includeChildren)
     const subsidiaryIds = parseIds(body?.subsidiaryIds)
 
-    if (!accountNumber || !name || !accountType) {
-      return NextResponse.json({ error: 'Account #, Name, and Account Type are required' }, { status: 400 })
+    if (!accountId || !name || !accountType) {
+      return NextResponse.json({ error: 'Account Id, Name, and Account Type are required' }, { status: 400 })
     }
 
     if (scopeMode === 'parent' && !parentSubsidiaryId) {
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     const created = await prisma.chartOfAccounts.create({
       data: {
-        accountNumber,
+        accountId,
         name,
         description,
         accountType,
@@ -117,7 +117,7 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
 
-    const accountNumber = body?.accountNumber !== undefined ? String(body.accountNumber).trim() : undefined
+    const accountId = body?.accountId !== undefined ? String(body.accountId).trim() : undefined
     const name = body?.name !== undefined ? String(body.name).trim() : undefined
     const description = body?.description !== undefined ? (String(body.description).trim() || null) : undefined
     const accountType = body?.accountType !== undefined ? String(body.accountType).trim() : undefined
@@ -132,8 +132,8 @@ export async function PUT(request: NextRequest) {
     const includeChildren = body?.includeChildren !== undefined ? parseBool(body.includeChildren) : undefined
     const subsidiaryIds = body?.subsidiaryIds !== undefined ? parseIds(body.subsidiaryIds) : undefined
 
-    if (accountNumber !== undefined && !accountNumber) {
-      return NextResponse.json({ error: 'Account # cannot be empty' }, { status: 400 })
+    if (accountId !== undefined && !accountId) {
+      return NextResponse.json({ error: 'Account Id cannot be empty' }, { status: 400 })
     }
     if (name !== undefined && !name) {
       return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
@@ -146,7 +146,7 @@ export async function PUT(request: NextRequest) {
       const updated = await tx.chartOfAccounts.update({
         where: { id },
         data: {
-          ...(accountNumber !== undefined ? { accountNumber } : {}),
+          ...(accountId !== undefined ? { accountId } : {}),
           ...(name !== undefined ? { name } : {}),
           ...(description !== undefined ? { description } : {}),
           ...(accountType !== undefined ? { accountType } : {}),

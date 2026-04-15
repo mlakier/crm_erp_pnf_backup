@@ -25,8 +25,8 @@ export default function VendorEditButton({
 }: {
   vendorId: string
   values: VendorEditValues
-  subsidiaries: Array<{ id: string; code: string; name: string }>
-  currencies: Array<{ id: string; code: string; name: string }>
+  subsidiaries: Array<{ id: string; subsidiaryId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; name: string }>
 }) {
   const router = useRouter()
 
@@ -184,7 +184,7 @@ export default function VendorEditButton({
                   >
                     <option value="">None</option>
                     {subsidiaries.map((subsidiary) => (
-                      <option key={subsidiary.id} value={subsidiary.id}>{subsidiary.code} - {subsidiary.name}</option>
+                      <option key={subsidiary.id} value={subsidiary.id}>{subsidiary.subsidiaryId} - {subsidiary.name}</option>
                     ))}
                   </select>
                 </label>
@@ -198,7 +198,7 @@ export default function VendorEditButton({
                   >
                     <option value="">None</option>
                     {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.id}>{currency.code} - {currency.name}</option>
+                      <option key={currency.id} value={currency.id}>{currency.currencyId} - {currency.name}</option>
                     ))}
                   </select>
                 </label>

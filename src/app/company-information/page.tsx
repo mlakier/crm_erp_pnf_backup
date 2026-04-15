@@ -9,16 +9,54 @@ type CabinetFile = {
 }
 
 type Settings = {
+  companyName: string
+  legalName: string
   companyLogoFormsFileId: string
   companyLogoPagesFileId: string
+  displayLogoInternally: boolean
+  webSite: string
+  stateProvince: string
+  country: string
+  returnEmail: string
+  fax: string
+  currency: string
+  ein: string
+  ssnTin: string
+  firstFiscalMonth: string
+  timeZone: string
+  accountId: string
+  mainDataCenter: string
+  disasterRecoveryDataCenter: string
+  legalEntityRegisteredAs: string
+  uen: string
+  brn: string
 }
 
 export default function CompanyInformationPage() {
   const [cabinetFiles, setCabinetFiles] = useState<CabinetFile[]>([])
   const [loadingCabinet, setLoadingCabinet] = useState(true)
   const [settings, setSettings] = useState<Settings>({
+    companyName: '',
+    legalName: '',
     companyLogoFormsFileId: '',
     companyLogoPagesFileId: '',
+    displayLogoInternally: true,
+    webSite: '',
+    stateProvince: '',
+    country: '',
+    returnEmail: '',
+    fax: '',
+    currency: '',
+    ein: '',
+    ssnTin: '',
+    firstFiscalMonth: '',
+    timeZone: '',
+    accountId: '',
+    mainDataCenter: '',
+    disasterRecoveryDataCenter: '',
+    legalEntityRegisteredAs: '',
+    uen: '',
+    brn: '',
   })
 
   useEffect(() => {
@@ -38,9 +76,29 @@ export default function CompanyInformationPage() {
         const hasForms = typeof settingsBody.companyLogoFormsFileId === 'string' && settingsBody.companyLogoFormsFileId.length > 0
         const hasPages = typeof settingsBody.companyLogoPagesFileId === 'string' && settingsBody.companyLogoPagesFileId.length > 0
         const firstFileId = files[0]?.id ?? ''
+        const str = (key: keyof Settings) => typeof settingsBody[key] === 'string' ? settingsBody[key] as string : ''
         const nextSettings: Settings = {
+          companyName: str('companyName'),
+          legalName: str('legalName'),
           companyLogoFormsFileId: hasForms ? settingsBody.companyLogoFormsFileId as string : firstFileId,
           companyLogoPagesFileId: hasPages ? settingsBody.companyLogoPagesFileId as string : firstFileId,
+          displayLogoInternally: typeof settingsBody.displayLogoInternally === 'boolean' ? settingsBody.displayLogoInternally : true,
+          webSite: str('webSite'),
+          stateProvince: str('stateProvince'),
+          country: str('country'),
+          returnEmail: str('returnEmail'),
+          fax: str('fax'),
+          currency: str('currency'),
+          ein: str('ein'),
+          ssnTin: str('ssnTin'),
+          firstFiscalMonth: str('firstFiscalMonth'),
+          timeZone: str('timeZone'),
+          accountId: str('accountId'),
+          mainDataCenter: str('mainDataCenter'),
+          disasterRecoveryDataCenter: str('disasterRecoveryDataCenter'),
+          legalEntityRegisteredAs: str('legalEntityRegisteredAs'),
+          uen: str('uen'),
+          brn: str('brn'),
         }
 
         if (mounted) {
@@ -67,7 +125,7 @@ export default function CompanyInformationPage() {
     }
   }, [])
 
-  async function updateSetting(field: keyof Settings, value: string) {
+  async function updateSetting(field: keyof Settings, value: string | boolean) {
     const next = { ...settings, [field]: value }
     setSettings(next)
 
@@ -103,12 +161,17 @@ export default function CompanyInformationPage() {
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Company Name *</span>
-              <input defaultValue="Tillster, Inc." className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input
+                value={settings.companyName}
+                onChange={(event) => updateSetting('companyName', event.target.value)}
+                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
+                style={{ borderColor: 'var(--border-muted)' }}
+              />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Legal Name</span>
-              <input defaultValue="Tillster, Inc." className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.legalName} onChange={(e) => updateSetting('legalName', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
@@ -154,68 +217,58 @@ export default function CompanyInformationPage() {
             </label>
 
             <label className="flex items-center gap-2 pt-1">
-              <input type="checkbox" defaultChecked className="h-4 w-4" />
+              <input type="checkbox" checked={settings.displayLogoInternally} onChange={(e) => updateSetting('displayLogoInternally', e.target.checked)} className="h-4 w-4" />
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Display logo internally</span>
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Web Site</span>
-              <input defaultValue="www.tillster.com" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.webSite} onChange={(e) => updateSetting('webSite', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>County/State/Province *</span>
-              <select defaultValue="Delaware" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-                <option value="Delaware">Delaware</option>
-              </select>
+              <input value={settings.stateProvince} onChange={(e) => updateSetting('stateProvince', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Country</span>
-              <select defaultValue="United States" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-                <option value="United States">United States</option>
-              </select>
+              <input value={settings.country} onChange={(e) => updateSetting('country', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Return Email Address *</span>
-              <input defaultValue="billing@tillster.com" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.returnEmail} onChange={(e) => updateSetting('returnEmail', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Fax</span>
-              <input defaultValue="" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.fax} onChange={(e) => updateSetting('fax', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Currency</span>
-              <select defaultValue="USD" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-                <option value="USD">USD</option>
-              </select>
+              <input value={settings.currency} onChange={(e) => updateSetting('currency', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Employer Identification Number (EIN)</span>
-              <input defaultValue="26-0053244" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.ein} onChange={(e) => updateSetting('ein', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>SSN or TIN (Social Security Number, Tax ID Number)</span>
-              <input defaultValue="26-0053244" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.ssnTin} onChange={(e) => updateSetting('ssnTin', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>First Fiscal Month</span>
-              <select defaultValue="January" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-                <option value="January">January</option>
-              </select>
+              <input value={settings.firstFiscalMonth} onChange={(e) => updateSetting('firstFiscalMonth', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Time Zone</span>
-              <select defaultValue="(GMT-08:00) Pacific Time (US & Canada)" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-                <option value="(GMT-08:00) Pacific Time (US & Canada)">(GMT-08:00) Pacific Time (US & Canada)</option>
-              </select>
+              <input value={settings.timeZone} onChange={(e) => updateSetting('timeZone', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
           </div>
 
@@ -224,32 +277,32 @@ export default function CompanyInformationPage() {
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Account ID</span>
-              <input defaultValue="4460219_SB1" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.accountId} onChange={(e) => updateSetting('accountId', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Main Data Center</span>
-              <input defaultValue="US Phoenix2" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.mainDataCenter} onChange={(e) => updateSetting('mainDataCenter', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Disaster Recovery Data Center</span>
-              <input defaultValue="US Ashburn 2" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.disasterRecoveryDataCenter} onChange={(e) => updateSetting('disasterRecoveryDataCenter', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Legal Entity Registered As</span>
-              <input defaultValue="" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.legalEntityRegisteredAs} onChange={(e) => updateSetting('legalEntityRegisteredAs', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>UEN</span>
-              <input defaultValue="" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.uen} onChange={(e) => updateSetting('uen', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>BRN</span>
-              <input defaultValue="" className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
+              <input value={settings.brn} onChange={(e) => updateSetting('brn', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
           </div>
         </form>

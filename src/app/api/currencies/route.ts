@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
-  const data = await prisma.currency.findMany({ orderBy: { code: 'asc' } })
+  const data = await prisma.currency.findMany({ orderBy: { currencyId: 'asc' } })
   return NextResponse.json(data)
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const code = String(body?.code ?? '').trim().toUpperCase()
+    const code = String(body?.currencyId ?? '').trim().toUpperCase()
     const name = String(body?.name ?? '').trim()
     const symbol = String(body?.symbol ?? '').trim() || null
     const inactive = String(body?.inactive ?? 'false').trim().toLowerCase() === 'true'
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     const created = await prisma.currency.create({
       data: {
-        code,
+        currencyId: code,
         name,
         symbol,
         decimals: 2,
@@ -40,7 +40,7 @@ export async function PUT(request: Request) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
     const body = await request.json()
-    const code = body?.code !== undefined ? String(body.code).trim().toUpperCase() : undefined
+    const code = body?.currencyId !== undefined ? String(body.currencyId).trim().toUpperCase() : undefined
     const name = body?.name !== undefined ? String(body.name).trim() : undefined
     const symbol = body?.symbol !== undefined ? (String(body.symbol).trim() || null) : undefined
     const decimals = body?.decimals !== undefined ? Number(body.decimals) : undefined
@@ -58,7 +58,7 @@ export async function PUT(request: Request) {
     const updated = await prisma.currency.update({
       where: { id },
       data: Object.fromEntries(
-        Object.entries({ code, name, symbol, decimals, isBase, active }).filter(([, v]) => v !== undefined)
+        Object.entries({ currencyId: code, name, symbol, decimals, isBase, active }).filter(([, v]) => v !== undefined)
       ),
     })
     return NextResponse.json(updated)

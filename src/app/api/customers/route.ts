@@ -12,7 +12,6 @@ export async function GET() {
     const customers = await prisma.customer.findMany({
       include: {
         contacts: true,
-        deals: true,
       },
     })
     return NextResponse.json(customers)

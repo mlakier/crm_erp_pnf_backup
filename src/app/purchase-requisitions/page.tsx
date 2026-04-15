@@ -64,8 +64,8 @@ export default async function PurchaseRequisitionsPage({
       }),
       prisma.vendor.findMany({ orderBy: { name: 'asc' }, where: { inactive: false } }),
       prisma.department.findMany({ orderBy: { name: 'asc' }, where: { active: true } }),
-      prisma.entity.findMany({ orderBy: { code: 'asc' }, where: { active: true } }),
-      prisma.currency.findMany({ orderBy: { code: 'asc' }, where: { active: true } }),
+      prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, where: { active: true } }),
+      prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, where: { active: true } }),
       prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
       loadCompanyInformationSettings(),
       loadCompanyCabinetFiles(),
@@ -104,8 +104,8 @@ export default async function PurchaseRequisitionsPage({
               userId={adminUser.id}
               vendors={vendors}
               departments={departments}
-              entities={entities.map(({ id, code, name }) => ({ id, code, name }))}
-              currencies={currencies.map(({ id, code, name }) => ({ id, code, name }))}
+              entities={entities.map(({ id, subsidiaryId, name }) => ({ id, subsidiaryId, name }))}
+              currencies={currencies.map(({ id, currencyId, name }) => ({ id, currencyId, name }))}
             />
           </CreateModalButton>
         ) : null}
@@ -146,10 +146,7 @@ export default async function PurchaseRequisitionsPage({
             />
             <input type="hidden" name="status" value={statusFilter} />
             <input type="hidden" name="page" value="1" />
-            <div className="flex items-center gap-2">
-              <Link href="/purchase-requisitions" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="requisitions-list" fileName="purchase_requisitions" />
-            </div>
+            <ExportButton tableId="requisitions-list" fileName="purchase_requisitions" />
             <ColumnSelector tableId="requisitions-list" columns={COLS} />
           </form>
         </div>
@@ -186,7 +183,7 @@ export default async function PurchaseRequisitionsPage({
                     <td data-column="title"      className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{req.title ?? '—'}</td>
                     <td data-column="status"     className="px-4 py-2 text-sm"><StatusBadge status={req.status} /></td>
                     <td data-column="priority"   className="px-4 py-2 text-sm"><PriorityBadge priority={req.priority} /></td>
-                    <td data-column="department" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{req.department ? `${req.department.code} – ${req.department.name}` : '—'}</td>
+                    <td data-column="department" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{req.department ? `${req.department.departmentId} – ${req.department.name}` : '—'}</td>
                     <td data-column="vendor"     className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{req.vendor?.name ?? '—'}</td>
                     <td data-column="total"      className="px-4 py-2 text-sm font-medium text-white">{fmtCurrency(req.total)}</td>
                     <td data-column="needed-by"  className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{req.neededByDate ? new Date(req.neededByDate).toLocaleDateString() : '—'}</td>

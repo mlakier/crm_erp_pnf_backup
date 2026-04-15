@@ -46,6 +46,7 @@ function MasterDataCustomizeForm({
 }) {
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
   const storageKey = useMemo(() => `column-selector:${tableId}`, [tableId])
+  const fixedColumnIds = useMemo(() => new Set(columns.slice(0, 2).map((column) => column.id)), [columns])
 
   useEffect(() => {
     try {
@@ -53,14 +54,17 @@ function MasterDataCustomizeForm({
       if (!raw) return
       const parsed = JSON.parse(raw)
       if (!Array.isArray(parsed)) return
-      setHiddenColumns(parsed.filter((value): value is string => typeof value === 'string'))
+      setHiddenColumns(
+        parsed.filter((value): value is string => typeof value === 'string' && !fixedColumnIds.has(value)),
+      )
     } catch {
       // Ignore malformed local preferences.
     }
-  }, [storageKey])
+  }, [fixedColumnIds, storageKey])
 
   function toggleColumn(column: CustomizeColumn) {
-    if (column.locked) return
+    const locked = column.locked || fixedColumnIds.has(column.id)
+    if (locked) return
 
     if (hiddenColumns.includes(column.id)) {
       setHiddenColumns(hiddenColumns.filter((id) => id !== column.id))
@@ -71,7 +75,8 @@ function MasterDataCustomizeForm({
   }
 
   function saveCustomization() {
-    window.localStorage.setItem(storageKey, JSON.stringify(hiddenColumns))
+    const sanitized = hiddenColumns.filter((columnId) => !fixedColumnIds.has(columnId))
+    window.localStorage.setItem(storageKey, JSON.stringify(sanitized))
     window.dispatchEvent(new CustomEvent('column-selector:updated', { detail: { tableId } }))
     onSuccess?.()
   }
@@ -102,7 +107,7 @@ function MasterDataCustomizeForm({
             <tbody>
               {columns.map((column, index) => {
                 const checked = !hiddenColumns.includes(column.id)
-                const locked = column.locked === true
+                const locked = column.locked === true || fixedColumnIds.has(column.id)
                 const dragLocked = index < 2
 
                 return (

@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  const preferred = await prisma.entity.findFirst({ where: { code: 'ENT-US' } })
+  const preferred = await prisma.entity.findFirst({ where: { subsidiaryId: 'ENT-US' } })
   const fallback = preferred ?? await prisma.entity.findFirst({ orderBy: { createdAt: 'asc' } })
 
   if (!fallback) {
@@ -59,7 +59,7 @@ async function main() {
   ])
 
   console.log('Primary subsidiary backfill complete:')
-  console.log(`- Subsidiary used: ${fallback.code} (${fallback.name})`)
+  console.log(`- Subsidiary used: ${fallback.subsidiaryId} (${fallback.name})`)
   console.log(`- Customers updated: ${customerResult.count}`)
   console.log(`- Vendors updated: ${vendorResult.count}`)
   console.log(`- Customer currencies backfilled: ${customerCurrencyUpdated}`)

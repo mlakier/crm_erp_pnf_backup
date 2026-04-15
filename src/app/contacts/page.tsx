@@ -133,10 +133,7 @@ export default async function ContactsPage({
               <option value="oldest">Oldest</option>
               <option value="name">Name A-Z</option>
             </select>
-            <div className="flex items-center gap-2">
-              <Link href="/contacts" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="contacts-list" fileName="contacts" />
-            </div>
+            <ExportButton tableId="contacts-list" fileName="contacts" />
             <ColumnSelector tableId="contacts-list" columns={CONTACT_COLUMNS} />
           </div>
         </form>

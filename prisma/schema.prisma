@@ -14,10 +14,12 @@ datasource db {
 
 model User {
   id           String      @id @default(cuid())
+  userId       String?     @unique
   email        String      @unique
   name         String?
   password     String
-  role         String      @default("user")
+  roleId       String?     @map("role_id")
+  role         Role?       @relation(fields: [roleId], references: [id])
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
   inactive     Boolean     @default(false)
@@ -27,18 +29,23 @@ model User {
   // Relations
   customers      Customer[]
   contacts       Contact[]
-  deals          Deal[]
-  orders         Order[]
   projects       Project[]
   tasks          Task[]
   leads          Lead[]
   opportunities  Opportunity[]
   quotes         Quote[]
   salesOrders    SalesOrder[]
+  invoices       Invoice[]
   requisitions   Requisition[]
   purchaseOrders PurchaseOrder[]
+  creditMemos    CreditMemo[]
+  billCredits    BillCredit[]
+  bills          Bill[]
+  journalEntries JournalEntry[]
   employee       Employee?
 
+  @@index([roleId])
+  @@index([departmentId])
   @@map("users")
 }
 
@@ -61,14 +68,15 @@ model Customer {
   user          User          @relation(fields: [userId], references: [id])
   contacts      Contact[]
   leads         Lead[]
-  deals         Deal[]
   opportunities Opportunity[]
   quotes        Quote[]
   salesOrders   SalesOrder[]
   invoices      Invoice[]
+  creditMemos   CreditMemo[]
   entity        Entity?       @relation(fields: [entityId], references: [id])
   currency      Currency?     @relation(fields: [currencyId], references: [id])
 
+  @@index([userId])
   @@index([entityId])
   @@index([currencyId])
   @@map("customers")
@@ -94,94 +102,12 @@ model Contact {
   userId     String
   user       User     @relation(fields: [userId], references: [id])
 
+  @@index([customerId])
+  @@index([userId])
   @@map("contacts")
 }
 
-model Deal {
-  id        String    @id @default(cuid())
-  title     String
-  value     Float?
-  stage     String    @default("prospect")
-  closeDate DateTime?
-  inactive  Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
 
-  // Relations
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-
-  @@map("deals")
-}
-
-model Product {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  sku         String   @unique
-  inactive    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  inventories Inventory[]
-  orderItems  OrderItem[]
-
-  @@map("products")
-}
-
-model Inventory {
-  id          String    @id @default(cuid())
-  quantity    Int
-  location    String?
-  locationId  String?
-  locationRef Location? @relation(fields: [locationId], references: [id])
-  inactive    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-
-  @@map("inventories")
-}
-
-model Order {
-  id        String   @id @default(cuid())
-  status    String   @default("pending")
-  total     Float
-  inactive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  userId String
-  user   User        @relation(fields: [userId], references: [id])
-  items  OrderItem[]
-
-  @@map("orders")
-}
-
-model OrderItem {
-  id       String @id @default(cuid())
-  quantity Int
-  price    Float
-  inactive Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id])
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-
-  @@map("order_items")
-}
 
 model Project {
   id          String    @id @default(cuid())
@@ -199,6 +125,7 @@ model Project {
   user   User   @relation(fields: [userId], references: [id])
   tasks  Task[]
 
+  @@index([userId])
   @@map("projects")
 }
 
@@ -219,6 +146,8 @@ model Task {
   userId    String
   user      User    @relation(fields: [userId], references: [id])
 
+  @@index([projectId])
+  @@index([userId])
   @@map("tasks")
 }
 
@@ -239,7 +168,8 @@ model Vendor {
   // Relations
   requisitions   Requisition[]
   purchaseOrders PurchaseOrder[]
-  apInvoices     APInvoice[]
+  bills          Bill[]
+  billCredits    BillCredit[]
   entity         Entity?         @relation(fields: [entityId], references: [id])
   currency       Currency?       @relation(fields: [currencyId], references: [id])
 
@@ -251,7 +181,7 @@ model Vendor {
 model Department {
   id        String   @id @default(cuid())
   name      String
-  code      String   @unique
+  departmentId String @unique @map("code")
   description String?
   division  String?
   entityId  String?
@@ -270,20 +200,7 @@ model Department {
   @@map("departments")
 }
 
-model LegalEntity {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  currency  String   @default("USD")
-  inactive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  // Relations
-  journalEntries JournalEntry[]
-
-  @@map("legal_entities")
-}
 
 model Location {
   id        String   @id @default(cuid())
@@ -293,9 +210,6 @@ model Location {
   inactive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  inventories Inventory[]
 
   @@map("locations")
 }
@@ -313,7 +227,7 @@ model CostCenter {
 
 model ChartOfAccounts {
   id                            String   @id @default(cuid())
-  accountNumber                 String   @unique
+  accountId                     String   @unique @map("accountNumber")
   name                          String
   description                   String?
   accountType                   String // List/select value (Asset, Liability, Equity, Revenue, Expense, etc.)
@@ -329,7 +243,7 @@ model ChartOfAccounts {
   updatedAt                     DateTime @updatedAt
 
   // Relations
-  journalEntries         JournalEntry[]
+  journalEntryLineItems  JournalEntryLineItem[]
   parentSubsidiary       Entity?                    @relation("ChartOfAccountParentSubsidiary", fields: [parentSubsidiaryId], references: [id])
   subsidiaryAssignments  ChartOfAccountSubsidiary[]
 
@@ -384,6 +298,8 @@ model CustomFieldValue {
   // Relations
   field CustomFieldDefinition @relation(fields: [fieldId], references: [id])
 
+  @@index([fieldId])
+  @@index([entityType, recordId])
   @@map("custom_field_values")
 }
 
@@ -438,6 +354,7 @@ model Lead {
   opportunityId String?
   opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
 
+  @@index([userId])
   @@index([status])
   @@index([entityId])
   @@index([currencyId])
@@ -472,6 +389,8 @@ model Opportunity {
   entity     Entity?   @relation(fields: [entityId], references: [id])
   currency   Currency? @relation(fields: [currencyId], references: [id])
 
+  @@index([customerId])
+  @@index([userId])
   @@index([entityId])
   @@index([currencyId])
   @@map("opportunities")
@@ -492,6 +411,7 @@ model OpportunityLineItem {
   itemId        String?
   item          Item?       @relation(fields: [itemId], references: [id])
 
+  @@index([opportunityId])
   @@index([itemId])
   @@map("opportunity_line_items")
 }
@@ -516,12 +436,15 @@ model Quote {
   opportunityId String?      @unique
   opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
   salesOrder    SalesOrder?
+  lineItems     QuoteLineItem[]
   entity        Entity?      @relation(fields: [entityId], references: [id])
   currency      Currency?    @relation(fields: [currencyId], references: [id])
 
+  @@index([customerId])
+  @@index([userId])
   @@index([entityId])
   @@index([currencyId])
-  @@map("estimates")
+  @@map("quotes")
 }
 
 model SalesOrder {
@@ -542,9 +465,12 @@ model SalesOrder {
   quoteId    String?   @unique
   quote      Quote?    @relation(fields: [quoteId], references: [id])
   invoices   Invoice[]
+  lineItems  SalesOrderLineItem[]
   entity     Entity?   @relation(fields: [entityId], references: [id])
   currency   Currency? @relation(fields: [currencyId], references: [id])
 
+  @@index([customerId])
+  @@index([userId])
   @@index([entityId])
   @@index([currencyId])
   @@map("sales_orders")
@@ -565,12 +491,19 @@ model Invoice {
   // Relations
   customerId   String
   customer     Customer      @relation(fields: [customerId], references: [id])
-  salesOrderId String
-  salesOrder   SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  salesOrderId String?
+  salesOrder   SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  userId       String?
+  user         User?         @relation(fields: [userId], references: [id])
   cashReceipts CashReceipt[]
+  lineItems    InvoiceLineItem[]
+  creditMemos  CreditMemo[]
   entity       Entity?       @relation(fields: [entityId], references: [id])
   currency     Currency?     @relation(fields: [currencyId], references: [id])
 
+  @@index([customerId])
+  @@index([salesOrderId])
+  @@index([userId])
   @@index([entityId])
   @@index([currencyId])
   @@map("invoices")
@@ -589,6 +522,7 @@ model CashReceipt {
   invoiceId String
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
+  @@index([invoiceId])
   @@map("cash_receipts")
 }
 
@@ -619,6 +553,9 @@ model Requisition {
   lineItems     RequisitionLineItem[]
   purchaseOrder PurchaseOrder?
 
+  @@index([userId])
+  @@index([departmentId])
+  @@index([vendorId])
   @@index([entityId])
   @@index([currencyId])
   @@index([status])
@@ -640,6 +577,7 @@ model RequisitionLineItem {
   itemId        String?
   item          Item?       @relation(fields: [itemId], references: [id])
 
+  @@index([requisitionId])
   @@index([itemId])
   @@map("requisition_line_items")
 }
@@ -663,9 +601,12 @@ model PurchaseOrder {
   requisition   Requisition?            @relation(fields: [requisitionId], references: [id])
   lineItems     PurchaseOrderLineItem[]
   receipts      Receipt[]
+  bills         Bill[]
   entity        Entity?                 @relation(fields: [entityId], references: [id])
   currency      Currency?               @relation(fields: [currencyId], references: [id])
 
+  @@index([vendorId])
+  @@index([userId])
   @@index([entityId])
   @@index([currencyId])
   @@map("purchase_orders")
@@ -681,12 +622,215 @@ model PurchaseOrderLineItem {
   updatedAt   DateTime @updatedAt
 
   purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   itemId          String?
   item            Item?         @relation(fields: [itemId], references: [id])
 
+  @@index([purchaseOrderId])
   @@index([itemId])
   @@map("purchase_order_line_items")
+}
+
+model QuoteLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  lineTotal   Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  itemId  String?
+  item    Item?  @relation(fields: [itemId], references: [id])
+
+  @@index([quoteId])
+  @@index([itemId])
+  @@map("quote_line_items")
+}
+
+model SalesOrderLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  lineTotal   Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  itemId       String?
+  item         Item?      @relation(fields: [itemId], references: [id])
+
+  @@index([salesOrderId])
+  @@index([itemId])
+  @@map("sales_order_line_items")
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  lineTotal   Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  itemId    String?
+  item      Item?   @relation(fields: [itemId], references: [id])
+
+  @@index([invoiceId])
+  @@index([itemId])
+  @@map("invoice_line_items")
+}
+
+model BillLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  lineTotal   Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  billId String
+  bill   Bill   @relation(fields: [billId], references: [id], onDelete: Cascade)
+  itemId String?
+  item   Item?  @relation(fields: [itemId], references: [id])
+
+  @@index([billId])
+  @@index([itemId])
+  @@map("bill_line_items")
+}
+
+model CreditMemo {
+  id         String    @id @default(cuid())
+  number     String    @unique
+  status     String    @default("draft")
+  total      Float
+  date       DateTime  @default(now())
+  reason     String?
+  notes      String?
+  entityId   String?
+  currencyId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  customerId String
+  customer   Customer            @relation(fields: [customerId], references: [id])
+  invoiceId  String?
+  invoice    Invoice?            @relation(fields: [invoiceId], references: [id])
+  userId     String
+  user       User                @relation(fields: [userId], references: [id])
+  lineItems  CreditMemoLineItem[]
+  entity     Entity?             @relation(fields: [entityId], references: [id])
+  currency   Currency?           @relation(fields: [currencyId], references: [id])
+
+  @@index([customerId])
+  @@index([invoiceId])
+  @@index([userId])
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("credit_memos")
+}
+
+model CreditMemoLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  lineTotal   Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creditMemoId String
+  creditMemo   CreditMemo @relation(fields: [creditMemoId], references: [id], onDelete: Cascade)
+  itemId       String?
+  item         Item?      @relation(fields: [itemId], references: [id])
+
+  @@index([creditMemoId])
+  @@index([itemId])
+  @@map("credit_memo_line_items")
+}
+
+model BillCredit {
+  id         String    @id @default(cuid())
+  number     String    @unique
+  status     String    @default("draft")
+  total      Float
+  date       DateTime  @default(now())
+  reason     String?
+  notes      String?
+  entityId   String?
+  currencyId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  vendorId  String
+  vendor    Vendor               @relation(fields: [vendorId], references: [id])
+  billId    String?
+  bill      Bill?                @relation(fields: [billId], references: [id])
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id])
+  lineItems BillCreditLineItem[]
+  entity    Entity?              @relation(fields: [entityId], references: [id])
+  currency  Currency?            @relation(fields: [currencyId], references: [id])
+
+  @@index([vendorId])
+  @@index([billId])
+  @@index([userId])
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("bill_credits")
+}
+
+model BillCreditLineItem {
+  id          String   @id @default(cuid())
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  lineTotal   Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  billCreditId String
+  billCredit   BillCredit @relation(fields: [billCreditId], references: [id], onDelete: Cascade)
+  itemId       String?
+  item         Item?      @relation(fields: [itemId], references: [id])
+
+  @@index([billCreditId])
+  @@index([itemId])
+  @@map("bill_credit_line_items")
+}
+
+model JournalEntryLineItem {
+  id          String   @id @default(cuid())
+  description String?
+  debit       Float    @default(0)
+  credit      Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  journalEntryId String
+  journalEntry   JournalEntry    @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        ChartOfAccounts @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_entry_line_items")
 }
 
 model Activity {
@@ -716,30 +860,43 @@ model Receipt {
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
 
+  @@index([purchaseOrderId])
   @@map("receipts")
 }
 
-model APInvoice {
-  id        String    @id @default(cuid())
-  number    String    @unique
-  vendorId  String
-  amount    Float
-  date      DateTime
-  dueDate   DateTime?
-  status    String    @default("received")
-  notes     String?
-  ocrData   String? // JSON
-  coded     Boolean   @default(false)
-  approved  Boolean   @default(false)
-  paid      Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+model Bill {
+  id         String    @id @default(cuid())
+  number     String    @unique
+  vendorId   String
+  total      Float     @map("amount")
+  date       DateTime
+  dueDate    DateTime?
+  status     String    @default("received")
+  notes      String?
+  ocrData    String? // JSON
+  entityId   String?
+  currencyId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   // Relations
-  vendor Vendor @relation(fields: [vendorId], references: [id])
+  vendor          Vendor         @relation(fields: [vendorId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  userId          String?
+  user            User?          @relation(fields: [userId], references: [id])
+  lineItems       BillLineItem[]
+  billCredits     BillCredit[]
+  entity          Entity?        @relation(fields: [entityId], references: [id])
+  currency        Currency?      @relation(fields: [currencyId], references: [id])
 
+  @@index([vendorId])
+  @@index([purchaseOrderId])
+  @@index([userId])
   @@index([status])
-  @@map("ap_invoices")
+  @@index([entityId])
+  @@index([currencyId])
+  @@map("bills")
 }
 
 model JournalEntry {
@@ -753,11 +910,17 @@ model JournalEntry {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  legalEntityId String
-  legalEntity   LegalEntity     @relation(fields: [legalEntityId], references: [id])
-  accountId     String
-  account       ChartOfAccounts @relation(fields: [accountId], references: [id])
+  entityId   String?
+  entity     Entity?              @relation(fields: [entityId], references: [id])
+  currencyId String?
+  currency   Currency?            @relation(fields: [currencyId], references: [id])
+  userId     String?
+  user       User?                @relation(fields: [userId], references: [id])
+  lineItems  JournalEntryLineItem[]
 
+  @@index([entityId])
+  @@index([currencyId])
+  @@index([userId])
   @@map("journal_entries")
 }
 
@@ -783,6 +946,7 @@ model Attachment {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([entityType, entityId])
   @@map("attachments")
 }
 
@@ -808,13 +972,29 @@ model ApprovalRecord {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([entityType, entityId])
   @@map("approval_records")
 }
 
+model Role {
+  id          String   @id @default(cuid())
+  roleId      String   @unique
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users User[]
+
+  @@map("roles")
+}
+
 model Currency {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
+  id         String   @id @default(cuid())
+  currencyId String   @unique @map("code")
+  name       String
   symbol    String?
   decimals  Int      @default(2)
   isBase    Boolean  @default(false)
@@ -832,15 +1012,19 @@ model Currency {
   quotes         Quote[]
   salesOrders    SalesOrder[]
   invoices       Invoice[]
+  creditMemos    CreditMemo[]
   purchaseOrders PurchaseOrder[]
+  bills          Bill[]
+  billCredits    BillCredit[]
   requisitions   Requisition[]
+  journalEntries JournalEntry[]
 
   @@map("currencies")
 }
 
 model Entity {
   id                 String   @id @default(cuid())
-  code               String   @unique
+  subsidiaryId       String   @unique @map("code")
   name               String
   legalName          String?
   entityType         String?
@@ -868,8 +1052,12 @@ model Entity {
   quotes            Quote[]
   salesOrders       SalesOrder[]
   invoices          Invoice[]
+  creditMemos       CreditMemo[]
   purchaseOrders    PurchaseOrder[]
+  bills             Bill[]
+  billCredits       BillCredit[]
   requisitions      Requisition[]
+  journalEntries    JournalEntry[]
   chartOfAccountsAsParent      ChartOfAccounts[]          @relation("ChartOfAccountParentSubsidiary")
   chartOfAccountAssignments    ChartOfAccountSubsidiary[] @relation("ChartOfAccountSubsidiaryAssignment")
 
@@ -880,7 +1068,7 @@ model Entity {
 
 model Item {
   id          String   @id @default(cuid())
-  itemNumber  String?  @unique
+  itemId      String?  @unique @map("itemNumber")
   sku         String?  @unique
   name        String
   description String?
@@ -899,6 +1087,12 @@ model Item {
   opportunityLineItems   OpportunityLineItem[]
   purchaseOrderLineItems PurchaseOrderLineItem[]
   requisitionLineItems   RequisitionLineItem[]
+  quoteLineItems         QuoteLineItem[]
+  salesOrderLineItems    SalesOrderLineItem[]
+  invoiceLineItems       InvoiceLineItem[]
+  billLineItems          BillLineItem[]
+  creditMemoLineItems    CreditMemoLineItem[]
+  billCreditLineItems    BillCreditLineItem[]
 
   @@index([currencyId])
   @@index([entityId])
@@ -907,13 +1101,12 @@ model Item {
 
 model Employee {
   id              String    @id @default(cuid())
-  employeeNumber  String?   @unique
+  employeeId      String?   @unique @map("employeeNumber")
   firstName       String
   lastName        String
   email           String?   @unique
   phone           String?
   title           String?
-  department      String?
   active          Boolean   @default(true)
   hireDate        DateTime?
   terminationDate DateTime?

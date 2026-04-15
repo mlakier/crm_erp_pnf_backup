@@ -18,7 +18,7 @@ function getActivityHref(entityType: string, entityId: string) {
   if (entityType === 'vendor') return `/vendors/${entityId}`
   if (entityType === 'contact') return `/contacts/${entityId}`
   if (entityType === 'opportunity') return `/opportunities/${entityId}`
-  if (entityType === 'quote') return `/estimates/${entityId}`
+  if (entityType === 'quote') return `/quotes/${entityId}`
   if (entityType === 'sales-order') return `/sales-orders/${entityId}`
   if (entityType === 'invoice') return `/invoices/${entityId}`
   if (entityType === 'purchase-order') return `/purchase-orders/${entityId}`
@@ -96,10 +96,7 @@ export default async function ActivityPage({
               <option value="delete">Delete</option>
             </select>
             <input type="hidden" name="page" value="1" />
-            <div className="flex items-center gap-2">
-              <Link href="/activity" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="activity-list" fileName="activity" />
-            </div>
+            <ExportButton tableId="activity-list" fileName="activity" />
             <ColumnSelector tableId="activity-list" columns={ACTIVITY_COLUMNS} />
           </div>
         </form>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 type Subsidiary = {
   id: string
-  code: string
+  subsidiaryId: string
   name: string
 }
 
@@ -20,7 +20,7 @@ export default function ChartOfAccountCreateForm({
   onSuccess?: () => void
   onCancel?: () => void
 }) {
-  const [accountNumber, setAccountNumber] = useState('')
+  const [accountId, setAccountId] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [accountType, setAccountType] = useState(ACCOUNT_TYPES[0])
@@ -40,7 +40,7 @@ export default function ChartOfAccountCreateForm({
   const router = useRouter()
 
   const sortedSubsidiaries = useMemo(
-    () => [...subsidiaries].sort((a, b) => a.code.localeCompare(b.code)),
+    () => [...subsidiaries].sort((a, b) => a.subsidiaryId.localeCompare(b.subsidiaryId)),
     [subsidiaries]
   )
 
@@ -72,7 +72,7 @@ export default function ChartOfAccountCreateForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accountNumber,
+          accountId,
           name,
           description,
           accountType,
@@ -94,7 +94,7 @@ export default function ChartOfAccountCreateForm({
         return
       }
 
-      setAccountNumber('')
+      setAccountId('')
       setName('')
       setDescription('')
       setAccountType(ACCOUNT_TYPES[0])
@@ -120,11 +120,11 @@ export default function ChartOfAccountCreateForm({
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Account #</label>
+            <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Account Id</label>
             <input
               type="text"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
               className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
               placeholder="1000"
@@ -208,7 +208,7 @@ export default function ChartOfAccountCreateForm({
                     checked={selectedSubsidiaryIds.includes(subsidiary.id)}
                     onChange={() => toggleSubsidiary(subsidiary.id)}
                   />
-                  <span>{subsidiary.code} - {subsidiary.name}</span>
+                  <span>{subsidiary.subsidiaryId} - {subsidiary.name}</span>
                 </label>
               ))}
             </div>
@@ -222,7 +222,7 @@ export default function ChartOfAccountCreateForm({
               >
                 {sortedSubsidiaries.map((subsidiary) => (
                   <option key={subsidiary.id} value={subsidiary.id}>
-                    {subsidiary.code} - {subsidiary.name}
+                    {subsidiary.subsidiaryId} - {subsidiary.name}
                   </option>
                 ))}
               </select>

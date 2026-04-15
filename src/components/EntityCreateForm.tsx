@@ -8,13 +8,13 @@ import { COUNTRY_OPTIONS, DEFAULT_COUNTRY_CODE } from '@/lib/address-country-con
 export default function EntityCreateForm({
   currencies,
   parentEntities,
-  initialCode,
+  initialSubsidiaryId,
   onSuccess,
   onCancel,
 }: {
-  currencies: Array<{ id: string; code: string; name: string }>
-  parentEntities?: Array<{ id: string; code: string; name: string }>
-  initialCode: string
+  currencies: Array<{ id: string; currencyId: string; name: string }>
+  parentEntities?: Array<{ id: string; subsidiaryId: string; name: string }>
+  initialSubsidiaryId: string
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -47,12 +47,12 @@ export default function EntityCreateForm({
         if (mounted) {
           setCurrencyOptions(
             body
-              .filter((item: unknown): item is { id: string; code: string; name: string } => {
+              .filter((item: unknown): item is { id: string; currencyId: string; name: string } => {
                 if (!item || typeof item !== 'object') return false
-                const row = item as { id?: unknown; code?: unknown; name?: unknown }
-                return typeof row.id === 'string' && typeof row.code === 'string' && typeof row.name === 'string'
+                const row = item as { id?: unknown; currencyId?: unknown; name?: unknown }
+                return typeof row.id === 'string' && typeof row.currencyId === 'string' && typeof row.name === 'string'
               })
-              .sort((a, b) => a.code.localeCompare(b.code)),
+              .sort((a, b) => a.currencyId.localeCompare(b.currencyId)),
           )
         }
       } catch {
@@ -92,8 +92,8 @@ export default function EntityCreateForm({
     <form className="space-y-4" onSubmit={submitForm}>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <span>Code *</span>
-          <input value={initialCode} readOnly disabled className="w-full rounded-md border px-3 py-2 text-white bg-transparent opacity-80" style={{ borderColor: 'var(--border-muted)' }} />
+          <span>Subsidiary Id *</span>
+          <input value={initialSubsidiaryId} readOnly disabled className="w-full rounded-md border px-3 py-2 text-white bg-transparent opacity-80" style={{ borderColor: 'var(--border-muted)' }} />
         </label>
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <span>Name *</span>
@@ -158,7 +158,7 @@ export default function EntityCreateForm({
           <option value="" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--card)' }}>None</option>
           {(parentEntities ?? []).map((entity) => (
             <option key={entity.id} value={entity.id} style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--card)' }}>
-              {entity.code} - {entity.name}
+              {entity.subsidiaryId} - {entity.name}
             </option>
           ))}
         </select>
@@ -177,7 +177,7 @@ export default function EntityCreateForm({
           </option>
           {currencyOptions.map((currency) => (
             <option key={currency.id} value={currency.id} style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--card)' }}>
-              {currency.code} - {currency.name}
+              {currency.currencyId} - {currency.name}
             </option>
           ))}
         </select>

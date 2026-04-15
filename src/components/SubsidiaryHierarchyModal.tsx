@@ -5,7 +5,7 @@ import SubsidiaryHierarchyFlow from '@/components/SubsidiaryHierarchyFlow'
 
 type SubsidiaryHierarchyEntity = {
   id: string
-  code: string
+  subsidiaryId: string
   name: string
   country: string | null
   entityType: string | null
@@ -13,7 +13,7 @@ type SubsidiaryHierarchyEntity = {
   parentEntityId: string | null
 }
 
-export default function SubsidiaryHierarchyModal({ entities }: { entities: SubsidiaryHierarchyEntity[] }) {
+export default function SubsidiaryHierarchyModal({ entities, logoUrl, title }: { entities: SubsidiaryHierarchyEntity[]; logoUrl?: string; title?: string }) {
   const [isOpen, setIsOpen] = useState(false)
 
   if (entities.length === 0) {
@@ -80,7 +80,7 @@ export default function SubsidiaryHierarchyModal({ entities }: { entities: Subsi
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-5">
-              <SubsidiaryHierarchyFlow entities={entities} title="Tillster Group of Companies" />
+              <SubsidiaryHierarchyFlow entities={entities} title={title} logoUrl={logoUrl} />
             </div>
           </div>
         </div>

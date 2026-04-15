@@ -35,7 +35,6 @@ export async function POST(request: Request) {
         email,
         title,
         departmentId,
-        department: departmentRef?.name ?? null,
         entityId,
         active: !inactive,
       },

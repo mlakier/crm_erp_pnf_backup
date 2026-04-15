@@ -27,8 +27,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         opportunity: { select: { id: true, name: true, opportunityNumber: true } },
       },
     }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
   ])
 
   if (!lead) notFound()
@@ -98,8 +98,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <Field label="Status" value={lead.status} />
             <Field label="Source" value={lead.source} />
             <Field label="Rating" value={lead.rating} />
-            <Field label="Subsidiary" value={lead.entity ? `${lead.entity.code} – ${lead.entity.name}` : null} />
-            <Field label="Currency" value={lead.currency ? `${lead.currency.code} – ${lead.currency.name}` : null} />
+            <Field label="Subsidiary" value={lead.entity ? `${lead.entity.subsidiaryId} – ${lead.entity.name}` : null} />
+            <Field label="Currency" value={lead.currency ? `${lead.currency.currencyId} – ${lead.currency.name}` : null} />
             <Field label="Created" value={fmtDate(lead.createdAt)} />
             <Field label="Last Contacted" value={fmtDate(lead.lastContactedAt)} />
             <Field label="Qualified At" value={fmtDate(lead.qualifiedAt)} />

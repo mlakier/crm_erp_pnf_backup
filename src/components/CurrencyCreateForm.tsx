@@ -19,7 +19,7 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
       const response = await fetch('/api/currencies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, name, symbol, inactive: false }),
+        body: JSON.stringify({ currencyId: code, name, symbol, inactive: false }),
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json?.error ?? 'Create failed')
@@ -36,7 +36,7 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
     <form className="space-y-4" onSubmit={submitForm}>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <span>Code *</span>
+          <span>Currency Id *</span>
           <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
         </label>
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>

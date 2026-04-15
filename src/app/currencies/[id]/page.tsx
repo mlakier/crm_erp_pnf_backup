@@ -9,7 +9,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
   const currency = await prisma.currency.findUnique({
     where: { id },
     include: {
-      entities: { orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } },
+      entities: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
       customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerId: true } },
       vendors: { orderBy: { name: 'asc' }, select: { id: true, name: true, vendorNumber: true } },
     },
@@ -27,7 +27,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
             <Link href="/currencies" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to Currencies
             </Link>
-            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{currency.code}</p>
+            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{currency.currencyId}</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">{currency.name}</h1>
             {currency.symbol && (
               <span className="mt-1 inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
@@ -40,7 +40,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
               resource="currencies"
               id={currency.id}
               fields={[
-                { name: 'code', label: 'Code', value: currency.code },
+                { name: 'currencyId', label: 'Currency Id', value: currency.currencyId },
                 { name: 'name', label: 'Name', value: currency.name },
                 { name: 'symbol', label: 'Symbol', value: currency.symbol ?? '' },
                 { name: 'decimals', label: 'Decimal Places', value: String(currency.decimals), type: 'number' },
@@ -81,7 +81,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Currency details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Code" value={currency.code} />
+            <Field label="Currency Id" value={currency.currencyId} />
             <Field label="Name" value={currency.name} />
             <Field label="Symbol" value={currency.symbol} />
             <Field label="Decimal Places" value={String(currency.decimals)} />
@@ -108,7 +108,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
                   <tr key={e.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <Td>
                       <Link href={`/subsidiaries/${e.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {e.code}
+                        {e.subsidiaryId}
                       </Link>
                     </Td>
                     <Td>{e.name}</Td>
@@ -155,7 +155,7 @@ export default async function CurrencyDetailPage({ params }: { params: Promise<{
             <table className="min-w-full">
               <thead>
                 <tr>
-                  <Th>Vendor #</Th>
+                  <Th>Vendor Id</Th>
                   <Th>Name</Th>
                 </tr>
               </thead>

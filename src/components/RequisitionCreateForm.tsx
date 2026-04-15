@@ -4,9 +4,9 @@ import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 type Vendor = { id: string; name: string }
-type Department = { id: string; name: string; code: string }
-type Entity = { id: string; code: string; name: string }
-type Currency = { id: string; code: string; name: string }
+type Department = { id: string; name: string; departmentId: string }
+type Entity = { id: string; subsidiaryId: string; name: string }
+type Currency = { id: string; currencyId: string; name: string }
 
 export default function RequisitionCreateForm({
   userId,
@@ -147,7 +147,7 @@ export default function RequisitionCreateForm({
             <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select department —</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {d.code} – {d.name}
+                {d.departmentId} – {d.name}
               </option>
             ))}
           </select>
@@ -182,7 +182,7 @@ export default function RequisitionCreateForm({
             <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select subsidiary —</option>
             {entities.map((e) => (
               <option key={e.id} value={e.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {e.code} – {e.name}
+                {e.subsidiaryId} – {e.name}
               </option>
             ))}
           </select>
@@ -198,7 +198,7 @@ export default function RequisitionCreateForm({
             <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select currency —</option>
             {currencies.map((c) => (
               <option key={c.id} value={c.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {c.code} – {c.name}
+                {c.currencyId} – {c.name}
               </option>
             ))}
           </select>

@@ -10,8 +10,8 @@ export default function EmployeeCreateForm({
   onSuccess,
   onCancel,
 }: {
-  entities: Array<{ id: string; code: string; name: string }>
-  departments: Array<{ id: string; code: string; name: string }>
+  entities: Array<{ id: string; subsidiaryId: string; name: string }>
+  departments: Array<{ id: string; departmentId: string; name: string }>
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -79,14 +79,14 @@ export default function EmployeeCreateForm({
         <span>Department</span>
         <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
           <option value="">None</option>
-          {departments.map((department) => <option key={department.id} value={department.id}>{department.code} - {department.name}</option>)}
+          {departments.map((department) => <option key={department.id} value={department.id}>{department.departmentId} - {department.name}</option>)}
         </select>
       </label>
       <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
         <span>Subsidiary</span>
         <select value={entityId} onChange={(e) => setEntityId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
           <option value="">None</option>
-          {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.code} - {entity.name}</option>)}
+          {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.subsidiaryId} - {entity.name}</option>)}
         </select>
       </label>
       {error ? <p className="text-sm text-red-300">{error}</p> : null}

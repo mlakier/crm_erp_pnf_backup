@@ -43,7 +43,7 @@ type FieldRow = {
 }
 
 const FIELD_ROWS: FieldRow[] = [
-  { key: 'code', label: 'Code', typeLabel: 'Text', fieldId: 'code', showLocked: true, requiredLocked: true, requiredValue: true },
+  { key: 'department-id', label: 'Department Id', typeLabel: 'Text', fieldId: 'departmentId', showLocked: true, requiredLocked: true, requiredValue: true },
   { key: 'name', label: 'Name', typeLabel: 'Text', fieldId: 'name', tableVisibilityKey: 'name', requiredLocked: true, requiredValue: true },
   { key: 'description', label: 'Description', typeLabel: 'Textarea', fieldId: 'description', settingsKey: 'description', tableVisibilityKey: 'description' },
   { key: 'division', label: 'Division', typeLabel: 'Text/Select', fieldId: 'division', settingsKey: 'division', tableVisibilityKey: 'division', allowsSourcing: true },
@@ -106,7 +106,7 @@ export default function DepartmentCustomizeForm({
   }, [config.columnOrder])
 
   function isMovableColumn(columnId: string) {
-    return columnId !== 'code' && columnId !== 'name' && columnId !== 'actions'
+    return columnId !== 'department-id' && columnId !== 'name' && columnId !== 'actions'
   }
 
   function toggleVisible(field: DepartmentOptionalFieldKey) {
@@ -163,7 +163,7 @@ export default function DepartmentCustomizeForm({
     if (!sourceColumn || !targetColumn || sourceColumn === targetColumn) return
 
     setConfig((prev) => {
-      const fixedFirst = ['code', 'name']
+      const fixedFirst = ['department-id', 'name']
       const movable = prev.columnOrder.filter((id) => id !== 'actions' && !fixedFirst.includes(id))
 
       const sourceIndex = movable.indexOf(sourceColumn)
@@ -176,7 +176,7 @@ export default function DepartmentCustomizeForm({
 
       return {
         ...prev,
-        columnOrder: ['code', 'name', ...next, 'actions'],
+        columnOrder: ['department-id', 'name', ...next, 'actions'],
       }
     })
   }
@@ -300,7 +300,7 @@ export default function DepartmentCustomizeForm({
               {orderedRows.map((row) => {
                 const fieldKey = row.settingsKey
                 const columnId = row.key
-                const isFixedFirst = columnId === 'code' || columnId === 'name'
+                const isFixedFirst = columnId === 'department-id' || columnId === 'name'
                 const isDraggableColumn = isMovableColumn(columnId)
                 const isDropTarget = draggingColumnId !== null && draggingColumnId !== columnId && isDraggableColumn
                 const currentRank = config.columnOrder.indexOf(columnId)

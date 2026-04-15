@@ -3,7 +3,7 @@
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Item = { id: string; name: string; listPrice: number; itemNumber: string | null }
+type Item = { id: string; name: string; listPrice: number; itemId: string | null }
 
 export default function OpportunityLineItemForm({
   opportunityId,
@@ -86,7 +86,7 @@ export default function OpportunityLineItemForm({
             <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select item —</option>
             {items.map((item) => (
               <option key={item.id} value={item.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {item.itemNumber ? `${item.itemNumber} - ${item.name}` : item.name}
+                {item.itemId ? `${item.itemId} - ${item.name}` : item.name}
               </option>
             ))}
           </select>

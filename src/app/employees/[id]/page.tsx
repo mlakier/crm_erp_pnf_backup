@@ -17,17 +17,17 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
       },
     }),
     prisma.entity.findMany({
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
+      orderBy: { subsidiaryId: 'asc' },
+      select: { id: true, subsidiaryId: true, name: true },
     }),
     prisma.department.findMany({
-      orderBy: [{ code: 'asc' }, { name: 'asc' }],
-      select: { id: true, code: true, name: true },
+      orderBy: [{ departmentId: 'asc' }, { name: 'asc' }],
+      select: { id: true, departmentId: true, name: true },
     }),
     prisma.employee.findMany({
       where: { id: { not: id } },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-      select: { id: true, firstName: true, lastName: true, employeeNumber: true },
+      select: { id: true, firstName: true, lastName: true, employeeId: true },
     }),
   ])
 
@@ -43,7 +43,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
             <Link href="/employees" className="text-sm hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
               ← Back to Employees
             </Link>
-            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{employee.employeeNumber ?? 'No employee #'}</p>
+            <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'var(--text-muted)' }}>{employee.employeeId ?? 'No Employee Id'}</p>
             <h1 className="mt-2 text-2xl font-semibold text-white">{employee.firstName} {employee.lastName}</h1>
             {employee.title && (
               <span className="mt-1 inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
@@ -66,7 +66,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                   value: employee.departmentId ?? '',
                   type: 'select',
                   placeholder: 'Select department',
-                  options: departments.map((d) => ({ value: d.id, label: `${d.code} – ${d.name}` })),
+                  options: departments.map((d) => ({ value: d.id, label: `${d.departmentId} – ${d.name}` })),
                 },
                 { name: 'phone', label: 'Phone', value: employee.phone ?? '' },
                 {
@@ -75,7 +75,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                   value: employee.entityId ?? '',
                   type: 'select',
                   placeholder: 'Select subsidiary',
-                  options: subsidiaries.map((s) => ({ value: s.id, label: `${s.code} – ${s.name}` })),
+                  options: subsidiaries.map((s) => ({ value: s.id, label: `${s.subsidiaryId} – ${s.name}` })),
                 },
                 {
                   name: 'managerId',
@@ -85,7 +85,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                   placeholder: 'Select manager',
                   options: managers.map((m) => ({
                     value: m.id,
-                    label: `${m.firstName} ${m.lastName}${m.employeeNumber ? ` (${m.employeeNumber})` : ''}`,
+                    label: `${m.firstName} ${m.lastName}${m.employeeId ? ` (${m.employeeId})` : ''}`,
                   })),
                 },
                 { name: 'hireDate', label: 'Hire Date', value: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : '', type: 'date' },
@@ -100,22 +100,22 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-3 mb-8">
           <StatCard label="Direct Reports" value={employee.directReports.length} />
-          <StatCard label="Subsidiary" value={employee.entity?.code ?? '—'} />
-          <StatCard label="Department" value={employee.departmentRef?.name ?? employee.department ?? '—'} />
+          <StatCard label="Subsidiary" value={employee.entity?.subsidiaryId ?? '—'} />
+          <StatCard label="Department" value={employee.departmentRef?.name ?? '—'} />
         </div>
 
         {/* Details */}
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Employee details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Employee #" value={employee.employeeNumber} />
+            <Field label="Employee Id" value={employee.employeeId} />
             <Field label="First Name" value={employee.firstName} />
             <Field label="Last Name" value={employee.lastName} />
             <Field label="Email" value={employee.email} />
             <Field label="Phone" value={employee.phone} />
             <Field label="Title" value={employee.title} />
-            <Field label="Department" value={employee.departmentRef?.name ?? employee.department} />
-            <Field label="Subsidiary" value={employee.entity ? `${employee.entity.code} – ${employee.entity.name}` : null} />
+            <Field label="Department" value={employee.departmentRef?.name} />
+            <Field label="Subsidiary" value={employee.entity ? `${employee.entity.subsidiaryId} – ${employee.entity.name}` : null} />
             <Field label="Manager" value={employee.manager ? `${employee.manager.firstName} ${employee.manager.lastName}` : null} />
             <Field label="Hire Date" value={employee.hireDate ? new Date(employee.hireDate).toLocaleDateString() : null} />
             <Field label="Termination Date" value={employee.terminationDate ? new Date(employee.terminationDate).toLocaleDateString() : null} />

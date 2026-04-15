@@ -9,7 +9,7 @@ import {
 } from '@/lib/custom-fields'
 
 const RESERVED_FIELD_NAMES = new Set([
-  'code',
+  'departmentid',
   'name',
   'description',
   'division',

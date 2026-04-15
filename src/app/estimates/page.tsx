@@ -11,7 +11,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const QUOTE_COLUMNS = [
-  { id: 'quote-number', label: 'Estimate #' },
+  { id: 'quote-number', label: 'Quote #' },
   { id: 'customer', label: 'Customer' },
   { id: 'opportunity', label: 'Opportunity' },
   { id: 'sales-order', label: 'Sales Order' },
@@ -109,10 +109,10 @@ export default async function QuotesPage({
           />
         ) : null}
         <div>
-          <h1 className="text-xl font-semibold text-white">Estimates</h1>
+          <h1 className="text-xl font-semibold text-white">Quotes</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{totalQuotes} total</p>
         </div>
-        <CreateModalButton buttonLabel="New Estimate" title="New Estimate">
+        <CreateModalButton buttonLabel="New Quote" title="New Quote">
           <QuoteCreateFromOpportunityForm
             opportunities={opportunitiesWithoutQuote.map((opportunity) => ({
               id: opportunity.id,
@@ -129,7 +129,7 @@ export default async function QuotesPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search estimate #, customer, opportunity, status"
+              placeholder="Search quote #, customer, opportunity, status"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
@@ -147,10 +147,7 @@ export default async function QuotesPage({
               <option value="total-asc">Total low-high</option>
             </select>
             <input type="hidden" name="page" value="1" />
-            <div className="flex items-center gap-2">
-              <Link href="/estimates" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="estimates-list" fileName="estimates" />
-            </div>
+            <ExportButton tableId="estimates-list" fileName="estimates" />
             <ColumnSelector tableId="estimates-list" columns={QUOTE_COLUMNS} />
           </div>
         </form>
@@ -159,7 +156,7 @@ export default async function QuotesPage({
           <table className="min-w-full" id="estimates-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="quote-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Estimate #</th>
+                <th data-column="quote-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Quote #</th>
                 <th data-column="customer" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Customer</th>
                 <th data-column="opportunity" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Opportunity</th>
                 <th data-column="sales-order" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Sales Order</th>
@@ -173,7 +170,7 @@ export default async function QuotesPage({
             <tbody>
               {quotes.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No estimates yet. Create one from an opportunity.</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No quotes yet. Create one from an opportunity.</td>
                 </tr>
               ) : (
                 quotes.map((quote, index) => (

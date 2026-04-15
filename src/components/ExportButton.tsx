@@ -5,15 +5,25 @@ import { exportTableToExcel } from '@/lib/export-excel'
 import { exportTableToPDF } from '@/lib/export-pdf'
 import { exportTableToCSV } from '@/lib/export-csv'
 
+function formatDateForFile(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function ExportButton({
   tableId,
   fileName = 'export',
+  compact = false,
 }: {
   tableId: string
   fileName?: string
+  compact?: boolean
 }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const exportFileName = `${fileName}-${formatDateForFile(new Date())}`
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -28,17 +38,17 @@ export default function ExportButton({
   }, [])
 
   const handleExportExcel = () => {
-    exportTableToExcel(tableId, fileName)
+    exportTableToExcel(tableId, exportFileName)
     setShowDropdown(false)
   }
 
   const handleExportPDF = () => {
-    exportTableToPDF(tableId, fileName)
+    exportTableToPDF(tableId, exportFileName)
     setShowDropdown(false)
   }
 
   const handleExportCSV = () => {
-    exportTableToCSV(tableId, fileName)
+    exportTableToCSV(tableId, exportFileName)
     setShowDropdown(false)
   }
 
@@ -47,7 +57,7 @@ export default function ExportButton({
       <button
         type="button"
         onClick={() => setShowDropdown(!showDropdown)}
-        className="rounded-md border px-3 py-2 text-sm font-medium"
+        className={`rounded-md border font-medium ${compact ? 'px-3 py-2 text-xs' : 'px-3 py-2 text-sm'}`}
         style={{
           borderColor: 'var(--border-muted)',
           color: 'var(--text-secondary)',
@@ -70,7 +80,7 @@ export default function ExportButton({
           <button
             type="button"
             onClick={handleExportExcel}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 first:rounded-t-md"
+            className={`block w-full text-left px-4 py-2 hover:bg-gray-100 first:rounded-t-md ${compact ? 'text-xs' : 'text-sm'}`}
             style={{
               color: 'var(--text-secondary)',
             }}
@@ -80,7 +90,7 @@ export default function ExportButton({
           <button
             type="button"
             onClick={handleExportCSV}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+            className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${compact ? 'text-xs' : 'text-sm'}`}
             style={{
               color: 'var(--text-secondary)',
             }}
@@ -90,7 +100,7 @@ export default function ExportButton({
           <button
             type="button"
             onClick={handleExportPDF}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 last:rounded-b-md"
+            className={`block w-full text-left px-4 py-2 hover:bg-gray-100 last:rounded-b-md ${compact ? 'text-xs' : 'text-sm'}`}
             style={{
               color: 'var(--text-secondary)',
             }}

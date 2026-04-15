@@ -46,7 +46,7 @@ export default async function LeadConvertPage({ params }: { params: Promise<{ id
     prisma.item.findMany({
       where: { active: true },
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, listPrice: true, itemNumber: true },
+      select: { id: true, name: true, listPrice: true, itemId: true },
     }),
   ])
 

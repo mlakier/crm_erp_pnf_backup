@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { generateNextEntityCode } from '@/lib/entity-code'
 
 export async function GET() {
-  const data = await prisma.entity.findMany({ include: { defaultCurrency: true, parentEntity: true }, orderBy: { code: 'asc' } })
+  const data = await prisma.entity.findMany({ include: { defaultCurrency: true, parentEntity: true }, orderBy: { subsidiaryId: 'asc' } })
   return NextResponse.json(data)
 }
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     const created = await prisma.entity.create({
       data: {
-        code,
+        subsidiaryId: code,
         name,
         legalName,
         entityType,
@@ -54,7 +54,7 @@ export async function PUT(request: Request) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
     const body = await request.json()
-    const code = body?.code !== undefined ? String(body.code).trim().toUpperCase() : undefined
+    const code = body?.code !== undefined ? String(body.code).trim().toUpperCase() : (body?.subsidiaryId !== undefined ? String(body.subsidiaryId).trim().toUpperCase() : undefined)
     const name = body?.name !== undefined ? String(body.name).trim() : undefined
     const legalName = body?.legalName !== undefined ? (String(body.legalName).trim() || null) : undefined
     const entityType = body?.entityType !== undefined ? (String(body.entityType).trim() || null) : undefined
@@ -80,7 +80,7 @@ export async function PUT(request: Request) {
     const updated = await prisma.entity.update({
       where: { id },
       data: Object.fromEntries(
-        Object.entries({ code, name, legalName, entityType, country, address, defaultCurrencyId, parentEntityId, taxId, registrationNumber, active }).filter(([, v]) => v !== undefined)
+        Object.entries({ subsidiaryId: code, name, legalName, entityType, country, address, defaultCurrencyId, parentEntityId, taxId, registrationNumber, active }).filter(([, v]) => v !== undefined)
       ),
       include: { defaultCurrency: true, parentEntity: true },
     })

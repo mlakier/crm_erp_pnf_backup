@@ -68,8 +68,8 @@ export default async function LeadsPage({
   const [totalLeads, adminUser, entities, currencies, companySettings, cabinetFiles] = await Promise.all([
     prisma.lead.count({ where }),
     prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
   ])
@@ -149,10 +149,7 @@ export default async function LeadsPage({
               <option value="name">Name A-Z</option>
               <option value="company">Company A-Z</option>
             </select>
-            <div className="flex items-center gap-2">
-              <a href="/leads" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</a>
-              <ExportButton tableId="leads-list" fileName="leads" />
-            </div>
+            <ExportButton tableId="leads-list" fileName="leads" />
             <ColumnSelector tableId="leads-list" columns={LEAD_COLUMNS} />
           </div>
         </form>
@@ -190,8 +187,8 @@ export default async function LeadsPage({
                     <td data-column="company" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.company ?? '—'}</td>
                     <td data-column="status" className="px-4 py-2 text-sm capitalize" style={{ color: 'var(--text-secondary)' }}>{lead.status}</td>
                     <td data-column="source" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.source ?? '—'}</td>
-                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.entity?.code ?? '—'}</td>
-                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.currency?.code ?? '—'}</td>
+                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.entity?.subsidiaryId ?? '—'}</td>
+                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.currency?.currencyId ?? '—'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(lead.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(lead.updatedAt).toLocaleDateString()}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">

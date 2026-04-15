@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   const data = await prisma.department.findMany({
     include: { entity: true },
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
+    orderBy: [{ departmentId: 'asc' }, { name: 'asc' }],
   })
   return NextResponse.json(data)
 }
@@ -12,7 +12,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const code = String(body?.code ?? '').trim().toUpperCase()
+    const departmentId = String(body?.departmentId ?? '').trim().toUpperCase()
     const name = String(body?.name ?? '').trim()
     const description = String(body?.description ?? '').trim() || null
     const division = String(body?.division ?? '').trim() || null
@@ -20,13 +20,13 @@ export async function POST(request: Request) {
     const managerId = String(body?.managerId ?? '').trim() || null
     const inactive = String(body?.inactive ?? 'false').trim().toLowerCase() === 'true'
 
-    if (!code || !name) {
-      return NextResponse.json({ error: 'Code and name are required.' }, { status: 400 })
+    if (!departmentId || !name) {
+      return NextResponse.json({ error: 'Department Id and name are required.' }, { status: 400 })
     }
 
     const created = await prisma.department.create({
       data: {
-        code,
+        departmentId,
         name,
         description,
         division,
@@ -50,7 +50,7 @@ export async function PUT(request: Request) {
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
     const body = await request.json()
 
-    const code = body?.code !== undefined ? String(body.code).trim().toUpperCase() : undefined
+    const departmentId = body?.departmentId !== undefined ? String(body.departmentId).trim().toUpperCase() : undefined
     const name = body?.name !== undefined ? String(body.name).trim() : undefined
     const description = body?.description !== undefined ? (String(body.description).trim() || null) : undefined
     const division = body?.division !== undefined ? (String(body.division).trim() || null) : undefined
@@ -68,7 +68,7 @@ export async function PUT(request: Request) {
     const updated = await prisma.department.update({
       where: { id },
       data: Object.fromEntries(
-        Object.entries({ code, name, description, division, entityId, managerId, active }).filter(([, v]) => v !== undefined)
+        Object.entries({ departmentId, name, description, division, entityId, managerId, active }).filter(([, v]) => v !== undefined)
       ),
       include: { entity: true },
     })

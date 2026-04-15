@@ -15,24 +15,24 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         entity: true,
         currency: true,
         purchaseOrders: { orderBy: { createdAt: 'desc' } },
-        apInvoices: { orderBy: { createdAt: 'desc' } },
+        bills: { orderBy: { createdAt: 'desc' } },
       },
     }),
     prisma.user.findFirst({ where: { email: 'admin@example.com' }, select: { id: true } }),
     prisma.entity.findMany({
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
+      orderBy: { subsidiaryId: 'asc' },
+      select: { id: true, subsidiaryId: true, name: true },
     }),
     prisma.currency.findMany({
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
+      orderBy: { currencyId: 'asc' },
+      select: { id: true, currencyId: true, name: true },
     }),
   ])
 
   if (!vendor) notFound()
 
   const totalSpend = vendor.purchaseOrders.reduce((s, po) => s + (po.total ?? 0), 0)
-  const openInvoices = vendor.apInvoices.filter((i) => !i.paid)
+  const openInvoices = vendor.bills.filter((i) => i.status !== 'paid' && i.status !== 'void')
 
   return (
     <div className="min-h-full px-8 py-8">
@@ -82,12 +82,12 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Vendor details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Vendor #" value={vendor.vendorNumber} />
+            <Field label="Vendor Id" value={vendor.vendorNumber} />
             <Field label="Email" value={vendor.email} />
             <Field label="Phone" value={fmtPhone(vendor.phone)} />
             <Field label="Address" value={vendor.address} />
-            <Field label="Primary Subsidiary" value={vendor.entity ? `${vendor.entity.code} - ${vendor.entity.name}` : null} />
-            <Field label="Primary Currency" value={vendor.currency?.code ?? null} />
+            <Field label="Primary Subsidiary" value={vendor.entity ? `${vendor.entity.subsidiaryId} - ${vendor.entity.name}` : null} />
+            <Field label="Primary Currency" value={vendor.currency?.currencyId ?? null} />
             <Field label="Vendor since" value={new Date(vendor.createdAt).toLocaleDateString()} />
           </dl>
         </div>
@@ -125,8 +125,8 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         </Section>
 
         {/* Bills */}
-        {vendor.apInvoices.length > 0 && (
-          <Section title="Bills" count={vendor.apInvoices.length}>
+        {vendor.bills.length > 0 && (
+          <Section title="Bills" count={vendor.bills.length}>
             <table className="min-w-full">
               <thead>
                 <tr>
@@ -137,17 +137,17 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                 </tr>
               </thead>
               <tbody>
-                {vendor.apInvoices.map((inv) => (
+                {vendor.bills.map((inv) => (
                   <tr key={inv.id}>
                     <Td>
                       <Link href={`/bills/${inv.id}`} style={{ color: 'var(--accent-primary-strong)' }} className="hover:underline">
                         {inv.number}
                       </Link>
                     </Td>
-                    <Td>{fmtCurrency(inv.amount)}</Td>
+                    <Td>{fmtCurrency(inv.total)}</Td>
                     <Td>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</Td>
                     <Td>
-                      <StatusBadge paid={inv.paid} approved={inv.approved} />
+                      <StatusBadge status={inv.status} />
                     </Td>
                   </tr>
                 ))}
@@ -161,9 +161,10 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   )
 }
 
-function StatusBadge({ paid, approved }: { paid: boolean; approved: boolean }) {
-  if (paid) return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(34,197,94,0.16)', color: '#86efac' }}>Paid</span>
-  if (approved) return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>Approved</span>
+function StatusBadge({ status }: { status: string }) {
+  if (status === 'paid') return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(34,197,94,0.16)', color: '#86efac' }}>Paid</span>
+  if (status === 'approved') return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>Approved</span>
+  if (status === 'void') return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(107,114,128,0.18)', color: '#9ca3af' }}>Void</span>
   return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.16)', color: '#fcd34d' }}>Pending</span>
 }
 

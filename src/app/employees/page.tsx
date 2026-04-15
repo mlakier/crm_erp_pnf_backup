@@ -13,7 +13,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const COLS = [
-  { id: 'employee-number', label: 'Employee #' },
+  { id: 'employee-id', label: 'Employee Id' },
   { id: 'name', label: 'Name' },
   { id: 'email', label: 'Email' },
   { id: 'title', label: 'Title' },
@@ -42,8 +42,8 @@ export default async function EmployeesPage({
 
   const [employees, entities, departments, companySettings, cabinetFiles] = await Promise.all([
     prisma.employee.findMany({ where, include: { entity: true, departmentRef: true }, orderBy: { createdAt: 'desc' }, skip: pagination.skip, take: pagination.pageSize }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' } }),
-    prisma.department.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' } }),
+    prisma.department.findMany({ orderBy: [{ departmentId: 'asc' }, { name: 'asc' }], select: { id: true, departmentId: true, name: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
   ])
@@ -97,10 +97,7 @@ export default async function EmployeesPage({
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <input type="hidden" name="page" value="1" />
-            <div className="flex items-center gap-2">
-              <Link href="/employees" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="employees-list" fileName="employees" />
-            </div>
+            <ExportButton tableId="employees-list" fileName="employees" />
             <ColumnSelector tableId="employees-list" columns={COLS} />
           </div>
         </form>
@@ -109,7 +106,7 @@ export default async function EmployeesPage({
           <table className="min-w-full" id="employees-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="employee-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Employee #</th>
+                <th data-column="employee-id" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Employee Id</th>
                 <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
                 <th data-column="email" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Email</th>
                 <th data-column="title" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Title</th>
@@ -131,12 +128,12 @@ export default async function EmployeesPage({
               ) : (
                 employees.map((employee, index) => (
                   <tr key={employee.id} style={index < employees.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                    <td data-column="employee-number" className="px-4 py-2 text-sm font-medium"><Link href={`/employees/${employee.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{employee.employeeNumber ?? 'Pending'}</Link></td>
+                    <td data-column="employee-id" className="px-4 py-2 text-sm font-medium"><Link href={`/employees/${employee.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{employee.employeeId ?? 'Pending'}</Link></td>
                     <td data-column="name" className="px-4 py-2 text-sm font-medium text-white">{employee.firstName} {employee.lastName}</td>
                     <td data-column="email" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.email ?? '—'}</td>
                     <td data-column="title" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.title ?? '—'}</td>
-                    <td data-column="department" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.departmentRef?.code ?? employee.department ?? '—'}</td>
-                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.entity?.code ?? '—'}</td>
+                    <td data-column="department" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.departmentRef?.departmentId ?? '—'}</td>
+                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.entity?.subsidiaryId ?? '—'}</td>
                     <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{employee.active ? 'No' : 'Yes'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(employee.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(employee.updatedAt).toLocaleDateString()}</td>
@@ -156,7 +153,7 @@ export default async function EmployeesPage({
                               value: employee.departmentId ?? '',
                               type: 'select',
                               placeholder: 'Select department',
-                              options: departments.map((department) => ({ value: department.id, label: `${department.code} - ${department.name}` })),
+                              options: departments.map((department) => ({ value: department.id, label: `${department.departmentId} - ${department.name}` })),
                             },
                             {
                               name: 'entityId',
@@ -164,7 +161,7 @@ export default async function EmployeesPage({
                               value: employee.entityId ?? '',
                               type: 'select',
                               placeholder: 'Select subsidiary',
-                              options: entities.map((entity) => ({ value: entity.id, label: `${entity.code} - ${entity.name}` })),
+                              options: entities.map((entity) => ({ value: entity.id, label: `${entity.subsidiaryId} - ${entity.name}` })),
                             },
                           ]}
                         />

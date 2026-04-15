@@ -29,7 +29,7 @@
     "status": true
   },
   "columnOrder": [
-    "code",
+    "department-id",
     "name",
     "division",
     "description",

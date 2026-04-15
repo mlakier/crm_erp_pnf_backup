@@ -45,7 +45,7 @@ export default async function SalesOrderDetailPage({ params }: { params: Promise
             {salesOrder.status !== 'draft' ? <RecordStatusButton resource="sales-orders" id={salesOrder.id} status="draft" label="Reset Draft" tone="gray" /> : null}
             <SalesOrderCreateInvoiceButton salesOrderId={salesOrder.id} existingInvoiceId={latestInvoice?.id} />
             {salesOrder.quote ? (
-              <Link href={`/estimates/${salesOrder.quote.id}`} className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+              <Link href={`/quotes/${salesOrder.quote.id}`} className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
                 View quote
               </Link>
             ) : null}

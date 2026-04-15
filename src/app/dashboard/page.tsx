@@ -12,7 +12,7 @@ function getActivityHref(entityType: string, entityId: string) {
   if (entityType === 'vendor') return `/vendors/${entityId}`
   if (entityType === 'contact') return `/contacts/${entityId}`
   if (entityType === 'opportunity') return `/opportunities/${entityId}`
-  if (entityType === 'quote') return `/estimates/${entityId}`
+  if (entityType === 'quote') return `/quotes/${entityId}`
   if (entityType === 'sales-order') return `/sales-orders/${entityId}`
   if (entityType === 'invoice') return `/invoices/${entityId}`
   if (entityType === 'purchase-order') return `/purchase-orders/${entityId}`
@@ -85,7 +85,7 @@ export default async function Dashboard() {
         <NavCard title="Departments" description="Organize employee structure and ownership" href="/departments" />
         <NavCard title="Vendors" description="Manage vendor master data" href="/vendors" />
         <NavCard title="Opportunities" description="Track sales pipeline and deals" href="/opportunities" />
-        <NavCard title="Estimates" description="Customer proposals from opportunities" href="/estimates" />
+        <NavCard title="Quotes" description="Customer proposals from opportunities" href="/quotes" />
         <NavCard title="Sales Orders" description="Booked customer orders" href="/sales-orders" />
         <NavCard title="Invoices" description="Customer billing and payment status" href="/invoices" />
         <NavCard title="Purchase Requisitions" description="Plan and request procurement purchases" href="/purchase-requisitions" />

@@ -32,7 +32,7 @@ async function seedCurrencies() {
 
   for (const code of codes) {
     await prisma.currency.upsert({
-      where: { code },
+      where: { currencyId: code },
       update: {
         name: currencyDisplayName(code),
         symbol: null,
@@ -40,7 +40,7 @@ async function seedCurrencies() {
         active: true,
       },
       create: {
-        code,
+        currencyId: code,
         name: currencyDisplayName(code),
         symbol: null,
         decimals: 2,
@@ -54,28 +54,28 @@ async function seedCurrencies() {
 
 async function seedEntities() {
   const preferredCurrencies = await prisma.currency.findMany({
-    where: { code: { in: ['USD', 'EUR', 'GBP'] } },
+    where: { currencyId: { in: ['USD', 'EUR', 'GBP'] } },
   })
 
-  const byCode = new Map(preferredCurrencies.map((c) => [c.code, c.id]))
+  const byCode = new Map(preferredCurrencies.map((c) => [c.currencyId, c.id]))
 
   const entities = [
     {
-      code: 'ENT-US',
+      subsidiaryId: 'ENT-US',
       name: 'North America Entity',
       legalName: 'North America Entity LLC',
       entityType: 'Operating Company',
       defaultCurrencyId: byCode.get('USD') || null,
     },
     {
-      code: 'ENT-EU',
+      subsidiaryId: 'ENT-EU',
       name: 'Europe Entity',
       legalName: 'Europe Entity GmbH',
       entityType: 'Operating Company',
       defaultCurrencyId: byCode.get('EUR') || null,
     },
     {
-      code: 'ENT-UK',
+      subsidiaryId: 'ENT-UK',
       name: 'United Kingdom Entity',
       legalName: 'United Kingdom Entity Ltd',
       entityType: 'Operating Company',
@@ -85,7 +85,7 @@ async function seedEntities() {
 
   for (const entity of entities) {
     await prisma.entity.upsert({
-      where: { code: entity.code },
+      where: { subsidiaryId: entity.subsidiaryId },
       update: {
         name: entity.name,
         legalName: entity.legalName,
@@ -108,8 +108,8 @@ async function seedItems() {
   })
 
   const currencies = await prisma.currency.findMany({
-    where: { code: { in: ['USD', 'EUR', 'GBP'] } },
-    orderBy: { code: 'asc' },
+    where: { currencyId: { in: ['USD', 'EUR', 'GBP'] } },
+    orderBy: { currencyId: 'asc' },
   })
 
   const itemTypes = ['service', 'product', 'expense']
@@ -118,11 +118,11 @@ async function seedItems() {
     const entity = entities[(i - 1) % entities.length] || null
     const currency = currencies[(i - 1) % currencies.length] || null
 
-    const itemNumber = `ITM-${String(i).padStart(4, '0')}`
+    const itemId = `ITM-${String(i).padStart(4, '0')}`
     const sku = `SKU-${String(i).padStart(4, '0')}`
 
     await prisma.item.upsert({
-      where: { itemNumber },
+      where: { itemId },
       update: {
         name: `Master Item ${String(i).padStart(2, '0')}`,
         sku,
@@ -134,7 +134,7 @@ async function seedItems() {
         active: true,
       },
       create: {
-        itemNumber,
+        itemId,
         sku,
         name: `Master Item ${String(i).padStart(2, '0')}`,
         description: `Seeded master item ${i}`,
@@ -179,7 +179,7 @@ async function seedEmployees() {
         active: true,
       },
       create: {
-        employeeNumber: `EMP-${String(i).padStart(4, '0')}`,
+        employeeId: `EMP-${String(i).padStart(4, '0')}`,
         firstName,
         lastName,
         email,
@@ -199,8 +199,8 @@ async function main() {
 
   const [currencyCount, entityCount, itemCount, employeeCount] = await Promise.all([
     prisma.currency.count(),
-    prisma.entity.count({ where: { code: { in: ['ENT-US', 'ENT-EU', 'ENT-UK'] } } }),
-    prisma.item.count({ where: { itemNumber: { startsWith: 'ITM-' } } }),
+    prisma.entity.count({ where: { subsidiaryId: { in: ['ENT-US', 'ENT-EU', 'ENT-UK'] } } }),
+    prisma.item.count({ where: { itemId: { startsWith: 'ITM-' } } }),
     prisma.employee.count({ where: { email: { endsWith: '@example.com' } } }),
   ])
 

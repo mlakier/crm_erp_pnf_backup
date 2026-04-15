@@ -98,10 +98,12 @@ export async function PUT(request: NextRequest) {
       },
     })
 
-    const salesOrder = await prisma.salesOrder.findUnique({
-      where: { id: invoice.salesOrderId },
-      select: { userId: true },
-    })
+    const salesOrder = invoice.salesOrderId
+      ? await prisma.salesOrder.findUnique({
+          where: { id: invoice.salesOrderId },
+          select: { userId: true },
+        })
+      : null
 
     await logActivity({
       entityType: 'invoice',

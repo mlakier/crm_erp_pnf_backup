@@ -26,8 +26,8 @@ export default function CustomerEditButton({
 }: {
   customerId: string
   values: CustomerEditValues
-  entities: Array<{ id: string; code: string; name: string }>
-  currencies: Array<{ id: string; code: string; name: string }>
+  entities: Array<{ id: string; subsidiaryId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; name: string }>
   industryOptions: string[]
 }) {
   const router = useRouter()
@@ -192,7 +192,7 @@ export default function CustomerEditButton({
                   >
                     <option value="">None</option>
                     {entities.map((e) => (
-                      <option key={e.id} value={e.id}>{e.code} - {e.name}</option>
+                      <option key={e.id} value={e.id}>{e.subsidiaryId} - {e.name}</option>
                     ))}
                   </select>
                 </label>
@@ -206,7 +206,7 @@ export default function CustomerEditButton({
                   >
                     <option value="">None</option>
                     {currencies.map((c) => (
-                      <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
+                      <option key={c.id} value={c.id}>{c.currencyId} - {c.name}</option>
                     ))}
                   </select>
                 </label>

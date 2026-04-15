@@ -14,7 +14,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const VENDOR_COLUMNS = [
-  { id: 'vendor-number', label: 'Vendor #' },
+  { id: 'vendor-number', label: 'Vendor Id' },
   { id: 'name', label: 'Name' },
   { id: 'subsidiary', label: 'Primary Subsidiary' },
   { id: 'currency', label: 'Primary Currency' },
@@ -58,8 +58,8 @@ export default async function VendorsPage({
 
   const [totalVendors, subsidiaries, currencies, companySettings, cabinetFiles] = await Promise.all([
     prisma.vendor.count({ where }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
   ])
@@ -119,7 +119,7 @@ export default async function VendorsPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search vendor #, name, email, phone, tax id"
+              placeholder="Search vendor id, name, email, phone, tax id"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
@@ -128,10 +128,7 @@ export default async function VendorsPage({
               <option value="oldest">Oldest</option>
               <option value="name">Name A-Z</option>
             </select>
-            <div className="flex items-center gap-2">
-              <Link href="/vendors" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="vendors-list" fileName="vendors" />
-            </div>
+            <ExportButton tableId="vendors-list" fileName="vendors" />
             <ColumnSelector tableId="vendors-list" columns={VENDOR_COLUMNS} />
           </div>
         </form>
@@ -140,7 +137,7 @@ export default async function VendorsPage({
           <table className="min-w-full" id="vendors-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="vendor-number" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Vendor #</th>
+                <th data-column="vendor-number" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Vendor Id</th>
                 <th data-column="name" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
                 <th data-column="subsidiary" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Primary Subsidiary</th>
                 <th data-column="currency" className="sticky top-0 z-10 whitespace-nowrap px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Primary Currency</th>
@@ -170,10 +167,10 @@ export default async function VendorsPage({
                   </td>
                   <td data-column="name" className="whitespace-nowrap px-4 py-2 text-sm text-white">{vendor.name}</td>
                   <td data-column="subsidiary" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    {vendor.entity ? `${vendor.entity.code} (${vendor.entity.name})` : '—'}
+                    {vendor.entity ? `${vendor.entity.subsidiaryId} (${vendor.entity.name})` : '—'}
                   </td>
                   <td data-column="currency" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    {vendor.currency?.code ?? '—'}
+                    {vendor.currency?.currencyId ?? '—'}
                   </td>
                   <td data-column="email" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{vendor.email ?? '—'}</td>
                   <td data-column="phone" className="whitespace-nowrap px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(vendor.phone)}</td>

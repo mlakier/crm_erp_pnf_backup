@@ -25,6 +25,19 @@ NEXTAUTH_URL="http://localhost:3003"
 NEXTAUTH_SECRET="change-this-to-a-secure-random-value"
 ```
 
+Optional local convenience settings:
+
+```env
+# Enable local auto sign-in on /auth/signin
+NEXT_PUBLIC_AUTO_SIGN_IN="false"
+NEXT_PUBLIC_AUTO_SIGN_IN_EMAIL=""
+NEXT_PUBLIC_AUTO_SIGN_IN_PASSWORD=""
+
+# Timeouts in milliseconds
+AUTH_TIMEOUT_MS="8000"
+NEXT_PUBLIC_AUTH_TIMEOUT_MS="10000"
+```
+
 Adjust credentials/host/port for your environment.
 
 ## Install

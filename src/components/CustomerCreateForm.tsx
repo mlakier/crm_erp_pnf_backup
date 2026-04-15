@@ -16,8 +16,8 @@ export default function CustomerCreateForm({
   onCancel,
 }: {
   ownerUserId: string
-  subsidiaries: Array<{ id: string; code: string; name: string }>
-  currencies: Array<{ id: string; code: string; name: string }>
+  subsidiaries: Array<{ id: string; subsidiaryId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; name: string }>
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -234,7 +234,7 @@ export default function CustomerCreateForm({
             <option value="" style={{ backgroundColor: 'var(--card-elevated)', color: 'var(--text-muted)' }}>None</option>
             {subsidiaries.map((subsidiary) => (
               <option key={subsidiary.id} value={subsidiary.id} style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
-                {subsidiary.code} - {subsidiary.name}
+                {subsidiary.subsidiaryId} - {subsidiary.name}
               </option>
             ))}
           </select>
@@ -250,7 +250,7 @@ export default function CustomerCreateForm({
               <option value="" style={{ backgroundColor: 'var(--card-elevated)', color: 'var(--text-muted)' }}>None</option>
               {currencies.map((currency) => (
                 <option key={currency.id} value={currency.id} style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
-                  {currency.code} - {currency.name}
+                  {currency.currencyId} - {currency.name}
                 </option>
               ))}
             </select>

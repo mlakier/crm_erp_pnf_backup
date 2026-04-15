@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, amount, stage, closeDate, customerId, userId } = body
+    const { name, amount, stage, closeDate, customerId, userId, lineItems } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
@@ -34,16 +34,39 @@ export async function POST(request: NextRequest) {
 
     const opportunityNumber = await generateNextOpportunityNumber()
 
+    // Build line item create data
+    const lineItemRows = Array.isArray(lineItems)
+      ? lineItems.map((li: { itemId?: string | null; description: string; quantity: number; unitPrice: number; notes?: string | null }) => {
+          const qty = Math.max(1, Number(li.quantity) || 1)
+          const price = Number(li.unitPrice) || 0
+          return {
+            description: String(li.description || ''),
+            quantity: qty,
+            unitPrice: price,
+            lineTotal: qty * price,
+            notes: li.notes || null,
+            itemId: li.itemId || null,
+          }
+        })
+      : []
+
+    // If line items provided, compute amount from them; otherwise use submitted amount
+    const computedAmount = lineItemRows.length > 0
+      ? lineItemRows.reduce((sum: number, li: { lineTotal: number }) => sum + li.lineTotal, 0)
+      : (amount ?? 0)
+
     const opportunity = await prisma.opportunity.create({
       data: {
         opportunityNumber,
         name,
-        amount,
+        amount: computedAmount,
         stage,
         closeDate: closeDate ? new Date(closeDate) : null,
         customerId,
         userId,
+        ...(lineItemRows.length > 0 ? { lineItems: { create: lineItemRows } } : {}),
       },
+      include: { lineItems: true },
     })
 
     await logActivity({

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const id = searchParams.get('id')
 
     if (id) {
-      const bill = await prisma.aPInvoice.findUnique({
+      const bill = await prisma.bill.findUnique({
         where: { id },
         include: INCLUDE,
       })
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(bill)
     }
 
-    const bills = await prisma.aPInvoice.findMany({
+    const bills = await prisma.bill.findMany({
       include: INCLUDE,
       orderBy: { createdAt: 'desc' },
     })
@@ -43,26 +43,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { vendorId, amount, date, dueDate, status, notes } = body
+    const { vendorId, total, date, dueDate, status, notes } = body
 
-    if (!vendorId || amount === undefined || !date) {
-      return NextResponse.json({ error: 'vendorId, amount, and bill date are required' }, { status: 400 })
+    if (!vendorId || total === undefined || !date) {
+      return NextResponse.json({ error: 'vendorId, total, and bill date are required' }, { status: 400 })
     }
 
     const number = await generateNextBillNumber()
     const nextStatus = status || 'received'
 
-    const bill = await prisma.aPInvoice.create({
+    const bill = await prisma.bill.create({
       data: {
         number,
         vendorId,
-        amount: Number.parseFloat(String(amount)) || 0,
+        total: Number.parseFloat(String(total)) || 0,
         date: new Date(date),
         dueDate: dueDate ? new Date(dueDate) : null,
         status: nextStatus,
         notes: notes || null,
-        approved: nextStatus === 'approved' || nextStatus === 'paid',
-        paid: nextStatus === 'paid',
       },
       include: INCLUDE,
     })
@@ -89,7 +87,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { vendorId, amount, date, dueDate, status, notes, coded, approved, paid } = body
+    const { vendorId, total, date, dueDate, status, notes } = body
 
     if (vendorId !== undefined && !String(vendorId ?? '').trim()) {
       return NextResponse.json({ error: 'vendorId cannot be empty' }, { status: 400 })
@@ -99,18 +97,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'date cannot be empty' }, { status: 400 })
     }
 
-    const bill = await prisma.aPInvoice.update({
+    const bill = await prisma.bill.update({
       where: { id },
       data: {
         ...(vendorId !== undefined ? { vendorId: String(vendorId).trim() } : {}),
-        ...(amount !== undefined ? { amount: Number.parseFloat(String(amount)) || 0 } : {}),
+        ...(total !== undefined ? { total: Number.parseFloat(String(total)) || 0 } : {}),
         ...(date !== undefined ? { date: new Date(String(date)) } : {}),
         ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
         ...(status !== undefined ? { status: status || 'received' } : {}),
         ...(notes !== undefined ? { notes: notes || null } : {}),
-        ...(coded !== undefined ? { coded: parseBoolean(coded) } : {}),
-        ...(approved !== undefined ? { approved: parseBoolean(approved) } : {}),
-        ...(paid !== undefined ? { paid: parseBoolean(paid) } : {}),
       },
       include: INCLUDE,
     })
@@ -136,8 +131,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing bill id' }, { status: 400 })
     }
 
-    const existing = await prisma.aPInvoice.findUnique({ where: { id } })
-    await prisma.aPInvoice.delete({ where: { id } })
+    const existing = await prisma.bill.findUnique({ where: { id } })
+    await prisma.bill.delete({ where: { id } })
 
     await logActivity({
       entityType: 'bill',

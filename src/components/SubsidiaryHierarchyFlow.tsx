@@ -1,13 +1,13 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import dagre from 'dagre'
 import jsPDF from 'jspdf'
 
 type SubsidiaryEntity = {
   id: string
-  code: string
+  subsidiaryId: string
   name: string
   country: string | null
   entityType: string | null
@@ -16,11 +16,19 @@ type SubsidiaryEntity = {
 }
 
 const NODE_WIDTH = 300
-const NODE_HEIGHT = 112
-const PADDING_X = 32
-const PADDING_Y = 24
-const TITLE_HEIGHT = 44
-const EXPORT_PADDING = 24
+const NODE_HEIGHT = 100
+const PADDING_X = 24
+const PADDING_Y = 18
+const TITLE_HEIGHT = 52
+const EXPORT_PADDING = 18
+
+// Larger dimensions for PDF export so text doesn't truncate when scaled to A4
+const PDF_NODE_WIDTH = 340
+const PDF_NODE_HEIGHT = 120
+const PDF_PADDING_X = 36
+const PDF_PADDING_Y = 28
+const PDF_TITLE_HEIGHT = 64
+const PDF_EXPORT_PADDING = 28
 
 function truncateCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) {
@@ -81,14 +89,18 @@ function getFlagUrl(countryCode: string | null): string | null {
 
 export default function SubsidiaryHierarchyFlow({
   entities,
-  title = 'Tillster Group of Companies',
+  title = 'Group of Companies',
+  logoUrl,
 }: {
   entities: SubsidiaryEntity[]
   title?: string
+  logoUrl?: string
 }) {
   const chartCanvasRef = useRef<HTMLDivElement>(null)
   const [isSavingImage, setIsSavingImage] = useState(false)
   const [isSavingPdf, setIsSavingPdf] = useState(false)
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false)
+  const saveMenuRef = useRef<HTMLDivElement>(null)
 
   const captureChartCanvas = async (): Promise<HTMLCanvasElement | null> => {
     if (!chartCanvasRef.current) {
@@ -110,27 +122,38 @@ export default function SubsidiaryHierarchyFlow({
     ctx.fillStyle = '#020817'
     ctx.fillRect(0, 0, frameWidth, frameHeight)
 
-    ctx.fillStyle = 'rgba(148,163,184,0.12)'
-    for (let y = 1; y < frameHeight; y += 18) {
-      for (let x = 1; x < frameWidth; x += 18) {
-        ctx.beginPath()
-        ctx.arc(x, y, 1, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-
     const titleX = EXPORT_PADDING
     const titleY = EXPORT_PADDING
     const titleWidth = frameWidth - EXPORT_PADDING * 2
 
-    ctx.fillStyle = 'rgba(15,23,42,0.45)'
-    ctx.fillRect(titleX, titleY, titleWidth, TITLE_HEIGHT)
+    // Title border bottom (no background fill — transparent)
     ctx.strokeStyle = 'rgba(100,116,139,0.35)'
     ctx.lineWidth = 1
-    ctx.strokeRect(titleX, titleY, titleWidth, TITLE_HEIGHT)
+    ctx.beginPath()
+    ctx.moveTo(titleX, titleY + TITLE_HEIGHT)
+    ctx.lineTo(titleX + titleWidth, titleY + TITLE_HEIGHT)
+    ctx.stroke()
+
+    // Draw logo if available
+    if (logoUrl) {
+      try {
+        const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => resolve(img)
+          img.onerror = () => reject(new Error('Logo load failed'))
+          img.src = logoUrl
+        })
+        const logoH = TITLE_HEIGHT - 8
+        const logoW = (logoImg.naturalWidth / logoImg.naturalHeight) * logoH
+        ctx.drawImage(logoImg, titleX + 8, titleY + 4, logoW, logoH)
+      } catch {
+        // skip logo on export if it fails to load
+      }
+    }
 
     ctx.fillStyle = '#cbd5e1'
-    ctx.font = '600 15px system-ui, sans-serif'
+    ctx.font = '600 17px system-ui, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(title, frameWidth / 2, titleY + TITLE_HEIGHT / 2)
@@ -183,22 +206,22 @@ export default function SubsidiaryHierarchyFlow({
       ctx.stroke()
 
       const contentX = nodeX + NODE_WIDTH / 2
-      const textMaxWidth = NODE_WIDTH - 32
+      const textMaxWidth = NODE_WIDTH - 36
 
       ctx.textAlign = 'center'
       ctx.textBaseline = 'top'
       ctx.fillStyle = '#3b82f6'
-      ctx.font = '600 20px system-ui, sans-serif'
-      const nameText = truncateCanvasText(ctx, `${node.code} - ${node.name}`, textMaxWidth)
-      ctx.fillText(nameText, contentX, nodeY + 16)
+      ctx.font = '600 15px system-ui, sans-serif'
+      const nameText = truncateCanvasText(ctx, `${node.subsidiaryId} - ${node.name}`, textMaxWidth)
+      ctx.fillText(nameText, contentX, nodeY + 14)
 
       ctx.fillStyle = '#cbd5e1'
-      ctx.font = '500 18px system-ui, sans-serif'
+      ctx.font = '500 13px system-ui, sans-serif'
       const typeText = truncateCanvasText(ctx, `Type: ${node.entityType ?? '-'}`, textMaxWidth)
-      ctx.fillText(typeText, contentX, nodeY + 46)
+      ctx.fillText(typeText, contentX, nodeY + 38)
 
       const taxText = truncateCanvasText(ctx, `Tax ID: ${node.taxId ?? '-'}`, textMaxWidth)
-      ctx.fillText(taxText, contentX, nodeY + 72)
+      ctx.fillText(taxText, contentX, nodeY + 58)
 
       const flagUrl = getFlagUrl(node.country)
       if (flagUrl) {
@@ -254,13 +277,199 @@ export default function SubsidiaryHierarchyFlow({
       return
     }
 
+    setIsSavingPdf(false)
     setIsSavingPdf(true)
     try {
-      const canvas = await captureChartCanvas()
-      if (!canvas) {
-        return
+      // --- Build a larger layout specifically for PDF ---
+      const pdfG = new dagre.graphlib.Graph()
+      pdfG.setDefaultEdgeLabel(() => ({}))
+      pdfG.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 80, marginx: 16, marginy: 16 })
+
+      const pdfEntityById = new Map(entities.map((e) => [e.id, e]))
+      for (const entity of entities) {
+        pdfG.setNode(entity.id, { width: PDF_NODE_WIDTH, height: PDF_NODE_HEIGHT })
+      }
+      const pdfValidEdges: Array<{ parentId: string; childId: string }> = []
+      for (const entity of entities) {
+        if (entity.parentEntityId && pdfEntityById.has(entity.parentEntityId)) {
+          pdfG.setEdge(entity.parentEntityId, entity.id)
+          pdfValidEdges.push({ parentId: entity.parentEntityId, childId: entity.id })
+        }
+      }
+      dagre.layout(pdfG)
+
+      const pdfPositioned = entities.map((entity) => {
+        const pos = pdfG.node(entity.id)
+        return {
+          id: entity.id,
+          x: pos.x - PDF_NODE_WIDTH / 2,
+          y: pos.y - PDF_NODE_HEIGHT / 2,
+          subsidiaryId: entity.subsidiaryId,
+          name: entity.name,
+          country: entity.country,
+          entityType: entity.entityType,
+          taxId: entity.taxId,
+        }
+      })
+
+      const pdfMinX = Math.min(...pdfPositioned.map((n) => n.x))
+      const pdfMinY = Math.min(...pdfPositioned.map((n) => n.y))
+      const pdfNodes = pdfPositioned.map((n) => ({
+        ...n,
+        x: n.x - pdfMinX + PDF_PADDING_X,
+        y: n.y - pdfMinY + PDF_PADDING_Y,
+      }))
+
+      const pdfNodeById = new Map(pdfNodes.map((n) => [n.id, n]))
+      const pdfEdges = pdfValidEdges.map(({ parentId, childId }) => {
+        const parent = pdfNodeById.get(parentId)
+        const child = pdfNodeById.get(childId)
+        if (!parent || !child) return ''
+        const sx = parent.x + PDF_NODE_WIDTH / 2
+        const sy = parent.y + PDF_NODE_HEIGHT
+        const ex = child.x + PDF_NODE_WIDTH / 2
+        const ey = child.y
+        const my = sy + (ey - sy) / 2
+        return `M ${sx} ${sy} V ${my} H ${ex} V ${ey}`
+      })
+
+      const pdfContentW = Math.max(...pdfNodes.map((n) => n.x + PDF_NODE_WIDTH)) + PDF_PADDING_X
+      const pdfContentH = Math.max(...pdfNodes.map((n) => n.y + PDF_NODE_HEIGHT)) + PDF_PADDING_Y
+      const pdfWidth = Math.max(1200, Math.ceil(pdfContentW))
+      const pdfHeight = Math.max(600, Math.ceil(pdfContentH))
+      let pdfFrameW = Math.max(pdfWidth + PDF_EXPORT_PADDING * 2, 1200)
+      const pdfFrameH = pdfHeight + PDF_TITLE_HEIGHT + PDF_EXPORT_PADDING * 2
+
+      // Center root in PDF frame
+      let pdfChartLeft = Math.max(PDF_EXPORT_PADDING, Math.floor((pdfFrameW - pdfWidth) / 2))
+      const pdfRootEntity = entities.find((e) => !e.parentEntityId || !pdfEntityById.has(e.parentEntityId))
+      if (pdfRootEntity) {
+        const rn = pdfNodeById.get(pdfRootEntity.id)
+        if (rn) {
+          pdfChartLeft = Math.floor(pdfFrameW / 2 - rn.x - PDF_NODE_WIDTH / 2)
+          if (pdfChartLeft + Math.min(...pdfNodes.map((n) => n.x)) < PDF_EXPORT_PADDING) {
+            pdfChartLeft = PDF_EXPORT_PADDING - Math.min(...pdfNodes.map((n) => n.x))
+          }
+        }
+      }
+      pdfFrameW = Math.max(pdfFrameW, pdfChartLeft + pdfWidth + PDF_EXPORT_PADDING)
+
+      // --- Render PDF canvas ---
+      const pdfScale = 2
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.ceil(pdfFrameW * pdfScale)
+      canvas.height = Math.ceil(pdfFrameH * pdfScale)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      ctx.scale(pdfScale, pdfScale)
+      ctx.fillStyle = '#020817'
+      ctx.fillRect(0, 0, pdfFrameW, pdfFrameH)
+
+      // Title bar
+      const tX = PDF_EXPORT_PADDING
+      const tY = PDF_EXPORT_PADDING
+      const tW = pdfFrameW - PDF_EXPORT_PADDING * 2
+      ctx.strokeStyle = 'rgba(100,116,139,0.35)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(tX, tY + PDF_TITLE_HEIGHT)
+      ctx.lineTo(tX + tW, tY + PDF_TITLE_HEIGHT)
+      ctx.stroke()
+
+      // Logo
+      if (logoUrl) {
+        try {
+          const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image()
+            img.crossOrigin = 'anonymous'
+            img.onload = () => resolve(img)
+            img.onerror = () => reject(new Error('Logo load failed'))
+            img.src = logoUrl
+          })
+          const logoH = PDF_TITLE_HEIGHT - 12
+          const logoW = (logoImg.naturalWidth / logoImg.naturalHeight) * logoH
+          ctx.drawImage(logoImg, tX + 10, tY + 6, logoW, logoH)
+        } catch { /* skip */ }
       }
 
+      ctx.fillStyle = '#cbd5e1'
+      ctx.font = '600 22px system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(title, pdfFrameW / 2, tY + PDF_TITLE_HEIGHT / 2)
+
+      // Edges
+      const chartTop = PDF_EXPORT_PADDING + PDF_TITLE_HEIGHT
+      ctx.save()
+      ctx.translate(pdfChartLeft, chartTop)
+      ctx.strokeStyle = 'rgba(148,163,184,0.7)'
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      for (const d of pdfEdges) {
+        if (d) ctx.stroke(new Path2D(d))
+      }
+
+      // Flags
+      const flagUrls = Array.from(new Set(pdfNodes.map((n) => getFlagUrl(n.country)).filter((u): u is string => Boolean(u))))
+      const flagMap = new Map<string, HTMLImageElement>()
+      await Promise.all(flagUrls.map((url) => new Promise<void>((resolve) => {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => { flagMap.set(url, img); resolve() }
+        img.onerror = () => resolve()
+        img.src = url
+      })))
+
+      // Nodes
+      for (const node of pdfNodes) {
+        const nx = node.x
+        const ny = node.y
+        const grad = ctx.createLinearGradient(0, ny, 0, ny + PDF_NODE_HEIGHT)
+        grad.addColorStop(0, 'rgba(30,41,59,0.96)')
+        grad.addColorStop(1, 'rgba(15,23,42,0.95)')
+        drawRoundedRect(ctx, nx, ny, PDF_NODE_WIDTH, PDF_NODE_HEIGHT, 14)
+        ctx.fillStyle = grad
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(71,85,105,0.9)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        const cx = nx + PDF_NODE_WIDTH / 2
+        const maxTW = PDF_NODE_WIDTH - 40
+
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        ctx.fillStyle = '#3b82f6'
+        ctx.font = '600 16px system-ui, sans-serif'
+        const nameT = truncateCanvasText(ctx, `${node.subsidiaryId} - ${node.name}`, maxTW)
+        ctx.fillText(nameT, cx, ny + 16)
+
+        ctx.fillStyle = '#cbd5e1'
+        ctx.font = '500 14px system-ui, sans-serif'
+        const typeT = truncateCanvasText(ctx, `Type: ${node.entityType ?? '-'}`, maxTW)
+        ctx.fillText(typeT, cx, ny + 42)
+
+        const taxT = truncateCanvasText(ctx, `Tax ID: ${node.taxId ?? '-'}`, maxTW)
+        ctx.fillText(taxT, cx, ny + 64)
+
+        const fUrl = getFlagUrl(node.country)
+        if (fUrl) {
+          const fImg = flagMap.get(fUrl)
+          if (fImg) {
+            const fx = nx + 16
+            const fy = ny + PDF_NODE_HEIGHT - 28
+            ctx.drawImage(fImg, fx, fy, 24, 17)
+            ctx.strokeStyle = 'rgba(255,255,255,0.25)'
+            ctx.lineWidth = 1
+            ctx.strokeRect(fx, fy, 24, 17)
+          }
+        }
+      }
+      ctx.restore()
+
+      // Generate PDF
       const imageData = canvas.toDataURL('image/png')
       const pdf = new jsPDF({
         orientation: 'landscape',
@@ -271,51 +480,15 @@ export default function SubsidiaryHierarchyFlow({
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
       const margin = 20
-      const firstPageTop = 20
-      const continuationTop = 20
-      const imageWidth = pageWidth - margin * 2
-      const imageHeight = (canvas.height * imageWidth) / canvas.width
-      const pageOverlap = 28
+      const maxW = pageWidth - margin * 2
+      const maxH = pageHeight - margin * 2
+      const sc = Math.min(maxW / canvas.width, maxH / canvas.height)
+      const imageWidth = canvas.width * sc
+      const imageHeight = canvas.height * sc
+      const ix = margin + (maxW - imageWidth) / 2
+      const iy = margin + (maxH - imageHeight) / 2
 
-      let consumedHeight = 0
-      let currentPageTop = firstPageTop
-      let availablePageHeight = pageHeight - currentPageTop - margin
-      let pageStep = availablePageHeight
-
-      pdf.addImage(
-        imageData,
-        'PNG',
-        margin,
-        currentPageTop,
-        imageWidth,
-        imageHeight,
-        undefined,
-        'FAST',
-        0
-      )
-      consumedHeight += pageStep
-
-      while (consumedHeight < imageHeight) {
-        pdf.addPage()
-        currentPageTop = continuationTop
-        availablePageHeight = pageHeight - currentPageTop - margin
-        pageStep = Math.max(40, availablePageHeight - pageOverlap)
-        const offsetY = currentPageTop - consumedHeight
-
-        pdf.addImage(
-          imageData,
-          'PNG',
-          margin,
-          offsetY,
-          imageWidth,
-          imageHeight,
-          undefined,
-          'FAST',
-          0
-        )
-
-        consumedHeight += pageStep
-      }
+      pdf.addImage(imageData, 'PNG', ix, iy, imageWidth, imageHeight, undefined, 'FAST', 0)
 
       const timestamp = new Date().toISOString().slice(0, 10)
       pdf.save(`subsidiary_hierarchy_${timestamp}.pdf`)
@@ -353,7 +526,7 @@ export default function SubsidiaryHierarchyFlow({
         id: entity.id,
         x: position.x - NODE_WIDTH / 2,
         y: position.y - NODE_HEIGHT / 2,
-        code: entity.code,
+        subsidiaryId: entity.subsidiaryId,
         name: entity.name,
         country: entity.country,
         entityType: entity.entityType,
@@ -396,78 +569,116 @@ export default function SubsidiaryHierarchyFlow({
     const computedFrameWidth = Math.max(computedWidth + EXPORT_PADDING * 2, 980)
     const computedFrameHeight = computedHeight + TITLE_HEIGHT + EXPORT_PADDING * 2
 
+    // Center the root node horizontally within the frame
+    let chartLeft = Math.max(EXPORT_PADDING, Math.floor((computedFrameWidth - computedWidth) / 2))
+    const rootEntity = entities.find((e) => !e.parentEntityId || !entityById.has(e.parentEntityId))
+    if (rootEntity) {
+      const rootNode = nodeById.get(rootEntity.id)
+      if (rootNode) {
+        // Place chartLeft so rootNode center aligns with frame center
+        chartLeft = Math.floor(computedFrameWidth / 2 - rootNode.x - NODE_WIDTH / 2)
+        // Ensure no node extends past the left edge
+        if (chartLeft + Math.min(...shiftedNodes.map((n) => n.x)) < EXPORT_PADDING) {
+          chartLeft = EXPORT_PADDING - Math.min(...shiftedNodes.map((n) => n.x))
+        }
+      }
+    }
+
+    // Ensure the frame is wide enough for all nodes
+    const requiredFrameWidth = Math.max(computedFrameWidth, chartLeft + computedWidth + EXPORT_PADDING)
+
     return {
       nodes: shiftedNodes,
       edges: connectorPaths,
       width: computedWidth,
       height: computedHeight,
-      frameWidth: computedFrameWidth,
+      frameWidth: requiredFrameWidth,
       frameHeight: computedFrameHeight,
-      chartLeft: Math.max(EXPORT_PADDING, Math.floor((computedFrameWidth - computedWidth) / 2)),
+      chartLeft,
     }
   }, [entities])
+
+  const isBusy = isSavingImage || isSavingPdf
+
+  useEffect(() => {
+    if (!saveMenuOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (!saveMenuRef.current?.contains(e.target as Node)) setSaveMenuOpen(false)
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSaveMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [saveMenuOpen])
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => handleSaveAsImage('png')}
-          disabled={isSavingImage || isSavingPdf}
-          className="rounded-md border px-3 py-2 text-sm font-medium"
-          style={{
-            borderColor: 'var(--border-muted)',
-            color: 'var(--text-secondary)',
-            opacity: isSavingImage || isSavingPdf ? 0.65 : 1,
-            cursor: isSavingImage || isSavingPdf ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {isSavingImage ? 'Saving Image...' : 'Save as PNG'}
-        </button>
-        <button
-          type="button"
-          onClick={() => handleSaveAsImage('jpg')}
-          disabled={isSavingImage || isSavingPdf}
-          className="rounded-md border px-3 py-2 text-sm font-medium"
-          style={{
-            borderColor: 'var(--border-muted)',
-            color: 'var(--text-secondary)',
-            opacity: isSavingImage || isSavingPdf ? 0.65 : 1,
-            cursor: isSavingImage || isSavingPdf ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {isSavingImage ? 'Saving Image...' : 'Save as JPG'}
-        </button>
-        <button
-          type="button"
-          onClick={handleSaveToPdf}
-          disabled={isSavingPdf || isSavingImage}
-          className="rounded-md border px-3 py-2 text-sm font-medium"
-          style={{
-            borderColor: 'var(--border-muted)',
-            color: 'var(--text-secondary)',
-            opacity: isSavingPdf || isSavingImage ? 0.65 : 1,
-            cursor: isSavingPdf || isSavingImage ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {isSavingPdf ? 'Saving PDF...' : 'Save to PDF'}
-        </button>
+        <div className="relative" ref={saveMenuRef}>
+          <button
+            type="button"
+            onClick={() => setSaveMenuOpen((v) => !v)}
+            disabled={isBusy}
+            className="rounded-md border px-3 py-2 text-sm font-medium"
+            style={{
+              borderColor: 'var(--border-muted)',
+              color: 'var(--text-secondary)',
+              opacity: isBusy ? 0.65 : 1,
+              cursor: isBusy ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isSavingImage ? 'Saving Image...' : isSavingPdf ? 'Saving PDF...' : 'Save As ▾'}
+          </button>
+          {saveMenuOpen && !isBusy ? (
+            <div
+              className="absolute right-0 z-50 mt-1 w-40 rounded-lg border py-1 shadow-xl"
+              style={{ backgroundColor: 'var(--card-elevated)', borderColor: 'var(--border-muted)' }}
+            >
+              <button
+                type="button"
+                onClick={() => { setSaveMenuOpen(false); handleSaveAsImage('png') }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-white/10"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                PNG
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSaveMenuOpen(false); handleSaveAsImage('jpg') }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-white/10"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                JPG
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSaveMenuOpen(false); handleSaveToPdf() }}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-white/10"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                PDF
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <div className="w-full overflow-auto rounded-xl border" style={{ borderColor: 'var(--border-muted)' }}>
+      <div className="w-full overflow-auto rounded-xl border flex justify-center" style={{ borderColor: 'var(--border-muted)' }}>
         <div
           ref={chartCanvasRef}
-          className="relative"
+          className="relative shrink-0"
           style={{
             width: frameWidth,
-            minWidth: '100%',
             height: frameHeight,
-            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(148,163,184,0.12) 1px, transparent 0)',
-            backgroundSize: '18px 18px',
           }}
         >
           <div
-            className="absolute left-0 right-0 top-0 flex items-center justify-center border-b text-sm font-semibold"
+            className="absolute left-0 right-0 top-0 flex items-center border-b"
             style={{
               left: EXPORT_PADDING,
               right: EXPORT_PADDING,
@@ -475,10 +686,19 @@ export default function SubsidiaryHierarchyFlow({
               height: TITLE_HEIGHT,
               borderColor: 'var(--border-muted)',
               color: 'var(--text-secondary)',
-              background: 'rgba(15,23,42,0.45)',
             }}
           >
-            {title}
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Company logo"
+                className="w-auto object-contain"
+                style={{ height: TITLE_HEIGHT - 8, marginLeft: 8 }}
+              />
+            ) : null}
+            <span className="absolute inset-0 flex items-center justify-center text-base font-semibold pointer-events-none">
+              {title}
+            </span>
           </div>
 
           <div
@@ -510,7 +730,7 @@ export default function SubsidiaryHierarchyFlow({
             return (
               <div
                 key={node.id}
-                className="absolute rounded-xl border px-4 py-3 text-center"
+                className="absolute rounded-xl border px-3 py-2 text-center"
                 style={{
                   left: node.x,
                   top: node.y,
@@ -526,12 +746,12 @@ export default function SubsidiaryHierarchyFlow({
                   className="block text-[13px] font-semibold leading-5 hover:underline"
                   style={{ color: 'var(--accent-primary-strong)' }}
                 >
-                  {node.code} - {node.name}
+                  {node.subsidiaryId} - {node.name}
                 </Link>
-                <p className="mt-1 text-xs leading-5" style={{ color: 'var(--text-secondary)' }}>
+                <p className="mt-0.5 text-[11px] leading-4" style={{ color: 'var(--text-secondary)' }}>
                   Type: {node.entityType ?? '-'}
                 </p>
-                <p className="mt-1 text-xs leading-5" style={{ color: 'var(--text-secondary)' }}>
+                <p className="mt-0.5 text-[11px] leading-4" style={{ color: 'var(--text-secondary)' }}>
                   Tax ID: {node.taxId ?? '-'}
                 </p>
                 {flagUrl ? (

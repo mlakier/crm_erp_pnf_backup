@@ -13,7 +13,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 
 const COLS = [
-  { id: 'code', label: 'Code' },
+  { id: 'currency-id', label: 'Currency Id' },
   { id: 'name', label: 'Name' },
   { id: 'symbol', label: 'Symbol' },
   { id: 'decimals', label: 'Decimals' },
@@ -32,13 +32,13 @@ export default async function CurrenciesPage({
   const query = (params.q ?? '').trim()
 
   const where = query
-    ? { OR: [{ code: { contains: query } }, { name: { contains: query } }] }
+    ? { OR: [{ currencyId: { contains: query } }, { name: { contains: query } }] }
     : {}
 
   const total = await prisma.currency.count({ where })
   const pagination = getPagination(total, params.page)
   const [currencies, companySettings, cabinetFiles] = await Promise.all([
-    prisma.currency.findMany({ where, orderBy: { code: 'asc' }, skip: pagination.skip, take: pagination.pageSize }),
+    prisma.currency.findMany({ where, orderBy: { currencyId: 'asc' }, skip: pagination.skip, take: pagination.pageSize }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
   ])
@@ -87,15 +87,12 @@ export default async function CurrenciesPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search code or name"
+              placeholder="Search Currency Id or name"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <input type="hidden" name="page" value="1" />
-            <div className="flex items-center gap-2">
-              <Link href="/currencies" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="currencies-list" fileName="currencies" />
-            </div>
+            <ExportButton tableId="currencies-list" fileName="currencies" />
             <ColumnSelector tableId="currencies-list" columns={COLS} />
           </div>
         </form>
@@ -104,7 +101,7 @@ export default async function CurrenciesPage({
           <table className="min-w-full" id="currencies-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="code" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Code</th>
+                <th data-column="currency-id" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Currency Id</th>
                 <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
                 <th data-column="symbol" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Symbol</th>
                 <th data-column="decimals" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Decimals</th>
@@ -124,7 +121,7 @@ export default async function CurrenciesPage({
               ) : (
                 currencies.map((currency, index) => (
                   <tr key={currency.id} style={index < currencies.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                    <td data-column="code" className="px-4 py-2 text-sm font-medium text-white"><Link href={`/currencies/${currency.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{currency.code}</Link></td>
+                    <td data-column="currency-id" className="px-4 py-2 text-sm font-medium text-white"><Link href={`/currencies/${currency.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{currency.currencyId}</Link></td>
                     <td data-column="name" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{currency.name}</td>
                     <td data-column="symbol" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{currency.symbol ?? '—'}</td>
                     <td data-column="decimals" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{currency.decimals}</td>
@@ -137,7 +134,7 @@ export default async function CurrenciesPage({
                           resource="currencies"
                           id={currency.id}
                           fields={[
-                            { name: 'code', label: 'Code', value: currency.code },
+                            { name: 'currencyId', label: 'Currency Id', value: currency.currencyId },
                             { name: 'name', label: 'Name', value: currency.name },
                             { name: 'symbol', label: 'Symbol', value: currency.symbol ?? '' },
                           ]}

@@ -24,12 +24,12 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       },
     }),
     prisma.entity.findMany({
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
+      orderBy: { subsidiaryId: 'asc' },
+      select: { id: true, subsidiaryId: true, name: true },
     }),
     prisma.currency.findMany({
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true },
+      orderBy: { currencyId: 'asc' },
+      select: { id: true, currencyId: true, name: true },
     }),
     loadListOptions(),
   ])
@@ -104,8 +104,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             <Field label="Email" value={customer.email} />
             <Field label="Phone" value={fmtPhone(customer.phone)} />
             <Field label="Billing Address" value={customer.address} />
-            <Field label="Primary Subsidiary" value={customer.entity ? `${customer.entity.code} - ${customer.entity.name}` : null} />
-            <Field label="Primary Currency" value={customer.currency?.code ?? null} />
+            <Field label="Primary Subsidiary" value={customer.entity ? `${customer.entity.subsidiaryId} - ${customer.entity.name}` : null} />
+            <Field label="Primary Currency" value={customer.currency?.currencyId ?? null} />
             <Field label="Inactive" value={customer.inactive ? 'Yes' : 'No'} />
             <Field label="Customer since" value={new Date(customer.createdAt).toLocaleDateString()} />
           </dl>

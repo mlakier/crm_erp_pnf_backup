@@ -1,4 +1,23 @@
 {
+  "companyName": "Tillster, Inc.",
+  "legalName": "Tillster, Inc.",
   "companyLogoFormsFileId": "abe701d4-658a-4c44-a87b-f885476a5fd6",
-  "companyLogoPagesFileId": "abe701d4-658a-4c44-a87b-f885476a5fd6"
+  "companyLogoPagesFileId": "abe701d4-658a-4c44-a87b-f885476a5fd6",
+  "displayLogoInternally": true,
+  "webSite": "www.tillster.com",
+  "stateProvince": "Delaware",
+  "country": "United States",
+  "returnEmail": "billing@tillster.com",
+  "fax": "",
+  "currency": "USD",
+  "ein": "26-0053244",
+  "ssnTin": "26-0053244",
+  "firstFiscalMonth": "January",
+  "timeZone": "(GMT-08:00) Pacific Time (US & Canada)",
+  "accountId": "4460219_SB1",
+  "mainDataCenter": "US Phoenix2",
+  "disasterRecoveryDataCenter": "US Ashburn 2",
+  "legalEntityRegisteredAs": "",
+  "uen": "",
+  "brn": ""
 }

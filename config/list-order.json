@@ -1,0 +1,15 @@
+{
+  "customer": {
+    "industry": "table"
+  },
+  "item": {
+    "type": "table"
+  },
+  "lead": {
+    "source": "table",
+    "rating": "table"
+  },
+  "opportunity": {
+    "stage": "table"
+  }
+}

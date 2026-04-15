@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const name = String(body?.name ?? '').trim()
-    const itemNumber = String(body?.itemNumber ?? '').trim() || null
+    const itemId   = String(body?.itemId ?? '').trim() || null
     const sku = String(body?.sku ?? '').trim() || null
     const itemType = String(body?.itemType ?? 'service').trim() || 'service'
     const uom = String(body?.uom ?? '').trim() || null
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const created = await prisma.item.create({
       data: {
         name,
-        itemNumber,
+        itemId,
         sku,
         itemType,
         uom,
@@ -54,7 +54,7 @@ export async function PUT(request: Request) {
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
     const body = await request.json()
     const name = body?.name !== undefined ? String(body.name).trim() : undefined
-    const itemNumber = body?.itemNumber !== undefined ? (String(body.itemNumber).trim() || null) : undefined
+    const itemId = body?.itemId !== undefined ? (String(body.itemId).trim() || null) : undefined
     const sku = body?.sku !== undefined ? (String(body.sku).trim() || null) : undefined
     const itemType = body?.itemType !== undefined ? String(body.itemType).trim() : undefined
     const uom = body?.uom !== undefined ? (String(body.uom).trim() || null) : undefined
@@ -73,7 +73,7 @@ export async function PUT(request: Request) {
     const updated = await prisma.item.update({
       where: { id },
       data: Object.fromEntries(
-        Object.entries({ name, itemNumber, sku, itemType, uom, listPrice, description, currencyId, entityId, active }).filter(([, v]) => v !== undefined)
+        Object.entries({ name, itemId, sku, itemType, uom, listPrice, description, currencyId, entityId, active }).filter(([, v]) => v !== undefined)
       ),
       include: { currency: true, entity: true },
     })

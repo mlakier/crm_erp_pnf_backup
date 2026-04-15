@@ -1,11 +1,9 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency } from '@/lib/format'
-import OpportunityCreateForm from '@/components/OpportunityCreateForm'
 import DeleteButton from '@/components/DeleteButton'
 import EditButton from '@/components/EditButton'
 import OpportunityStageMoveButton from '@/components/OpportunityStageMoveButton'
-import CreateModalButton from '@/components/CreateModalButton'
 import ColumnSelector from '@/components/ColumnSelector'
 import ExportButton from '@/components/ExportButton'
 import PaginationFooter from '@/components/PaginationFooter'
@@ -87,9 +85,8 @@ export default async function OpportunitiesPage({
           ? [{ amount: 'asc' as const }]
           : [{ createdAt: 'desc' as const }]
 
-  const [totalOpportunities, customers, adminUser, pipelineAgg, companySettings, cabinetFiles] = await Promise.all([
+  const [totalOpportunities, adminUser, pipelineAgg, companySettings, cabinetFiles] = await Promise.all([
     prisma.opportunity.count({ where }),
-    prisma.customer.findMany({ orderBy: { name: 'asc' } }),
     prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
     prisma.opportunity.aggregate({ where, _sum: { amount: true } }),
     loadCompanyInformationSettings(),
@@ -152,9 +149,13 @@ export default async function OpportunitiesPage({
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{totalOpportunities} total</p>
         </div>
         {adminUser ? (
-          <CreateModalButton buttonLabel="New Opportunity" title="New Opportunity">
-            <OpportunityCreateForm userId={adminUser.id} customers={customers} />
-          </CreateModalButton>
+          <Link
+            href="/opportunities/new"
+            className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            <span className="mr-1.5 text-lg leading-none">+</span>New Opportunity
+          </Link>
         ) : null}
       </div>
 

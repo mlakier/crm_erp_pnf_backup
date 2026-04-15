@@ -53,7 +53,7 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
 
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'opportunities', label: 'Opportunities', count: opportunities.length },
-    { key: 'quotes', label: 'Estimates', count: quotes.length },
+    { key: 'quotes', label: 'Quotes', count: quotes.length },
     { key: 'sales-orders', label: 'Sales Orders', count: salesOrders.length },
     { key: 'invoices', label: 'Invoices', count: invoices.length },
   ]
@@ -147,7 +147,7 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
                 {quotes.map((q) => (
                   <tr key={q.id}>
                     <Td>
-                      <Link href={`/estimates/${q.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+                      <Link href={`/quotes/${q.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
                         {q.number}
                       </Link>
                     </Td>

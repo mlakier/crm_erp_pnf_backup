@@ -150,10 +150,7 @@ export default async function InvoicesPage({
               <option value="total-asc">Total low-high</option>
               <option value="due-soonest">Due soonest</option>
             </select>
-            <div className="flex items-center gap-2">
-              <Link href="/invoices" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="invoices-list" fileName="invoices" />
-            </div>
+            <ExportButton tableId="invoices-list" fileName="invoices" />
             <ColumnSelector tableId="invoices-list" columns={INVOICE_COLUMNS} />
           </div>
         </form>
@@ -187,7 +184,7 @@ export default async function InvoicesPage({
                       </Link>
                     </td>
                     <td data-column="customer" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{invoice.customer.name}</td>
-                    <td data-column="sales-order" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{invoice.salesOrder.number}</td>
+                    <td data-column="sales-order" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{invoice.salesOrder?.number ?? '—'}</td>
                     <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{invoice.status}</td>
                     <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(invoice.total)}</td>
                     <td data-column="due-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : '—'}</td>

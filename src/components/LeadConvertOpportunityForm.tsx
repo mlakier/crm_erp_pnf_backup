@@ -13,7 +13,7 @@ export default function LeadConvertOpportunityForm({
   leadId: string
   defaultName: string
   defaultStage: string
-  items: Array<{ id: string; name: string; listPrice: number; itemNumber: string | null }>
+  items: Array<{ id: string; name: string; listPrice: number; itemId: string | null }>
 }) {
   const router = useRouter()
   const [name, setName] = useState(defaultName)
@@ -205,7 +205,7 @@ export default function LeadConvertOpportunityForm({
                       <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select item —</option>
                       {items.map((item) => (
                         <option key={item.id} value={item.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                          {item.itemNumber ? `${item.itemNumber} - ${item.name}` : item.name}
+                          {item.itemId ? `${item.itemId} - ${item.name}` : item.name}
                         </option>
                       ))}
                     </select>

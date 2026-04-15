@@ -3,6 +3,31 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from './prisma'
 
+const DEFAULT_AUTH_TIMEOUT_MS = 8000
+
+function getAuthTimeoutMs() {
+  const parsed = Number(process.env.AUTH_TIMEOUT_MS)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AUTH_TIMEOUT_MS
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Auth operation timed out'))
+    }, timeoutMs)
+
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -16,27 +41,37 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-          include: { department: true },
-        })
+        const timeoutMs = getAuthTimeoutMs()
 
-        if (!user) {
+        try {
+          const user = await withTimeout(
+            prisma.user.findUnique({
+              where: { email: credentials.email as string },
+              include: { department: true, role: true },
+            }),
+            timeoutMs,
+          )
+
+          if (!user) {
+            return null
+          }
+
+          const isPasswordValid = await withTimeout(compare(credentials.password as string, user.password), timeoutMs)
+
+          if (!isPasswordValid) {
+            return null
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role?.name ?? 'user',
+            department: user.department,
+          }
+        } catch (error) {
+          console.error('Credentials authorize failed', error)
           return null
-        }
-
-        const isPasswordValid = await compare(credentials.password as string, user.password)
-
-        if (!isPasswordValid) {
-          return null
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          department: user.department,
         }
       },
     }),

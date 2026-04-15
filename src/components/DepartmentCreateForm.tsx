@@ -17,8 +17,8 @@ export default function DepartmentCreateForm({
   onSuccess,
   onCancel,
 }: {
-  managers?: Array<{ id: string; firstName: string; lastName: string; employeeNumber?: string | null }>
-  subsidiaries?: Array<{ id: string; code: string; name: string }>
+  managers?: Array<{ id: string; firstName: string; lastName: string; employeeId?: string | null }>
+  subsidiaries?: Array<{ id: string; subsidiaryId: string; name: string }>
   customization?: DepartmentCustomizationConfig
   divisionOptions?: string[]
   customFields?: CustomFieldDefinitionSummary[]
@@ -26,7 +26,7 @@ export default function DepartmentCreateForm({
   onCancel?: () => void
 }) {
   const router = useRouter()
-  const [code, setCode] = useState('')
+  const [departmentId, setDepartmentId] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [entityId, setEntityId] = useState('')
@@ -62,7 +62,7 @@ export default function DepartmentCreateForm({
       const response = await fetch('/api/departments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, name, description, division, entityId, managerId, inactive: false }),
+        body: JSON.stringify({ departmentId, name, description, division, entityId, managerId, inactive: false }),
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json?.error ?? 'Create failed')
@@ -110,8 +110,8 @@ export default function DepartmentCreateForm({
     <form className="space-y-4" onSubmit={submitForm}>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <span>Code *</span>
-          <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          <span>Department Id *</span>
+          <input value={departmentId} onChange={(e) => setDepartmentId(e.target.value.toUpperCase())} required className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
         </label>
         <label className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <span>Name *</span>
@@ -156,7 +156,7 @@ export default function DepartmentCreateForm({
                 <option value="">None</option>
                 {(subsidiaries ?? []).map((subsidiary) => (
                   <option key={subsidiary.id} value={subsidiary.id}>
-                    {subsidiary.code} - {subsidiary.name}
+                    {subsidiary.subsidiaryId} - {subsidiary.name}
                   </option>
                 ))}
               </select>
@@ -171,7 +171,7 @@ export default function DepartmentCreateForm({
             <option value="">None</option>
             {(managers ?? []).map((manager) => (
               <option key={manager.id} value={manager.id}>
-                {manager.firstName} {manager.lastName}{manager.employeeNumber ? ` (${manager.employeeNumber})` : ''}
+                {manager.firstName} {manager.lastName}{manager.employeeId ? ` (${manager.employeeId})` : ''}
               </option>
             ))}
           </select>

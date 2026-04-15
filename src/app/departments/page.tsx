@@ -19,7 +19,7 @@ import {
 } from '@/lib/custom-fields'
 
 const COLS = [
-  { id: 'code', label: 'Code' },
+  { id: 'department-id', label: 'Department Id' },
   { id: 'name', label: 'Name' },
   { id: 'description', label: 'Description' },
   { id: 'division', label: 'Division' },
@@ -32,7 +32,7 @@ const COLS = [
 ]
 
 const COLUMN_LABELS: Record<string, string> = {
-  code: 'Code',
+  'department-id': 'Department Id',
   name: 'Name',
   description: 'Description',
   division: 'Division',
@@ -53,19 +53,19 @@ export default async function DepartmentsPage({
   const query = (params.q ?? '').trim()
 
   const where = query
-    ? { OR: [{ code: { contains: query } }, { name: { contains: query } }, { description: { contains: query } }, { division: { contains: query } }] }
+    ? { OR: [{ departmentId: { contains: query } }, { name: { contains: query } }, { description: { contains: query } }, { division: { contains: query } }] }
     : {}
 
   const total = await prisma.department.count({ where })
   const pagination = getPagination(total, params.page)
 
   const [departments, managers, subsidiaries, companySettings, cabinetFiles, customization, customListState, customFields] = await Promise.all([
-    prisma.department.findMany({ where, include: { entity: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }], skip: pagination.skip, take: pagination.pageSize }),
+    prisma.department.findMany({ where, include: { entity: true }, orderBy: [{ departmentId: 'asc' }, { name: 'asc' }], skip: pagination.skip, take: pagination.pageSize }),
     prisma.employee.findMany({
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-      select: { id: true, firstName: true, lastName: true, employeeNumber: true },
+      select: { id: true, firstName: true, lastName: true, employeeId: true },
     }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
     loadDepartmentCustomization(),
@@ -78,7 +78,7 @@ export default async function DepartmentsPage({
   ])
 
   const configuredColumnOrder = Array.isArray(customization.columnOrder) ? customization.columnOrder : []
-  const fixedFirst = ['code', 'name']
+  const fixedFirst = ['department-id', 'name']
   const defaultOrder = ['description', 'division', 'subsidiary', 'manager', 'status', 'created', 'last-modified']
   const orderedMiddle = [
     ...configuredColumnOrder.filter((id) => !fixedFirst.includes(id) && id !== 'actions' && defaultOrder.includes(id)),
@@ -86,7 +86,7 @@ export default async function DepartmentsPage({
   ]
 
   const orderedColumns = [
-    'code',
+    'department-id',
     'name',
     ...orderedMiddle.filter((id) => {
       if (id === 'description') return customization.tableVisibility.description
@@ -113,7 +113,7 @@ export default async function DepartmentsPage({
   ))
 
   const managerById = new Map(
-    managers.map((manager) => [manager.id, `${manager.firstName} ${manager.lastName}${manager.employeeNumber ? ` (${manager.employeeNumber})` : ''}`])
+    managers.map((manager) => [manager.id, `${manager.firstName} ${manager.lastName}${manager.employeeId ? ` (${manager.employeeId})` : ''}`])
   )
 
   const buildPageHref = (p: number) => {
@@ -162,15 +162,12 @@ export default async function DepartmentsPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search code, name, description, or division"
+              placeholder="Search Department Id, name, description, or division"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <input type="hidden" name="page" value="1" />
-            <div className="flex items-center gap-2">
-              <Link href="/departments" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="departments-list" fileName="departments" />
-            </div>
+            <ExportButton tableId="departments-list" fileName="departments" />
             <ColumnSelector tableId="departments-list" columns={COLS} />
           </div>
         </form>
@@ -197,10 +194,10 @@ export default async function DepartmentsPage({
                 departments.map((department, index) => (
                   <tr key={department.id} style={index < departments.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
                     {orderedColumns.map((columnId) => {
-                      if (columnId === 'code') {
+                      if (columnId === 'department-id') {
                         return (
-                          <td key={`${department.id}-${columnId}`} data-column="code" className="px-4 py-2 text-sm font-medium text-white">
-                            <Link href={`/departments/${department.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{department.code}</Link>
+                          <td key={`${department.id}-${columnId}`} data-column="department-id" className="px-4 py-2 text-sm font-medium text-white">
+                            <Link href={`/departments/${department.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{department.departmentId}</Link>
                           </td>
                         )
                       }
@@ -218,7 +215,7 @@ export default async function DepartmentsPage({
                       }
 
                       if (columnId === 'subsidiary') {
-                        return <td key={`${department.id}-${columnId}`} data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{department.entity ? `${department.entity.code} - ${department.entity.name}` : '—'}</td>
+                        return <td key={`${department.id}-${columnId}`} data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{department.entity ? `${department.entity.subsidiaryId} - ${department.entity.name}` : '—'}</td>
                       }
 
                       if (columnId === 'manager') {
@@ -238,7 +235,7 @@ export default async function DepartmentsPage({
                       }
 
                       const editFields = [
-                        { name: 'code', label: 'Code', value: department.code },
+                        { name: 'departmentId', label: 'Department Id', value: department.departmentId },
                         { name: 'name', label: 'Name', value: department.name },
                         ...(customization.fields.description.visible
                           ? [{ name: 'description', label: 'Description', value: department.description ?? '' }]
@@ -256,7 +253,7 @@ export default async function DepartmentsPage({
                                 placeholder: 'Select subsidiary',
                                 options: subsidiaries.map((subsidiary) => ({
                                   value: subsidiary.id,
-                                  label: `${subsidiary.code} - ${subsidiary.name}`,
+                                  label: `${subsidiary.subsidiaryId} - ${subsidiary.name}`,
                                 })),
                               },
                             ]
@@ -271,7 +268,7 @@ export default async function DepartmentsPage({
                                 placeholder: 'Select manager',
                                 options: managers.map((manager) => ({
                                   value: manager.id,
-                                  label: `${manager.firstName} ${manager.lastName}${manager.employeeNumber ? ` (${manager.employeeNumber})` : ''}`,
+                                  label: `${manager.firstName} ${manager.lastName}${manager.employeeId ? ` (${manager.employeeId})` : ''}`,
                                 })),
                               },
                             ]

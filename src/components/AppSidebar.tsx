@@ -50,6 +50,8 @@ const NAV: NavGroup[] = [
   {
     section: 'MASTER DATA',
     items: [
+      { label: 'Users', href: '/users' },
+      { label: 'Roles', href: '/roles' },
       { label: 'Contacts', href: '/contacts' },
       { label: 'Customers', href: '/customers' },
       { label: 'Vendors', href: '/vendors' },
@@ -68,9 +70,10 @@ const NAV: NavGroup[] = [
   {
     section: 'ORDER TO CASH',
     items: [
+      { label: 'OTC Workflow', href: '/otc-workflow' },
       { label: 'Leads', href: '/leads' },
       { label: 'Opportunities', href: '/opportunities' },
-      { label: 'Estimates', href: '/estimates' },
+      { label: 'Quotes', href: '/quotes' },
       { label: 'Sales Orders', href: '/sales-orders' },
       { label: 'Invoices', href: '/invoices' },
     ],

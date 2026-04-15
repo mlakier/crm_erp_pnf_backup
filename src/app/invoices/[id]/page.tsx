@@ -44,9 +44,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             {invoice.status !== 'paid' ? <InvoiceActionButton id={invoice.id} label="Mark Paid" tone="emerald" payload={{ status: 'paid' }} /> : null}
             {invoice.status !== 'void' ? <InvoiceActionButton id={invoice.id} label="Void" tone="amber" payload={{ status: 'void' }} /> : null}
             {invoice.status !== 'draft' ? <InvoiceActionButton id={invoice.id} label="Reset Draft" tone="gray" payload={{ status: 'draft' }} /> : null}
-            <Link href={`/sales-orders/${invoice.salesOrder.id}`} className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
-              View sales order
-            </Link>
+            {invoice.salesOrder ? (
+              <Link href={`/sales-orders/${invoice.salesOrder.id}`} className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+                View sales order
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -62,9 +64,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           <dl className="grid gap-4 sm:grid-cols-2">
             <Field label="Invoice #" value={invoice.number} />
             <Field label="Customer" value={invoice.customer.name} />
-            <Field label="Sales Order" value={invoice.salesOrder.number} />
-            <Field label="Quote" value={invoice.salesOrder.quote?.number} />
-            <Field label="Opportunity" value={invoice.salesOrder.quote?.opportunity?.name} />
+            <Field label="Sales Order" value={invoice.salesOrder?.number} />
+            <Field label="Quote" value={invoice.salesOrder?.quote?.number} />
+            <Field label="Opportunity" value={invoice.salesOrder?.quote?.opportunity?.name} />
             <Field label="Created" value={new Date(invoice.createdAt).toLocaleDateString()} />
           </dl>
         </div>

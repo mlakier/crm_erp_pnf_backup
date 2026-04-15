@@ -14,10 +14,11 @@ import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { generateNextEntityCode } from '@/lib/entity-code'
 import { COUNTRY_OPTIONS } from '@/lib/address-country-config'
 import SubsidiaryHierarchyModal from '@/components/SubsidiaryHierarchyModal'
+import TableHorizontalScrollbar from '@/components/TableHorizontalScrollbar'
 
 type SubsidiaryHierarchyEntity = {
   id: string
-  code: string
+  subsidiaryId: string
   name: string
   country: string | null
   entityType: string | null
@@ -26,7 +27,7 @@ type SubsidiaryHierarchyEntity = {
 }
 
 const COLS = [
-  { id: 'code', label: 'Code' },
+  { id: 'subsidiary-id', label: 'Subsidiary Id' },
   { id: 'name', label: 'Name' },
   { id: 'country', label: 'Country' },
   { id: 'tax-id', label: 'Tax ID' },
@@ -49,16 +50,16 @@ export default async function EntitiesPage({
   const query = (params.q ?? '').trim()
 
   const where = query
-    ? { OR: [{ code: { contains: query } }, { name: { contains: query } }] }
+    ? { OR: [{ subsidiaryId: { contains: query } }, { name: { contains: query } }] }
     : {}
 
   const total = await prisma.entity.count({ where })
   const pagination = getPagination(total, params.page)
 
   const [entities, currencies, allEntities, nextEntityCode, companySettings, cabinetFiles] = await Promise.all([
-    prisma.entity.findMany({ where, include: { defaultCurrency: true, parentEntity: true }, orderBy: { code: 'asc' }, skip: pagination.skip, take: pagination.pageSize }),
-    prisma.currency.findMany({ orderBy: { code: 'asc' } }),
-    prisma.entity.findMany({ orderBy: { code: 'asc' }, select: { id: true, code: true, name: true, country: true, entityType: true, taxId: true, parentEntityId: true } }),
+    prisma.entity.findMany({ where, include: { defaultCurrency: true, parentEntity: true }, orderBy: { subsidiaryId: 'asc' }, skip: pagination.skip, take: pagination.pageSize }),
+    prisma.currency.findMany({ orderBy: { currencyId: 'asc' } }),
+    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true, country: true, entityType: true, taxId: true, parentEntityId: true } }),
     generateNextEntityCode(),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
@@ -97,12 +98,16 @@ export default async function EntitiesPage({
         <div className="flex items-center gap-2">
           <MasterDataCustomizeButton tableId="subsidiaries-list" columns={COLS} title="Subsidiaries" />
           <CreateModalButton buttonLabel="New Subsidiary" title="New Subsidiary">
-            <EntityCreateForm initialCode={nextEntityCode} currencies={currencies} parentEntities={allEntities.map(({ id, code, name }) => ({ id, code, name }))} />
+            <EntityCreateForm initialSubsidiaryId={nextEntityCode} currencies={currencies} parentEntities={allEntities.map(({ id, subsidiaryId, name }) => ({ id, subsidiaryId, name }))} />
           </CreateModalButton>
         </div>
       </div>
 
-      <SubsidiaryHierarchyModal entities={hierarchyEntities} />
+      <SubsidiaryHierarchyModal
+        entities={hierarchyEntities}
+        logoUrl={companyLogoPages?.url}
+        title={companySettings.companyName ? `${companySettings.companyName} Group of Companies` : 'Group of Companies'}
+      />
 
       <section className="overflow-hidden rounded-2xl border" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
         <form className="border-b px-6 py-4" method="get" style={{ borderColor: 'var(--border-muted)' }}>
@@ -111,25 +116,22 @@ export default async function EntitiesPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search code or name"
+              placeholder="Search subsidiary id or name"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <input type="hidden" name="page" value="1" />
-            <div className="flex items-center gap-2">
-              <Link href="/subsidiaries" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
-              <ExportButton tableId="subsidiaries-list" fileName="subsidiaries" />
-            </div>
+            <ExportButton tableId="subsidiaries-list" fileName="subsidiaries" compact />
             <ColumnSelector tableId="subsidiaries-list" columns={COLS} />
           </div>
         </form>
 
-        <div className="overflow-x-auto" data-column-selector-table="subsidiaries-list">
-          <table className="min-w-full" id="subsidiaries-list">
+        <div id="subsidiaries-list-scroll" className="overflow-x-auto" data-column-selector-table="subsidiaries-list">
+          <table className="min-w-[1400px] w-full" id="subsidiaries-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="code" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Code</th>
-                <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
+                <th data-column="subsidiary-id" className="sticky top-0 left-0 z-20 w-36 min-w-36 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Subsidiary Id</th>
+                <th data-column="name" className="sticky top-0 z-20 w-64 min-w-64 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ left: '9rem', color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
                 <th data-column="country" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Country</th>
                 <th data-column="tax-id" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Tax ID</th>
                 <th data-column="parent-subsidiary" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Parent Subsidiary</th>
@@ -152,14 +154,14 @@ export default async function EntitiesPage({
               ) : (
                 entities.map((entity, index) => (
                   <tr key={entity.id} style={index < entities.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                    <td data-column="code" className="px-4 py-2 text-sm font-medium text-white"><Link href={`/subsidiaries/${entity.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{entity.code}</Link></td>
-                    <td data-column="name" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.name}</td>
+                    <td data-column="subsidiary-id" className="sticky left-0 z-10 w-36 min-w-36 px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--card)' }}><Link href={`/subsidiaries/${entity.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{entity.subsidiaryId}</Link></td>
+                    <td data-column="name" className="sticky z-10 w-64 min-w-64 px-4 py-2 text-sm" style={{ left: '9rem', color: 'var(--text-secondary)', backgroundColor: 'var(--card)' }}>{entity.name}</td>
                     <td data-column="country" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.country ?? '—'}</td>
                     <td data-column="tax-id" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.taxId ?? '—'}</td>
-                    <td data-column="parent-subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.parentEntity ? `${entity.parentEntity.code} - ${entity.parentEntity.name}` : '—'}</td>
+                    <td data-column="parent-subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.parentEntity ? `${entity.parentEntity.subsidiaryId} - ${entity.parentEntity.name}` : '—'}</td>
                     <td data-column="legal-name" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.legalName ?? '—'}</td>
                     <td data-column="type" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.entityType ?? '—'}</td>
-                    <td data-column="default-currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.defaultCurrency?.code ?? '—'}</td>
+                    <td data-column="default-currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.defaultCurrency?.currencyId ?? '—'}</td>
                     <td data-column="inactive" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{entity.active ? 'No' : 'Yes'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(entity.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(entity.updatedAt).toLocaleDateString()}</td>
@@ -169,7 +171,7 @@ export default async function EntitiesPage({
                           resource="entities"
                           id={entity.id}
                           fields={[
-                            { name: 'code', label: 'Code', value: entity.code },
+                            { name: 'subsidiaryId', label: 'Subsidiary Id', value: entity.subsidiaryId },
                             { name: 'name', label: 'Name', value: entity.name },
                             {
                               name: 'parentEntityId',
@@ -181,7 +183,7 @@ export default async function EntitiesPage({
                                 .filter((candidate) => candidate.id !== entity.id)
                                 .map((candidate) => ({
                                   value: candidate.id,
-                                  label: `${candidate.code} - ${candidate.name}`,
+                                  label: `${candidate.subsidiaryId} - ${candidate.name}`,
                                 })),
                             },
                             {
@@ -207,6 +209,7 @@ export default async function EntitiesPage({
             </tbody>
           </table>
         </div>
+        <TableHorizontalScrollbar targetId="subsidiaries-list-scroll" />
         <PaginationFooter
           startRow={pagination.startRow}
           endRow={pagination.endRow}

@@ -28,7 +28,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const items = await prisma.item.findMany({
     where: { active: true },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, listPrice: true, itemNumber: true },
+    select: { id: true, name: true, listPrice: true, itemId: true },
   })
 
   if (!opportunity) notFound()
@@ -121,7 +121,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 <tbody>
                   {opportunity.lineItems.map((line, index) => (
                     <tr key={line.id} style={index < opportunity.lineItems.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                      <Td>{line.item ? (line.item.itemNumber ? `${line.item.itemNumber} - ${line.item.name}` : line.item.name) : '—'}</Td>
+                      <Td>{line.item ? (line.item.itemId ? `${line.item.itemId} - ${line.item.name}` : line.item.name) : '—'}</Td>
                       <Td>{line.description}</Td>
                       <Td>{line.quantity}</Td>
                       <Td>{fmtCurrency(line.unitPrice)}</Td>
@@ -154,7 +154,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--accent-primary-strong)' }}>Generated quote</h2>
                 <p className="mt-2 text-lg font-semibold text-white">{opportunity.quote.number}</p>
               </div>
-              <Link href={`/estimates/${opportunity.quote.id}`} className="inline-flex items-center rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--accent-primary-strong)' }}>
+              <Link href={`/quotes/${opportunity.quote.id}`} className="inline-flex items-center rounded-md px-4 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--accent-primary-strong)' }}>
                 Open quote
               </Link>
             </div>
