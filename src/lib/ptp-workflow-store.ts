@@ -24,12 +24,15 @@ export type PtpTrigger = {
   enabled: boolean;
   condition: TriggerCondition;
   action: string;
+  resultStatus: string;
 };
 
-export type ApprovalCondition = {
-  field: string;
+export type ApprovalTier = {
+  level: number;
   operator: string;
   value: number;
+  approverType: 'role' | 'employee';
+  approverValue: string;
 };
 
 export type PtpApproval = {
@@ -37,8 +40,7 @@ export type PtpApproval = {
   label: string;
   step: string;
   enabled: boolean;
-  condition: ApprovalCondition;
-  approverRole: string;
+  tiers: ApprovalTier[];
 };
 
 export type PtpWorkflowConfig = {

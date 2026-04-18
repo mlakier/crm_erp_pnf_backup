@@ -39,6 +39,22 @@
       "order": 5,
       "entity": "invoice",
       "href": "/invoices"
+    },
+    {
+      "id": "fulfillment",
+      "label": "Fulfillment",
+      "enabled": true,
+      "order": 6,
+      "entity": "fulfillment",
+      "href": "/fulfillments"
+    },
+    {
+      "id": "invoice-receipt",
+      "label": "Invoice Receipt",
+      "enabled": true,
+      "order": 7,
+      "entity": "invoiceReceipt",
+      "href": "/invoice-receipts"
     }
   ],
   "triggers": [
@@ -47,52 +63,84 @@
       "label": "Lead → Opportunity",
       "fromStep": "lead",
       "toStep": "opportunity",
-      "enabled": false,
+      "enabled": true,
       "condition": {
         "field": "status",
         "operator": "equals",
-        "value": "qualified"
+        "value": "Qualified"
       },
-      "action": "create_next"
+      "action": "create_next",
+      "resultStatus": "Prospecting"
     },
     {
       "id": "opportunity-won",
       "label": "Opportunity → Quote",
       "fromStep": "opportunity",
       "toStep": "quote",
-      "enabled": false,
+      "enabled": true,
       "condition": {
         "field": "stage",
         "operator": "equals",
-        "value": "closed_won"
+        "value": "Close Won"
       },
-      "action": "create_next"
+      "action": "create_next",
+      "resultStatus": "Draft"
     },
     {
       "id": "quote-accepted",
       "label": "Quote → Sales Order",
       "fromStep": "quote",
       "toStep": "sales-order",
-      "enabled": false,
+      "enabled": true,
       "condition": {
         "field": "status",
         "operator": "equals",
-        "value": "accepted"
+        "value": "Accepted"
       },
-      "action": "create_next"
+      "action": "create_next",
+      "resultStatus": "Draft"
     },
     {
       "id": "salesorder-fulfilled",
       "label": "Sales Order → Invoice",
       "fromStep": "sales-order",
       "toStep": "invoice",
-      "enabled": false,
+      "enabled": true,
+      "condition": {
+        "field": "status",
+        "operator": "equals",
+        "value": "Fulfilled"
+      },
+      "action": "create_next",
+      "resultStatus": "Sent"
+    },
+    {
+      "id": "salesorder-fulfillment",
+      "label": "Sales Order → Fulfillment",
+      "fromStep": "sales-order",
+      "toStep": "fulfillment",
+      "enabled": true,
       "condition": {
         "field": "status",
         "operator": "equals",
         "value": "fulfilled"
       },
-      "action": "create_next"
+      "action": "create_next",
+      "resultStatus": "Pending"
+    },
+    {
+      "id": "invoice-receipt",
+      "label": "Invoice → Invoice Receipt",
+      "fromStep": "invoice",
+      "toStep": "invoice-receipt",
+      "enabled": true,
+      "condition": {
+        "field": "status",
+        "operator": "equals",
+        "value": "paid"
+      },
+      "action": "create_next",
+      "resultStatus": "Received"
     }
   ],
   "approvals": [
@@ -100,37 +148,104 @@
       "id": "quote-approval",
       "label": "Quote Approval",
       "step": "quote",
-      "enabled": false,
-      "condition": {
-        "field": "total",
-        "operator": ">=",
-        "value": 10000
-      },
-      "approverRole": "manager"
+      "enabled": true,
+      "tiers": [
+        {
+          "level": 1,
+          "operator": ">=",
+          "value": 10000,
+          "approverType": "employee",
+          "approverValue": ""
+        },
+        {
+          "level": 2,
+          "operator": ">=",
+          "value": 50000,
+          "approverType": "employee",
+          "approverValue": ""
+        }
+      ]
     },
     {
       "id": "sales-order-approval",
       "label": "Sales Order Approval",
       "step": "sales-order",
-      "enabled": false,
-      "condition": {
-        "field": "total",
-        "operator": ">=",
-        "value": 25000
-      },
-      "approverRole": "manager"
+      "enabled": true,
+      "tiers": [
+        {
+          "level": 1,
+          "operator": ">=",
+          "value": 25000,
+          "approverType": "role",
+          "approverValue": "manager"
+        },
+        {
+          "level": 2,
+          "operator": ">=",
+          "value": 100000,
+          "approverType": "role",
+          "approverValue": "manager"
+        }
+      ]
     },
     {
       "id": "invoice-approval",
       "label": "Invoice Approval",
       "step": "invoice",
+      "enabled": true,
+      "tiers": [
+        {
+          "level": 1,
+          "operator": ">=",
+          "value": 50000,
+          "approverType": "role",
+          "approverValue": "manager"
+        },
+        {
+          "level": 2,
+          "operator": ">=",
+          "value": 100000,
+          "approverType": "role",
+          "approverValue": "manager"
+        }
+      ]
+    },
+    {
+      "id": "fulfillment-approval",
+      "label": "Fulfillment Approval",
+      "step": "fulfillment",
       "enabled": false,
-      "condition": {
-        "field": "total",
-        "operator": ">=",
-        "value": 50000
-      },
-      "approverRole": "manager"
+      "tiers": [
+        {
+          "level": 1,
+          "operator": ">=",
+          "value": 50000,
+          "approverType": "role",
+          "approverValue": "manager"
+        }
+      ]
+    },
+    {
+      "id": "invoice-receipt-approval",
+      "label": "Invoice Receipt Approval",
+      "step": "invoice-receipt",
+      "enabled": false,
+      "tiers": [
+        {
+          "level": 1,
+          "operator": ">=",
+          "value": 100000,
+          "approverType": "role",
+          "approverValue": "manager"
+        },
+        {
+          "level": 2,
+          "operator": ">=",
+          "value": 250000,
+          "approverType": "role",
+          "approverValue": "manager"
+        }
+      ]
     }
   ]
 }

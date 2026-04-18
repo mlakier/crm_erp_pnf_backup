@@ -103,8 +103,8 @@ async function seedEntities() {
 
 async function seedItems() {
   const entities = await prisma.entity.findMany({
-    where: { code: { in: ['ENT-US', 'ENT-EU', 'ENT-UK'] } },
-    orderBy: { code: 'asc' },
+    where: { subsidiaryId: { in: ['ENT-US', 'ENT-EU', 'ENT-UK'] } },
+    orderBy: { subsidiaryId: 'asc' },
   })
 
   const currencies = await prisma.currency.findMany({
@@ -151,8 +151,8 @@ async function seedItems() {
 
 async function seedEmployees() {
   const entities = await prisma.entity.findMany({
-    where: { code: { in: ['ENT-US', 'ENT-EU', 'ENT-UK'] } },
-    orderBy: { code: 'asc' },
+    where: { subsidiaryId: { in: ['ENT-US', 'ENT-EU', 'ENT-UK'] } },
+    orderBy: { subsidiaryId: 'asc' },
   })
 
   const titles = [

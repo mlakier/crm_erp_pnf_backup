@@ -20,6 +20,10 @@ function writeDisplayOrder(data: Record<string, string>) {
 const LIST_KEY_LABELS: Record<string, string> = {
   'BILL-STATUS': 'Bill Status',
   DIVISION: 'Division',
+  'FULFILL-STATUS': 'Fulfillment Status',
+  'INV-RECEIPT-STATUS': 'Invoice Receipt Status',
+  'FULFILL-STATUS': 'Fulfillment Status',
+  'INV-RECEIPT-STATUS': 'Invoice Receipt Status',
   INDUSTRY: 'Industry',
   'INV-STATUS': 'Invoice Status',
   'ITEM-TYPE': 'Item Type',
@@ -37,6 +41,10 @@ const LIST_KEY_LABELS: Record<string, string> = {
 const WHERE_USED: Record<string, string[]> = {
   'BILL-STATUS': ['Bills'],
   DIVISION: ['Departments'],
+  'FULFILL-STATUS': ['Fulfillments'],
+  'INV-RECEIPT-STATUS': ['Invoice Receipts'],
+  'FULFILL-STATUS': ['Fulfillments'],
+  'INV-RECEIPT-STATUS': ['Invoice Receipts'],
   INDUSTRY: ['Customers'],
   'INV-STATUS': ['Invoices'],
   'ITEM-TYPE': ['Items'],

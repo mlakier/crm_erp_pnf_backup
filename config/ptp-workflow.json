@@ -1,30 +1,19 @@
 {
   "steps": [
-    { "id": "requisition", "label": "Requisition", "enabled": true, "order": 1, "entity": "requisition", "href": "/purchase-requisitions" },
-    { "id": "po", "label": "Purchase Order", "enabled": true, "order": 2, "entity": "purchase-order", "href": "/purchase-orders" },
-    { "id": "receipt", "label": "Receipt", "enabled": true, "order": 3, "entity": "receipt", "href": "/receipts" },
-    { "id": "bill", "label": "Bill", "enabled": true, "order": 4, "entity": "bill", "href": "/bills" },
-    { "id": "payment", "label": "Payment", "enabled": false, "order": 5, "entity": "payment", "href": "/payments" }
-  ],
-  "triggers": [],
-  "approvals": []
-}
-{
-  "steps": [
     {
       "id": "requisition",
-      "label": "Purchase Requisition",
+      "label": "Requisition",
       "enabled": true,
       "order": 1,
       "entity": "requisition",
       "href": "/purchase-requisitions"
     },
     {
-      "id": "purchase-order",
+      "id": "po",
       "label": "Purchase Order",
       "enabled": true,
       "order": 2,
-      "entity": "purchaseOrder",
+      "entity": "purchase-order",
       "href": "/purchase-orders"
     },
     {
@@ -49,40 +38,54 @@
       "enabled": true,
       "order": 5,
       "entity": "payment",
-      "href": "/bills"
+      "href": "/payments"
     }
   ],
   "triggers": [
     {
-      "id": "requisition-approved",
+      "id": "requisition-to-po",
       "label": "Requisition → Purchase Order",
       "fromStep": "requisition",
-      "toStep": "purchase-order",
+      "toStep": "po",
       "enabled": true,
       "condition": {
         "field": "status",
         "operator": "equals",
-        "value": "approved"
+        "value": "Approved"
       },
       "action": "create_next",
-      "resultStatus": "Pending Approval"
+      "resultStatus": ""
     },
     {
-      "id": "po-sent",
+      "id": "po-to-receipt",
       "label": "Purchase Order → Receipt",
-      "fromStep": "purchase-order",
+      "fromStep": "po",
       "toStep": "receipt",
-      "enabled": false,
+      "enabled": true,
       "condition": {
         "field": "status",
         "operator": "equals",
-        "value": "sent"
+        "value": ""
       },
       "action": "create_next",
-      "resultStatus": "Pending"
+      "resultStatus": ""
     },
     {
-      "id": "receipt-received",
+      "id": "bill-to-payment",
+      "label": "Bill → Payment",
+      "fromStep": "bill",
+      "toStep": "payment",
+      "enabled": true,
+      "condition": {
+        "field": "status",
+        "operator": "equals",
+        "value": ""
+      },
+      "action": "create_next",
+      "resultStatus": ""
+    },
+    {
+      "id": "receipt-to-bill",
       "label": "Receipt → Bill",
       "fromStep": "receipt",
       "toStep": "bill",
@@ -90,24 +93,10 @@
       "condition": {
         "field": "status",
         "operator": "equals",
-        "value": "received"
+        "value": ""
       },
       "action": "create_next",
-      "resultStatus": "Received"
-    },
-    {
-      "id": "bill-approved",
-      "label": "Bill → Payment",
-      "fromStep": "bill",
-      "toStep": "payment",
-      "enabled": false,
-      "condition": {
-        "field": "status",
-        "operator": "equals",
-        "value": "approved"
-      },
-      "action": "create_next",
-      "resultStatus": "Draft"
+      "resultStatus": ""
     }
   ],
   "approvals": [
@@ -118,62 +107,67 @@
       "enabled": true,
       "tiers": [
         {
-          "id": "req-tier-1",
           "level": 1,
-          "operator": ">",
+          "operator": ">=",
           "value": 0,
-          "approverRole": "department_manager"
+          "approverType": "employee",
+          "approverValue": "cmo3jdmca0001rjvr16ne447m"
+        },
+        {
+          "level": 2,
+          "value": 0,
+          "approverRole": "manager"
         }
       ]
     },
     {
       "id": "po-approval-with-req",
       "label": "PO Approval (With Requisition)",
-      "step": "purchase-order",
+      "step": "po",
       "enabled": true,
       "tiers": [
         {
-          "id": "po-req-tier-1",
-          "level": 1,
-          "operator": "<=",
-          "value": 5000,
-          "approverRole": "purchase_coordinator"
-        },
-        {
-          "id": "po-req-tier-2",
           "level": 1,
           "operator": ">=",
-          "value": 10000,
-          "approverRole": "purchase_manager"
+          "value": 0,
+          "approverType": "role",
+          "approverValue": "purchase_coordinator"
         },
         {
-          "id": "po-approval-with-req-tier-1776385617875",
           "level": 2,
           "operator": ">=",
+          "value": 10000,
+          "approverType": "role",
+          "approverValue": "purchase_manager"
+        },
+        {
+          "level": 3,
+          "operator": ">=",
           "value": 50000,
-          "approverRole": "cfo"
+          "approverType": "role",
+          "approverValue": "cfo"
         }
       ]
     },
     {
       "id": "po-approval-without-req",
       "label": "PO Approval (Without Requisition)",
-      "step": "purchase-order",
+      "step": "po",
       "enabled": true,
       "tiers": [
         {
-          "id": "po-noreq-tier-1",
           "level": 1,
-          "operator": ">",
+          "operator": ">=",
           "value": 0,
-          "approverRole": "purchase_manager"
+          "approverType": "role",
+          "approverValue": "purchase_manager"
         },
         {
-          "id": "po-noreq-tier-2",
           "level": 2,
           "operator": ">=",
           "value": 50000,
-          "approverRole": "cfo"
+          "approverType": "role",
+          "approverValue": "cfo"
         }
       ]
     },
@@ -181,14 +175,14 @@
       "id": "bill-approval-with-po",
       "label": "Bill Approval (With PO)",
       "step": "bill",
-      "enabled": false,
+      "enabled": true,
       "tiers": [
         {
-          "id": "bill-po-tier-1",
           "level": 1,
           "operator": ">=",
           "value": 0,
-          "approverRole": "purchase_manager"
+          "approverType": "role",
+          "approverValue": "purchase_manager"
         }
       ]
     },
@@ -196,14 +190,43 @@
       "id": "bill-approval-without-po",
       "label": "Bill Approval (Without PO)",
       "step": "bill",
-      "enabled": false,
+      "enabled": true,
       "tiers": [
         {
-          "id": "bill-nopo-tier-1",
           "level": 1,
-          "operator": ">",
+          "operator": ">=",
           "value": 1000,
-          "approverRole": "finance_manager"
+          "approverType": "role",
+          "approverValue": "finance_manager"
+        },
+        {
+          "level": 2,
+          "operator": ">=",
+          "value": 25000,
+          "approverType": "role",
+          "approverValue": "cfo"
+        }
+      ]
+    },
+    {
+      "id": "payment-approval",
+      "label": "Payment Approval",
+      "step": "payment",
+      "enabled": true,
+      "tiers": [
+        {
+          "level": 1,
+          "operator": ">=",
+          "value": 5000,
+          "approverType": "role",
+          "approverValue": "finance_manager"
+        },
+        {
+          "level": 2,
+          "operator": ">=",
+          "value": 50000,
+          "approverType": "role",
+          "approverValue": "cfo"
         }
       ]
     }
