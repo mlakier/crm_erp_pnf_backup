@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 type SortDirection = 'asc' | 'desc'
 type TableState = {
@@ -17,6 +18,12 @@ function setImportantStyles(element: HTMLElement, styles: Record<string, string>
   }
 }
 
+function removeStyles(element: HTMLElement, properties: string[]) {
+  for (const property of properties) {
+    element.style.removeProperty(property)
+  }
+}
+
 function getPinnedColumnIds(table: HTMLTableElement): string[] {
   const headerCells = Array.from(table.tHead?.rows[0]?.cells ?? [])
   return headerCells
@@ -25,19 +32,38 @@ function getPinnedColumnIds(table: HTMLTableElement): string[] {
     .slice(0, 2)
 }
 
+function measureColumnWidth(cells: HTMLTableCellElement[]): number {
+  return Math.max(
+    1,
+    ...cells.map((cell) => {
+      const rectWidth = cell.getBoundingClientRect().width
+      const scrollWidth = cell.scrollWidth
+      return Math.ceil(Math.max(rectWidth, scrollWidth)) + 2
+    }),
+  )
+}
+
 function enforcePinnedColumns(table: HTMLTableElement) {
+  if (table.dataset.disablePinnedColumns === 'true') return
+
   const pinnedColumnIds = getPinnedColumnIds(table)
   if (pinnedColumnIds.length === 0) return
 
   let leftOffset = 0
 
-  for (const [index, columnId] of pinnedColumnIds.entries()) {
+  for (const columnId of pinnedColumnIds) {
     const headerCell = table.tHead?.rows[0]?.querySelector<HTMLTableCellElement>(`th[data-column="${columnId}"]`)
     if (!headerCell) continue
 
-    const measuredWidth = Math.ceil(headerCell.getBoundingClientRect().width)
-    const fallbackWidth = index === 0 ? 120 : 180
-    const columnWidth = Math.max(measuredWidth, fallbackWidth)
+    const filterCell = table.tHead?.querySelector<HTMLTableCellElement>(`tr[data-filter-row] th[data-column="${columnId}"]`)
+    const dataCells = Array.from(table.querySelectorAll<HTMLTableCellElement>(`td[data-column="${columnId}"]`))
+    const columnCells = [headerCell, ...(filterCell ? [filterCell] : []), ...dataCells]
+
+    for (const cell of columnCells) {
+      removeStyles(cell, ['width', 'min-width', 'max-width', 'overflow', 'text-overflow'])
+    }
+
+    const columnWidth = measureColumnWidth(columnCells)
     const left = `${leftOffset}px`
 
     setImportantStyles(headerCell, {
@@ -45,33 +71,34 @@ function enforcePinnedColumns(table: HTMLTableElement) {
       visibility: 'visible',
       position: 'sticky',
       left,
-      'z-index': '20',
+      width: `${columnWidth}px`,
       'min-width': `${columnWidth}px`,
+      'z-index': '20',
       'background-color': 'var(--card)',
     })
 
-    const filterCell = table.tHead?.querySelector<HTMLTableCellElement>(`tr[data-filter-row] th[data-column="${columnId}"]`)
     if (filterCell) {
       setImportantStyles(filterCell, {
         display: 'table-cell',
         visibility: 'visible',
         position: 'sticky',
         left,
-        'z-index': '20',
+        width: `${columnWidth}px`,
         'min-width': `${columnWidth}px`,
+        'z-index': '20',
         'background-color': 'var(--card)',
       })
     }
 
-    const dataCells = table.querySelectorAll<HTMLTableCellElement>(`td[data-column="${columnId}"]`)
     for (const cell of dataCells) {
       setImportantStyles(cell, {
         display: 'table-cell',
         visibility: 'visible',
         position: 'sticky',
         left,
-        'z-index': '10',
+        width: `${columnWidth}px`,
         'min-width': `${columnWidth}px`,
+        'z-index': '10',
         'background-color': 'var(--card)',
       })
     }
@@ -101,6 +128,32 @@ function compareValues(a: string, b: string, direction: SortDirection): number {
 
   const result = left > right ? 1 : -1
   return direction === 'asc' ? result : result * -1
+}
+
+function ensureSortIndicator(headerCell: HTMLTableCellElement) {
+  let indicator = headerCell.querySelector<HTMLSpanElement>('[data-sort-indicator="true"]')
+  if (!indicator) {
+    indicator = document.createElement('span')
+    indicator.setAttribute('data-sort-indicator', 'true')
+    indicator.style.marginLeft = '0.25rem'
+    indicator.style.pointerEvents = 'none'
+    indicator.style.display = 'inline-block'
+    headerCell.appendChild(indicator)
+  }
+  return indicator
+}
+
+function updateHeaderSortIndicators(
+  headerCells: HTMLTableCellElement[],
+  sortColumn: string | null,
+  sortDirection: SortDirection,
+) {
+  for (const cell of headerCells) {
+    const id = cell.getAttribute('data-column')
+    if (!id || id === 'actions') continue
+    const indicator = ensureSortIndicator(cell)
+    indicator.textContent = sortColumn === id ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'
+  }
 }
 
 function applyTableState(table: HTMLTableElement) {
@@ -184,8 +237,9 @@ function enhanceTable(table: HTMLTableElement) {
   for (const headerCell of headerCells) {
     const columnId = headerCell.getAttribute('data-column')
     const filterCell = document.createElement('th')
-    filterCell.className = 'px-2 py-2'
+    filterCell.className = 'px-1.5 py-1.5'
     filterCell.style.backgroundColor = 'var(--card)'
+    filterCell.style.minWidth = '0'
     if (columnId) filterCell.setAttribute('data-column', columnId)
 
     if (!columnId || columnId === 'actions') {
@@ -196,8 +250,10 @@ function enhanceTable(table: HTMLTableElement) {
     const input = document.createElement('input')
     input.type = 'text'
     input.placeholder = 'Filter'
-    input.className = 'w-full rounded-md border bg-transparent px-2 py-1 text-xs text-white'
+    input.className = 'block w-[5.5rem] min-w-0 max-w-full rounded-md border bg-transparent px-2 py-1 text-[11px] leading-4 text-white'
     input.style.borderColor = 'var(--border-muted)'
+    input.style.minWidth = '0'
+    input.style.boxSizing = 'border-box'
     input.addEventListener('input', () => {
       const state = TABLE_STATE.get(table)
       if (!state) return
@@ -209,12 +265,8 @@ function enhanceTable(table: HTMLTableElement) {
     filterCell.appendChild(input)
     filterRow.appendChild(filterCell)
 
-    const originalLabel = headerCell.textContent?.trim() ?? ''
-    const labelSpan = document.createElement('span')
-    labelSpan.textContent = `${originalLabel} ↕`
-    headerCell.textContent = ''
-    headerCell.appendChild(labelSpan)
     headerCell.style.cursor = 'pointer'
+    ensureSortIndicator(headerCell)
 
     headerCell.addEventListener('click', () => {
       const state = TABLE_STATE.get(table)
@@ -227,18 +279,12 @@ function enhanceTable(table: HTMLTableElement) {
         state.sortDirection = 'asc'
       }
 
-      for (const cell of headerCells) {
-        const id = cell.getAttribute('data-column')
-        if (!id || id === 'actions') continue
-        const text = cell.textContent?.replace(/\s*[↑↓↕]$/, '') ?? ''
-        const marker = state.sortColumn === id ? (state.sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕'
-        cell.textContent = `${text}${marker}`
-      }
-
+      updateHeaderSortIndicators(headerCells, state.sortColumn, state.sortDirection)
       applyTableState(table)
     })
   }
 
+  updateHeaderSortIndicators(headerCells, null, 'asc')
   header.appendChild(filterRow)
   table.dataset.filterSortEnhanced = 'true'
   enforcePinnedColumns(table)
@@ -288,7 +334,6 @@ function applyMainSearchToTables(form: HTMLFormElement, query: string) {
       continue
     }
 
-    // Fallback for tables not enhanced yet.
     const tbody = table.tBodies[0]
     if (!tbody) continue
     const rows = Array.from(tbody.rows).filter((row) => row.querySelector('td[data-column]'))
@@ -299,6 +344,11 @@ function applyMainSearchToTables(form: HTMLFormElement, query: string) {
     }
   }
   updatePaginationDisplay(form)
+}
+
+function usesServerBackedSearch(form: HTMLFormElement) {
+  return Boolean(form.querySelector<HTMLInputElement>('input[type="hidden"][name="page"]'))
+    && getRelatedTables(form).length > 0
 }
 
 function clearColumnFilters(form: HTMLFormElement) {
@@ -320,16 +370,17 @@ function clearColumnFilters(form: HTMLFormElement) {
   }
 }
 
-function enhanceLiveSearchForm(form: HTMLFormElement) {
+function enhanceLiveSearchForm(form: HTMLFormElement, navigate: (url: string, options?: { force?: boolean }) => void) {
   if (form.dataset.liveSearchEnhanced === 'true') return
 
   const searchInput = form.querySelector<HTMLInputElement>('input[name="q"]')
   if (!searchInput) return
+  const serverBackedSearch = usesServerBackedSearch(form)
 
   const submitButtons = Array.from(form.querySelectorAll<HTMLButtonElement>('button[type="submit"]'))
   for (const button of submitButtons) {
     const label = (button.textContent ?? '').trim().toLowerCase()
-    if (label === 'apply' || label === 'search' || submitButtons.length === 1) {
+    if (!serverBackedSearch && (label === 'apply' || label === 'search' || submitButtons.length === 1)) {
       button.style.display = 'none'
       button.setAttribute('aria-hidden', 'true')
       button.tabIndex = -1
@@ -362,12 +413,12 @@ function enhanceLiveSearchForm(form: HTMLFormElement) {
     const currentUrl = `${window.location.pathname}${window.location.search}`
     if (nextUrl === currentUrl) {
       if (force) {
-        window.location.reload()
+        navigate(nextUrl, { force: true })
       }
       return
     }
 
-    window.location.assign(nextUrl)
+    navigate(nextUrl)
   }
 
   const syncUrlWithoutReload = () => {
@@ -379,7 +430,19 @@ function enhanceLiveSearchForm(form: HTMLFormElement) {
     window.history.replaceState(null, '', nextUrl)
   }
 
+  let liveSearchTimer: number | undefined
+
+  const scheduleServerSearch = () => {
+    window.clearTimeout(liveSearchTimer)
+    liveSearchTimer = window.setTimeout(() => navigateIfChanged(), 450)
+  }
+
   const handleLiveInput = () => {
+    if (serverBackedSearch) {
+      scheduleServerSearch()
+      return
+    }
+
     applyMainSearchToTables(form, searchInput.value)
     syncUrlWithoutReload()
   }
@@ -387,14 +450,20 @@ function enhanceLiveSearchForm(form: HTMLFormElement) {
   searchInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault()
-      applyMainSearchToTables(form, searchInput.value)
+      window.clearTimeout(liveSearchTimer)
+      if (!serverBackedSearch) {
+        applyMainSearchToTables(form, searchInput.value)
+      }
       navigateIfChanged(true)
     }
   })
 
   form.addEventListener('submit', (event) => {
     event.preventDefault()
-    applyMainSearchToTables(form, searchInput.value)
+    window.clearTimeout(liveSearchTimer)
+    if (!serverBackedSearch) {
+      applyMainSearchToTables(form, searchInput.value)
+    }
     navigateIfChanged(true)
   })
 
@@ -414,19 +483,33 @@ function enhanceLiveSearchForm(form: HTMLFormElement) {
     link.addEventListener('click', () => {
       searchInput.value = ''
       clearColumnFilters(form)
-      applyMainSearchToTables(form, '')
+      if (!serverBackedSearch) {
+        applyMainSearchToTables(form, '')
+      }
       const pageInput = form.querySelector<HTMLInputElement>('input[name="page"]')
       if (pageInput) pageInput.value = '1'
     })
   }
 
-  applyMainSearchToTables(form, searchInput.value)
+  if (!serverBackedSearch) {
+    applyMainSearchToTables(form, searchInput.value)
+  }
 
   form.dataset.liveSearchEnhanced = 'true'
 }
 
 export default function TableFilterSortEnhancer() {
+  const router = useRouter()
+
   useEffect(() => {
+    const navigate = (url: string, options?: { force?: boolean }) => {
+      if (options?.force) {
+        router.refresh()
+        return
+      }
+      router.replace(url, { scroll: false })
+    }
+
     const run = () => {
       const tables = Array.from(
         document.querySelectorAll<HTMLTableElement>('[data-column-selector-table] table')
@@ -444,7 +527,7 @@ export default function TableFilterSortEnhancer() {
         if (!form.querySelector('input[name="q"]')) return
 
         try {
-          enhanceLiveSearchForm(form)
+          enhanceLiveSearchForm(form, navigate)
         } catch (error) {
           console.error('Live search enhancement failed', error)
         }
@@ -459,7 +542,7 @@ export default function TableFilterSortEnhancer() {
     return () => {
       observer.disconnect()
     }
-  }, [])
+  }, [router])
 
   return null
 }

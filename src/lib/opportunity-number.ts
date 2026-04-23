@@ -1,30 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const OPPORTUNITY_NUMBER_PREFIX = 'OPP-'
-const OPPORTUNITY_NUMBER_WIDTH = 6
-
-export function formatOpportunityNumber(sequence: number) {
-  return `${OPPORTUNITY_NUMBER_PREFIX}${String(sequence).padStart(OPPORTUNITY_NUMBER_WIDTH, '0')}`
+export function formatOpportunityNumber(sequence: number, config = DEFAULT_ID_SETTINGS.opportunity) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextOpportunityNumber() {
-  const latestOpportunity = await prisma.opportunity.findFirst({
-    where: {
-      opportunityNumber: {
-        not: null,
-      },
-    },
-    orderBy: {
-      opportunityNumber: 'desc',
-    },
-    select: {
-      opportunityNumber: true,
-    },
+  const config = await loadIdSetting('opportunity')
+  const latestOpportunities = await prisma.opportunity.findMany({
+    where: { opportunityNumber: { startsWith: config.prefix } },
+    orderBy: { opportunityNumber: 'desc' },
+    select: { opportunityNumber: true },
+    take: 200,
   })
-
-  const latestSequence = latestOpportunity?.opportunityNumber
-    ? Number.parseInt(latestOpportunity.opportunityNumber.replace(OPPORTUNITY_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatOpportunityNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestOpportunities.map((opportunity) => opportunity.opportunityNumber), config)
+  return formatOpportunityNumber(nextSequence, config)
 }

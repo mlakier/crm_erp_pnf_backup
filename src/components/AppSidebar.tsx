@@ -32,6 +32,7 @@ const NAV: NavGroup[] = [
     section: 'COMPANY',
     items: [
       { label: 'Company Information', href: '/company-information' },
+      { label: 'Company Prefs', href: '/company-preferences' },
       { label: 'File Cabinet', href: '/company-information/file-cabinet' },
     ],
   },
@@ -59,6 +60,7 @@ const NAV: NavGroup[] = [
       { label: 'Vendors', href: '/vendors' },
       { label: 'Subsidiaries', href: '/subsidiaries' },
       { label: 'Currencies', href: '/currencies' },
+      { label: 'Locations', href: '/locations' },
       { label: 'Items', href: '/items' },
       { label: 'Chart of Accounts', href: '/chart-of-accounts' },
       { label: 'Departments', href: '/departments' },

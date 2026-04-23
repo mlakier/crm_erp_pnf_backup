@@ -3,17 +3,17 @@ import { prisma } from '@/lib/prisma'
 import EditButton from '@/components/EditButton'
 import DeleteButton from '@/components/DeleteButton'
 import PaginationFooter from '@/components/PaginationFooter'
-import CreateModalButton from '@/components/CreateModalButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
-import RoleCreateForm from '@/components/RoleCreateForm'
 import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadRoleFormCustomization } from '@/lib/role-form-customization-store'
 import { roleListDefinition } from '@/lib/master-data-list-definitions'
+import { loadListOptionsForSource } from '@/lib/list-source'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 export default async function RolesPage({
   searchParams,
@@ -22,7 +22,7 @@ export default async function RolesPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
 
   const where = query
     ? { OR: [{ roleId: { contains: query, mode: 'insensitive' as const } }, { name: { contains: query, mode: 'insensitive' as const } }] }
@@ -31,7 +31,7 @@ export default async function RolesPage({
   const total = await prisma.role.count({ where })
   const pagination = getPagination(total, params.page)
 
-  const [roles, companyLogoPages, formCustomization] = await Promise.all([
+  const [roles, companyLogoPages, inactiveOptions, formCustomization] = await Promise.all([
     prisma.role.findMany({
       where,
       include: {
@@ -39,7 +39,9 @@ export default async function RolesPage({
         users: { select: { inactive: true } },
       },
       orderBy:
-        sort === 'oldest'
+        sort === 'id'
+          ? [{ roleId: 'asc' as const }, { createdAt: 'desc' as const }]
+          : sort === 'oldest'
           ? [{ createdAt: 'asc' as const }]
           : sort === 'name'
             ? [{ name: 'asc' as const }]
@@ -48,6 +50,7 @@ export default async function RolesPage({
       take: pagination.pageSize,
     }),
     loadCompanyPageLogo(),
+    loadListOptionsForSource({ sourceType: 'system', sourceKey: 'activeInactive' }),
     loadRoleFormCustomization(),
   ])
 
@@ -66,9 +69,14 @@ export default async function RolesPage({
         total={total}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Role" title="New Role">
-            <RoleCreateForm />
-          </CreateModalButton>
+          <Link
+            href="/roles/new"
+            className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            <span className="mr-1.5 text-lg leading-none">+</span>
+            New Role
+          </Link>
         }
       />
       <MasterDataListSection
@@ -125,7 +133,7 @@ export default async function RolesPage({
                           fields={[
                             ...(formCustomization.fields.name.visible ? [{ name: 'name', label: 'Name', value: item.name }] : []),
                             ...(formCustomization.fields.description.visible ? [{ name: 'description', label: 'Description', value: item.description ?? '' }] : []),
-                            ...(formCustomization.fields.inactive.visible ? [{ name: 'inactive', label: 'Inactive', value: item.active ? 'false' : 'true', type: 'select' as const, options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }] }] : []),
+                            ...(formCustomization.fields.inactive.visible ? [{ name: 'inactive', label: 'Inactive', value: item.active ? 'false' : 'true', type: 'select' as const, options: inactiveOptions }] : []),
                           ]}
                         />
                         <DeleteButton resource="roles" id={item.id} />

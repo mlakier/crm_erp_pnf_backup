@@ -1,9 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtPhone, normalizePhone } from '@/lib/format'
-import ContactCreateForm from '@/components/ContactCreateForm'
 import DeleteButton from '@/components/DeleteButton'
-import CreateModalButton from '@/components/CreateModalButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -15,6 +13,7 @@ import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadContactFormCustomization } from '@/lib/contact-form-customization-store'
 import { contactListDefinition } from '@/lib/master-data-list-definitions'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 export default async function ContactsPage({
   searchParams,
@@ -23,34 +22,37 @@ export default async function ContactsPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
 
   const where = query
     ? {
         OR: [
-          { contactNumber: { contains: query } },
-          { firstName: { contains: query } },
-          { lastName: { contains: query } },
-          { email: { contains: query } },
-          { phone: { contains: query } },
-          { address: { contains: query } },
-          { position: { contains: query } },
-          { customer: { name: { contains: query } } },
+          { contactNumber: { contains: query, mode: 'insensitive' as const } },
+          { firstName: { contains: query, mode: 'insensitive' as const } },
+          { lastName: { contains: query, mode: 'insensitive' as const } },
+          { email: { contains: query, mode: 'insensitive' as const } },
+          { phone: { contains: query, mode: 'insensitive' as const } },
+          { address: { contains: query, mode: 'insensitive' as const } },
+          { position: { contains: query, mode: 'insensitive' as const } },
+          { customer: { name: { contains: query, mode: 'insensitive' as const } } },
+          { vendor: { name: { contains: query, mode: 'insensitive' as const } } },
         ],
       }
     : {}
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ contactNumber: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'name'
         ? [{ lastName: 'asc' as const }, { firstName: 'asc' as const }]
         : [{ createdAt: 'desc' as const }]
 
-  const [totalContacts, customers, adminUser, companyLogoPages, formCustomization] = await Promise.all([
+  const [totalContacts, customers, vendors, companyLogoPages, formCustomization] = await Promise.all([
     prisma.contact.count({ where }),
     prisma.customer.findMany({ orderBy: { name: 'asc' } }),
-    prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
+    prisma.vendor.findMany({ orderBy: { name: 'asc' } }),
     loadCompanyPageLogo(),
     loadContactFormCustomization(),
   ])
@@ -59,7 +61,7 @@ export default async function ContactsPage({
 
   const contacts = await prisma.contact.findMany({
     where,
-    include: { customer: true },
+    include: { customer: true, vendor: true },
     orderBy,
     skip: pagination.skip,
     take: pagination.pageSize,
@@ -80,9 +82,14 @@ export default async function ContactsPage({
         total={totalContacts}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Contact" title="New Contact">
-            <ContactCreateForm userId={adminUser.id} customers={customers} />
-          </CreateModalButton>
+          <Link
+            href="/contacts/new"
+            className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            <span className="mr-1.5 text-lg leading-none">+</span>
+            New Contact
+          </Link>
         }
       />
 
@@ -100,7 +107,8 @@ export default async function ContactsPage({
             <tr style={MASTER_DATA_TABLE_DIVIDER_STYLE}>
               <MasterDataHeaderCell columnId="contact-number">Contact Id</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="name">Name</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="customer">Customer</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="account-type">Account Type</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="account">Account</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="email">Email</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="phone">Phone</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="address">Address</MasterDataHeaderCell>
@@ -113,7 +121,7 @@ export default async function ContactsPage({
           </thead>
           <tbody>
             {contacts.length === 0 ? (
-              <MasterDataEmptyStateRow colSpan={11}>No contacts found</MasterDataEmptyStateRow>
+              <MasterDataEmptyStateRow colSpan={12}>No contacts found</MasterDataEmptyStateRow>
             ) : contacts.map((contact, index) => (
               <tr key={contact.id} style={getMasterDataRowStyle(index, contacts.length)}>
                 <MasterDataBodyCell columnId="contact-number" className="px-4 py-2 text-sm font-medium">
@@ -122,7 +130,10 @@ export default async function ContactsPage({
                   </Link>
                 </MasterDataBodyCell>
                 <MasterDataBodyCell columnId="name" className="px-4 py-2 text-sm text-white">{contact.firstName} {contact.lastName}</MasterDataBodyCell>
-                <MasterDataMutedCell columnId="customer">{contact.customer.name}</MasterDataMutedCell>
+                <MasterDataMutedCell columnId="account-type">
+                  {contact.customerId ? 'Customer' : contact.vendorId ? 'Vendor' : '-'}
+                </MasterDataMutedCell>
+                <MasterDataMutedCell columnId="account">{contact.customer?.name ?? contact.vendor?.name ?? '-'}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="email">{contact.email ?? '-'}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="phone">{fmtPhone(contact.phone)}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="address">{contact.address ?? '-'}</MasterDataMutedCell>
@@ -146,9 +157,18 @@ export default async function ContactsPage({
                           ? [{
                               name: 'customerId',
                               label: 'Customer',
-                              value: contact.customerId,
+                              value: contact.customerId ?? '',
                               type: 'select' as const,
-                              options: customers.map((customer) => ({ value: customer.id, label: customer.name })),
+                              options: [{ value: '', label: 'None' }, ...customers.map((customer) => ({ value: customer.id, label: customer.name }))],
+                            }]
+                          : []),
+                        ...(formCustomization.fields.vendorId.visible
+                          ? [{
+                              name: 'vendorId',
+                              label: 'Vendor',
+                              value: contact.vendorId ?? '',
+                              type: 'select' as const,
+                              options: [{ value: '', label: 'None' }, ...vendors.map((vendor) => ({ value: vendor.id, label: vendor.name }))],
                             }]
                           : []),
                         ...(formCustomization.fields.inactive.visible

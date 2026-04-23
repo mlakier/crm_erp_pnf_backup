@@ -82,7 +82,7 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
         <div className="rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Bill details</h2>
           <dl className="grid gap-4 sm:grid-cols-2">
-            <Field label="Bill #" value={bill.number} />
+            <Field label="Bill Id" value={bill.number} />
             <Field label="Vendor" value={bill.vendor.name} />
             <Field label="Bill Date" value={new Date(bill.date).toLocaleDateString()} />
             <Field label="Due Date" value={bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '—'} />

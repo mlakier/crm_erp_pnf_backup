@@ -10,9 +10,11 @@ import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
-import { loadListValues } from '@/lib/load-list-values'
 import CreateModalButton from '@/components/CreateModalButton'
 import OpportunityCreateForm from '@/components/OpportunityCreateForm'
+import { loadListOptionsForSource } from '@/lib/list-source'
+import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 
 const STAGE_ORDER = ['prospecting', 'qualification', 'proposal', 'negotiation', 'won', 'lost'] as const
 
@@ -26,7 +28,7 @@ const STAGE_LABELS: Record<string, string> = {
 }
 
 const OPPORTUNITY_COLUMNS = [
-  { id: 'opportunity-number', label: 'Opportunity #' },
+  { id: 'opportunity-number', label: 'Opportunity Id' },
   { id: 'name', label: 'Name' },
   { id: 'customer', label: 'Customer' },
   { id: 'stage', label: 'Stage' },
@@ -51,7 +53,13 @@ export default async function OpportunitiesPage({
   const params = await searchParams
   const query = (params.q ?? '').trim()
   const stageFilter = params.stage ?? 'all'
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const sortOptions = prependIdSortOption([
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'amount-desc', label: 'Amount high-low' },
+    { value: 'amount-asc', label: 'Amount low-high' },
+  ])
   const view = params.view === 'board' ? 'board' : 'table'
 
   const stageWhere =
@@ -80,7 +88,9 @@ export default async function OpportunitiesPage({
   }
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ opportunityNumber: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'amount-desc'
         ? [{ amount: 'desc' as const }]
@@ -88,17 +98,16 @@ export default async function OpportunitiesPage({
           ? [{ amount: 'asc' as const }]
           : [{ createdAt: 'desc' as const }]
 
-  const [totalOpportunities, adminUser, pipelineAgg, companySettings, cabinetFiles, stageValues, customers, items] = await Promise.all([
+  const [totalOpportunities, adminUser, companySettings, cabinetFiles, stageOptions, customers, items] = await Promise.all([
     prisma.opportunity.count({ where }),
     prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
-    prisma.opportunity.aggregate({ where, _sum: { amount: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
-    loadListValues('OPP-STAGE'),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-OPP-STAGE' }),
     prisma.customer.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.item.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true, listPrice: true, itemId: true } }),
   ])
-  const STAGE_OPTIONS = stageValues.map(v => v.toLowerCase())
+  const STAGE_OPTIONS = stageOptions.map((option) => option.value)
 
   const pagination = getPagination(totalOpportunities, params.page)
 
@@ -115,7 +124,6 @@ export default async function OpportunitiesPage({
     normalizedStage: normalizeStage(opportunity.stage),
   }))
 
-  const pipelineValue = pipelineAgg._sum.amount ?? 0
   const filteredOpportunities = withNormalizedStage
   const opportunitiesByStage = STAGE_OPTIONS.map((stage) => ({
     stage,
@@ -156,7 +164,7 @@ export default async function OpportunitiesPage({
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{totalOpportunities} total</p>
         </div>
                   <CreateModalButton buttonLabel="New Opportunity" title="New Opportunity">
-          <OpportunityCreateForm userId={adminUser.id} customers={customers} items={items} />
+          <OpportunityCreateForm userId={adminUser?.id ?? ''} customers={customers} items={items} stageOptions={stageOptions} />
           </CreateModalButton>
       </div>
       {/* Stage tabs */}
@@ -175,7 +183,7 @@ export default async function OpportunitiesPage({
                   : { backgroundColor: 'var(--card)', color: 'var(--text-secondary)', border: '1px solid var(--border-muted)' }
               }
             >
-              {s === 'all' ? 'All' : STAGE_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'all' ? 'All' : stageOptions.find((option) => option.value === s)?.label ?? STAGE_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1)}
             </Link>
           )
         })}
@@ -188,16 +196,15 @@ export default async function OpportunitiesPage({
                   type="text"
                   name="q"
                   defaultValue={params.q ?? ''}
-                  placeholder="Search opportunity ID, name, customer, stage"
+                  placeholder="Search opportunity id, name, customer, stage"
                   className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
                   style={{ borderColor: 'var(--border-muted)' }}
                 />
                 <input type="hidden" name="stage" value={stageFilter} />
                 <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-                  <option value="newest">Newest</option>
-                  <option value="oldest">Oldest</option>
-                  <option value="amount-desc">Amount high-low</option>
-                  <option value="amount-asc">Amount low-high</option>
+                  {sortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
                 <select name="view" defaultValue={view} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
                   <option value="table">Table view</option>
@@ -205,7 +212,6 @@ export default async function OpportunitiesPage({
                 </select>
                 <input type="hidden" name="page" value="1" />
                 <div className="flex items-center gap-2">
-                  <Link href={`/opportunities?view=${view}`} className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
                   <ExportButton tableId="opportunities-list" fileName="opportunities" />                </div>
                 {view === 'table' ? <ColumnSelector tableId="opportunities-list" columns={OPPORTUNITY_COLUMNS} /> : null}
           </div>
@@ -274,19 +280,15 @@ export default async function OpportunitiesPage({
                   </div>
           </div>
         ) : (
-          <div className="overflow-x-auto" data-column-selector-table="opportunities-list">
+          <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="opportunities-list">
           <table className="min-w-full" id="opportunities-list">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                  <th data-column="opportunity-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Opportunity #</th>
-                  <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
-                  <th data-column="customer" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Customer</th>
-                  <th data-column="stage" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Stage</th>
-                  <th data-column="amount" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Amount</th>
-                  <th data-column="close-date" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Close Date</th>
-                  <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
-                  <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
-                  <th data-column="actions" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
+                  {OPPORTUNITY_COLUMNS.map((column) => (
+                    <th key={column.id} data-column={column.id} className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
+                      <RecordListHeaderLabel label={column.label} tooltip={'tooltip' in column ? column.tooltip : undefined} />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>

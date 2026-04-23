@@ -10,6 +10,7 @@
     "start": "next start --port 3003",
     "lint": "eslint",
     "seed": "node prisma/seed.js",
+    "scaffold:master-data": "node scripts/add-master-data-page.js",
     "sync:exchange-rates": "node scripts/sync-exchange-rates.js"
   },
   "dependencies": {

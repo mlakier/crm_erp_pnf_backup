@@ -3,20 +3,24 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency, normalizePhone } from '@/lib/format'
 import DeleteButton from '@/components/DeleteButton'
-import VendorCreateMenu from '@/components/VendorCreateMenu'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
+import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
+import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
+import MasterDataSystemInfoSection from '@/components/MasterDataSystemInfoSection'
 import VendorDetailCustomizeMode from '@/components/VendorDetailCustomizeMode'
+import VendorContactsSection from '@/components/VendorContactsSection'
+import VendorRelatedDocuments from '@/components/VendorRelatedDocuments'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
-import {
-  RecordDetailCell,
-  RecordDetailEmptyState,
-  RecordDetailHeaderCell,
-  RecordDetailSection,
-  RecordDetailStatCard,
-} from '@/components/RecordDetailPanels'
+import SystemNotesSection from '@/components/SystemNotesSection'
+import { RecordDetailStatCard } from '@/components/RecordDetailPanels'
 import { loadVendorFormCustomization } from '@/lib/vendor-form-customization-store'
 import { VENDOR_FORM_FIELDS, type VendorFormFieldKey } from '@/lib/vendor-form-customization'
+import { buildConfiguredInlineSections, buildCustomizePreviewFields } from '@/lib/detail-page-helpers'
 import { loadFormRequirements } from '@/lib/form-requirements-store'
+import { loadListOptionsForSource } from '@/lib/list-source'
+import { buildFieldMetaById, getFieldSourceText, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { loadMasterDataSystemInfo } from '@/lib/master-data-system-info'
+import { loadMasterDataSystemNotes } from '@/lib/master-data-system-notes'
 
 export default async function VendorDetailPage({
   params,
@@ -29,26 +33,34 @@ export default async function VendorDetailPage({
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
+  const fieldMetaById = buildFieldMetaById(VENDOR_FORM_FIELDS)
 
-  const [vendor, defaultUser, subsidiaries, currencies, formCustomization, formRequirements] = await Promise.all([
+  const [vendor, defaultUser, fieldOptions, inactiveOptions, formCustomization, formRequirements] = await Promise.all([
     prisma.vendor.findUnique({
       where: { id },
       include: {
-        entity: true,
+        subsidiary: true,
         currency: true,
-        purchaseOrders: { orderBy: { createdAt: 'desc' } },
-        bills: { orderBy: { createdAt: 'desc' } },
+        contacts: { orderBy: { createdAt: 'desc' } },
+        purchaseOrders: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            receipts: { orderBy: { date: 'desc' } },
+            requisition: true,
+          },
+        },
+        requisitions: { orderBy: { createdAt: 'desc' } },
+        bills: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            billPayments: { orderBy: { date: 'desc' } },
+          },
+        },
       },
     }),
     prisma.user.findFirst({ where: { email: 'admin@example.com' }, select: { id: true } }),
-    prisma.entity.findMany({
-      orderBy: { subsidiaryId: 'asc' },
-      select: { id: true, subsidiaryId: true, name: true },
-    }),
-    prisma.currency.findMany({
-      orderBy: { currencyId: 'asc' },
-      select: { id: true, currencyId: true, name: true },
-    }),
+    loadFieldOptionsMap(fieldMetaById, ['primarySubsidiaryId', 'primaryCurrencyId']),
+    loadListOptionsForSource({ sourceType: 'system', sourceKey: 'activeInactive' }),
     loadVendorFormCustomization(),
     loadFormRequirements(),
   ])
@@ -58,6 +70,77 @@ export default async function VendorDetailPage({
   const totalSpend = vendor.purchaseOrders.reduce((sum, purchaseOrder) => sum + (purchaseOrder.total ?? 0), 0)
   const openInvoices = vendor.bills.filter((bill) => bill.status !== 'paid' && bill.status !== 'void')
   const detailHref = `/vendors/${vendor.id}`
+  const relatedPurchaseOrders = vendor.purchaseOrders.map((purchaseOrder) => ({
+    id: purchaseOrder.id,
+    number: purchaseOrder.number,
+    status: purchaseOrder.status,
+    total: purchaseOrder.total ?? 0,
+    createdAt: purchaseOrder.createdAt.toISOString(),
+  }))
+  const relatedRequisitionMap = new Map<string, {
+    id: string
+    number: string
+    status: string
+    total: number
+    priority: string | null
+    title: string | null
+    createdAt: string
+  }>()
+  for (const requisition of vendor.requisitions) {
+    relatedRequisitionMap.set(requisition.id, {
+      id: requisition.id,
+      number: requisition.number,
+      status: requisition.status,
+      total: requisition.total ?? 0,
+      priority: requisition.priority,
+      title: requisition.title,
+      createdAt: requisition.createdAt.toISOString(),
+    })
+  }
+  for (const purchaseOrder of vendor.purchaseOrders) {
+    if (!purchaseOrder.requisition) continue
+    relatedRequisitionMap.set(purchaseOrder.requisition.id, {
+      id: purchaseOrder.requisition.id,
+      number: purchaseOrder.requisition.number,
+      status: purchaseOrder.requisition.status,
+      total: purchaseOrder.requisition.total ?? 0,
+      priority: purchaseOrder.requisition.priority,
+      title: purchaseOrder.requisition.title,
+      createdAt: purchaseOrder.requisition.createdAt.toISOString(),
+    })
+  }
+  const relatedRequisitions = Array.from(relatedRequisitionMap.values()).sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+  const relatedBills = vendor.bills.map((bill) => ({
+    id: bill.id,
+    number: bill.number,
+    status: bill.status,
+    total: bill.total ?? 0,
+    date: bill.date.toISOString(),
+    dueDate: bill.dueDate?.toISOString() ?? null,
+  }))
+  const relatedReceipts = vendor.purchaseOrders.flatMap((purchaseOrder) =>
+    purchaseOrder.receipts.map((receipt) => ({
+      id: receipt.id,
+      number: receipt.id,
+      date: receipt.date.toISOString(),
+      status: receipt.status,
+      quantity: receipt.quantity,
+      notes: receipt.notes,
+      purchaseOrderNumber: purchaseOrder.number,
+    }))
+  )
+  const relatedBillPayments = vendor.bills.flatMap((bill) =>
+    bill.billPayments.map((payment) => ({
+      id: payment.id,
+      number: payment.number,
+      amount: payment.amount,
+      date: payment.date.toISOString(),
+      method: payment.method,
+      reference: payment.reference,
+      status: payment.status,
+      billNumber: bill.number,
+    }))
+  )
 
   const sectionDescriptions: Record<string, string> = {
     Core: 'Primary identity fields for the vendor record.',
@@ -108,76 +191,46 @@ export default async function VendorDetailPage({
     primarySubsidiaryId: {
       name: 'primarySubsidiaryId',
       label: 'Primary Subsidiary',
-      value: vendor.entityId ?? '',
+      value: vendor.subsidiaryId ?? '',
       type: 'select',
-      options: [{ value: '', label: 'None' }, ...subsidiaries.map((subsidiary) => ({ value: subsidiary.id, label: `${subsidiary.subsidiaryId} - ${subsidiary.name}` }))],
-      helpText: 'Default legal entity context for this vendor.',
-      sourceText: 'Subsidiaries master data',
+      options: [{ value: '', label: 'None' }, ...(fieldOptions.primarySubsidiaryId ?? [])],
+      helpText: 'Default subsidiary context for this vendor.',
+      sourceText: getFieldSourceText(fieldMetaById, 'primarySubsidiaryId'),
     },
     primaryCurrencyId: {
       name: 'primaryCurrencyId',
       label: 'Primary Currency',
       value: vendor.currencyId ?? '',
       type: 'select',
-      options: [{ value: '', label: 'None' }, ...currencies.map((currency) => ({ value: currency.id, label: `${currency.currencyId} - ${currency.name}` }))],
+      options: [{ value: '', label: 'None' }, ...(fieldOptions.primaryCurrencyId ?? [])],
       helpText: 'Default transaction currency for this vendor.',
-      sourceText: 'Currencies master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'primaryCurrencyId'),
     },
     inactive: {
       name: 'inactive',
       label: 'Inactive',
       value: String(vendor.inactive),
       type: 'select',
-      options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
+      options: inactiveOptions,
       helpText: 'Marks the vendor unavailable for new activity while preserving history.',
-      sourceText: 'System status values',
+      sourceText: getFieldSourceText(fieldMetaById, 'inactive'),
     },
   }
 
-  const customizeFields = VENDOR_FORM_FIELDS.map((field) => {
-    const definition = fieldDefinitions[field.id]
-    const rawValue = definition.value ?? ''
-    const previewValue = definition.options?.find((option) => option.value === rawValue)?.label ?? rawValue
-    return {
-      id: field.id,
-      label: definition.label,
-      fieldType: field.fieldType,
-      source: field.source,
-      description: field.description,
-      previewValue,
-    }
+  const customizeFields = buildCustomizePreviewFields(VENDOR_FORM_FIELDS, fieldDefinitions)
+  const detailSections: InlineRecordSection[] = buildConfiguredInlineSections({
+    fields: VENDOR_FORM_FIELDS,
+    layout: formCustomization,
+    fieldDefinitions,
+    sectionDescriptions,
   })
-
-  const detailSections: InlineRecordSection[] = formCustomization.sections
-    .map((sectionTitle) => {
-      const configuredFields = VENDOR_FORM_FIELDS
-        .filter((field) => {
-          const config = formCustomization.fields[field.id]
-          return config.visible && config.section === sectionTitle
-        })
-        .sort((a, b) => {
-          const left = formCustomization.fields[a.id]
-          const right = formCustomization.fields[b.id]
-          if (left.column !== right.column) return left.column - right.column
-          return left.order - right.order
-        })
-        .map((field) => ({
-          ...fieldDefinitions[field.id],
-          column: formCustomization.fields[field.id].column,
-          order: formCustomization.fields[field.id].order,
-        }))
-
-      if (configuredFields.length === 0) return null
-
-      return {
-        title: sectionTitle,
-        description: sectionDescriptions[sectionTitle],
-        collapsible: true,
-        defaultExpanded: true,
-        fields: configuredFields,
-      }
-    })
-    .filter((section): section is InlineRecordSection => Boolean(section))
+  const systemInfo = await loadMasterDataSystemInfo({
+    entityType: 'vendor',
+    entityId: vendor.id,
+    createdAt: vendor.createdAt,
+    updatedAt: vendor.updatedAt,
+  })
+  const systemNotes = await loadMasterDataSystemNotes({ entityType: 'vendor', entityId: vendor.id })
 
   return (
     <RecordDetailPageShell
@@ -192,13 +245,29 @@ export default async function VendorDetailPage({
       }
       actions={
         <>
-          {!isCustomizing && defaultUser ? <VendorCreateMenu vendorId={vendor.id} userId={defaultUser.id} /> : null}
+          {isEditing && !isCustomizing ? (
+            <>
+              <Link href={detailHref} className="rounded-md border px-3 py-1.5 text-xs font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                form={`inline-record-form-${vendor.id}`}
+                className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Save
+              </button>
+            </>
+          ) : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailCreateMenu newHref="/vendors/new" duplicateHref={`/vendors/new?duplicateFrom=${vendor.id}`} /> : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailExportMenu title={vendor.name} fileName={`vendor-${vendor.vendorNumber ?? vendor.id}`} sections={detailSections} /> : null}
           {!isEditing && !isCustomizing ? (
             <Link href={`${detailHref}?customize=1`} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
               Customize
             </Link>
           ) : null}
-          {!isEditing ? (
+          {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?edit=1`}
               className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
@@ -227,83 +296,35 @@ export default async function VendorDetailPage({
             sections={detailSections}
             editing={isEditing}
             columns={formCustomization.formColumns}
+            showInternalActions={false}
           />
         )}
 
-        <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        {!isCustomizing ? <MasterDataSystemInfoSection info={systemInfo} /> : null}
+
+        <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <RecordDetailStatCard label="Contacts" value={vendor.contacts.length} />
           <RecordDetailStatCard label="Purchase orders" value={vendor.purchaseOrders.length} />
           <RecordDetailStatCard label="Total spend" value={fmtCurrency(totalSpend)} accent="teal" />
           <RecordDetailStatCard label="Open AP invoices" value={openInvoices.length} accent={openInvoices.length > 0 ? 'yellow' : undefined} />
         </div>
 
-        <RecordDetailSection title="Purchase Orders" count={vendor.purchaseOrders.length}>
-          {vendor.purchaseOrders.length === 0 ? (
-            <RecordDetailEmptyState message="No purchase orders yet" />
-          ) : (
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <RecordDetailHeaderCell>Number</RecordDetailHeaderCell>
-                  <RecordDetailHeaderCell>Status</RecordDetailHeaderCell>
-                  <RecordDetailHeaderCell>Total</RecordDetailHeaderCell>
-                  <RecordDetailHeaderCell>Date</RecordDetailHeaderCell>
-                </tr>
-              </thead>
-              <tbody>
-                {vendor.purchaseOrders.map((purchaseOrder) => (
-                  <tr key={purchaseOrder.id} id={`po-${purchaseOrder.id}`} tabIndex={-1} className="focus:outline-none transition-shadow">
-                    <RecordDetailCell>
-                      <Link href={`/purchase-orders/${purchaseOrder.id}`} style={{ color: 'var(--accent-primary-strong)' }} className="hover:underline">
-                        {purchaseOrder.number}
-                      </Link>
-                    </RecordDetailCell>
-                    <RecordDetailCell>{purchaseOrder.status}</RecordDetailCell>
-                    <RecordDetailCell>{fmtCurrency(purchaseOrder.total)}</RecordDetailCell>
-                    <RecordDetailCell>{new Date(purchaseOrder.createdAt).toLocaleDateString()}</RecordDetailCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </RecordDetailSection>
+        <VendorContactsSection
+          vendorId={vendor.id}
+          userId={defaultUser?.id ?? null}
+          contacts={vendor.contacts.map((contact) => ({
+            id: contact.id,
+            contactNumber: contact.contactNumber,
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            email: contact.email,
+            phone: contact.phone,
+            position: contact.position,
+          }))}
+        />
 
-        {vendor.bills.length > 0 ? (
-          <RecordDetailSection title="Bills" count={vendor.bills.length}>
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <RecordDetailHeaderCell>Bill #</RecordDetailHeaderCell>
-                  <RecordDetailHeaderCell>Amount</RecordDetailHeaderCell>
-                  <RecordDetailHeaderCell>Due Date</RecordDetailHeaderCell>
-                  <RecordDetailHeaderCell>Status</RecordDetailHeaderCell>
-                </tr>
-              </thead>
-              <tbody>
-                {vendor.bills.map((bill) => (
-                  <tr key={bill.id}>
-                    <RecordDetailCell>
-                      <Link href={`/bills/${bill.id}`} style={{ color: 'var(--accent-primary-strong)' }} className="hover:underline">
-                        {bill.number}
-                      </Link>
-                    </RecordDetailCell>
-                    <RecordDetailCell>{fmtCurrency(bill.total)}</RecordDetailCell>
-                    <RecordDetailCell>{bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '-'}</RecordDetailCell>
-                    <RecordDetailCell>
-                      <StatusBadge status={bill.status} />
-                    </RecordDetailCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </RecordDetailSection>
-        ) : null}
+        <VendorRelatedDocuments purchaseRequisitions={relatedRequisitions} purchaseOrders={relatedPurchaseOrders} receipts={relatedReceipts} bills={relatedBills} billPayments={relatedBillPayments} />
+        <SystemNotesSection notes={systemNotes} />
     </RecordDetailPageShell>
   )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  if (status === 'paid') return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(34,197,94,0.16)', color: '#86efac' }}>Paid</span>
-  if (status === 'approved') return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>Approved</span>
-  if (status === 'void') return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(107,114,128,0.18)', color: '#9ca3af' }}>Void</span>
-  return <span className="rounded-full px-2 py-0.5 text-xs" style={{ backgroundColor: 'rgba(245,158,11,0.16)', color: '#fcd34d' }}>Pending</span>
 }

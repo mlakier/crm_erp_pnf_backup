@@ -1,6 +1,8 @@
 export type MasterDataColumn = {
   id: string
   label: string
+  tooltip?: string
+  defaultVisible?: boolean
   locked?: boolean
 }
 

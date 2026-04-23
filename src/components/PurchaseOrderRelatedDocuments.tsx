@@ -7,6 +7,8 @@ import { fmtCurrency } from '@/lib/format'
 
 type Tab = 'purchase-requisitions' | 'receipts' | 'bills' | 'bill-payments'
 
+type TabTone = 'upstream' | 'downstream'
+
 type PurchaseRequisition = {
   id: string
   number: string
@@ -60,12 +62,13 @@ export default function PurchaseOrderRelatedDocuments({
   billPayments: BillPayment[]
 }) {
   const [active, setActive] = useState<Tab>('purchase-requisitions')
+  const [expanded, setExpanded] = useState(true)
 
-  const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'purchase-requisitions', label: 'Purchase Requisitions', count: requisitions.length },
-    { key: 'receipts', label: 'Receipts', count: receipts.length },
-    { key: 'bills', label: 'Bills', count: bills.length },
-    { key: 'bill-payments', label: 'Bill Payments', count: billPayments.length },
+  const tabs: { key: Tab; label: string; count: number; tone: TabTone }[] = [
+    { key: 'purchase-requisitions', label: 'Purchase Requisitions', count: requisitions.length, tone: 'upstream' },
+    { key: 'receipts', label: 'Receipts', count: receipts.length, tone: 'downstream' },
+    { key: 'bills', label: 'Bills', count: bills.length, tone: 'downstream' },
+    { key: 'bill-payments', label: 'Bill Payments', count: billPayments.length, tone: 'downstream' },
   ]
 
   return (
@@ -74,28 +77,57 @@ export default function PurchaseOrderRelatedDocuments({
       style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}
     >
       <div className="border-b px-6 pt-5 pb-0" style={{ borderColor: 'var(--border-muted)' }}>
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-          Related Documents
-        </p>
-        <div className="flex overflow-x-auto overflow-y-hidden">
+        <div className="mb-3 flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+            Related Documents
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="rounded-md px-1.5 py-0.5 text-xs"
+            style={{ color: 'var(--text-muted)' }}
+            aria-label={expanded ? 'Collapse Related Documents' : 'Expand Related Documents'}
+          >
+            {expanded ? '▾' : '▸'}
+          </button>
+        </div>
+        {expanded ? <div className="flex overflow-x-auto overflow-y-hidden">
           {tabs.map((tab) => {
             const isActive = active === tab.key
+            const palette =
+              tab.tone === 'upstream'
+                ? {
+                    activeBorder: '#f59e0b',
+                    activeText: '#fcd34d',
+                    activeBadgeBg: 'rgba(245,158,11,0.16)',
+                    inactiveBadgeBg: 'rgba(245,158,11,0.1)',
+                    inactiveBadgeText: '#d1a24a',
+                    inactiveText: '#d8b86a',
+                  }
+                : {
+                    activeBorder: 'var(--accent-primary-strong)',
+                    activeText: '#93c5fd',
+                    activeBadgeBg: 'rgba(59,130,246,0.18)',
+                    inactiveBadgeBg: 'rgba(59,130,246,0.1)',
+                    inactiveBadgeText: '#7fb0f8',
+                    inactiveText: '#8ab4f8',
+                  }
             return (
               <button
                 key={tab.key}
                 onClick={() => setActive(tab.key)}
                 className="flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
                 style={{
-                  borderColor: isActive ? 'var(--accent-primary-strong)' : 'transparent',
-                  color: isActive ? 'white' : 'var(--text-muted)',
+                  borderColor: isActive ? palette.activeBorder : 'transparent',
+                  color: isActive ? palette.activeText : palette.inactiveText,
                 }}
               >
                 {tab.label}
                 <span
                   className="rounded-full px-2 py-0.5 text-xs"
                   style={{
-                    backgroundColor: isActive ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.07)',
-                    color: isActive ? 'var(--accent-primary-strong)' : 'var(--text-muted)',
+                    backgroundColor: isActive ? palette.activeBadgeBg : palette.inactiveBadgeBg,
+                    color: isActive ? palette.activeText : palette.inactiveBadgeText,
                   }}
                 >
                   {tab.count}
@@ -103,10 +135,10 @@ export default function PurchaseOrderRelatedDocuments({
               </button>
             )
           })}
-        </div>
+        </div> : null}
       </div>
 
-      <div className="overflow-x-auto overflow-y-hidden">
+      {expanded ? <div className="overflow-x-auto overflow-y-hidden">
         {active === 'purchase-requisitions' && (
           requisitions.length === 0 ? (
             <Empty message="No purchase requisition is linked to this purchase order yet." />
@@ -115,11 +147,11 @@ export default function PurchaseOrderRelatedDocuments({
               <thead>
                 <tr>
                   <Th>Txn ID</Th>
-                  <Th>Status</Th>
-                  <Th>Title</Th>
-                  <Th>Priority</Th>
-                  <Th>Total</Th>
                   <Th>Created</Th>
+                  <Th>Status</Th>
+                  <Th>Total</Th>
+                  <Th>Priority</Th>
+                  <Th>Title</Th>
                 </tr>
               </thead>
               <tbody>
@@ -130,11 +162,11 @@ export default function PurchaseOrderRelatedDocuments({
                         {requisition.number}
                       </Link>
                     </Td>
-                    <Td><StatusBadge status={requisition.status} /></Td>
-                    <Td>{requisition.title ?? '-'}</Td>
-                    <Td className="capitalize">{requisition.priority ?? '-'}</Td>
-                    <Td>{fmtCurrency(requisition.total)}</Td>
                     <Td>{new Date(requisition.createdAt).toLocaleDateString()}</Td>
+                    <Td><StatusBadge status={requisition.status} /></Td>
+                    <Td>{fmtCurrency(requisition.total)}</Td>
+                    <Td className="capitalize">{requisition.priority ?? '-'}</Td>
+                    <Td>{requisition.title ?? '-'}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -153,8 +185,8 @@ export default function PurchaseOrderRelatedDocuments({
                   <Th>Date</Th>
                   <Th>Status</Th>
                   <Th>Quantity</Th>
-                  <Th>Created</Th>
                   <Th>Notes</Th>
+                  <Th>Created</Th>
                 </tr>
               </thead>
               <tbody>
@@ -168,8 +200,8 @@ export default function PurchaseOrderRelatedDocuments({
                     <Td>{new Date(receipt.date).toLocaleDateString()}</Td>
                     <Td><StatusBadge status={receipt.status} /></Td>
                     <Td>{receipt.quantity}</Td>
-                    <Td>{receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString() : '-'}</Td>
                     <Td>{receipt.notes ?? '-'}</Td>
+                    <Td>{receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString() : '-'}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -185,10 +217,10 @@ export default function PurchaseOrderRelatedDocuments({
               <thead>
                 <tr>
                   <Th>Txn ID</Th>
+                  <Th>Date</Th>
+                  <Th>Due Date</Th>
                   <Th>Status</Th>
                   <Th>Total</Th>
-                  <Th>Bill Date</Th>
-                  <Th>Due Date</Th>
                   <Th>Notes</Th>
                 </tr>
               </thead>
@@ -200,10 +232,10 @@ export default function PurchaseOrderRelatedDocuments({
                         {bill.number}
                       </Link>
                     </Td>
-                    <Td><StatusBadge status={bill.status} /></Td>
-                    <Td>{fmtCurrency(bill.total)}</Td>
                     <Td>{new Date(bill.date).toLocaleDateString()}</Td>
                     <Td>{bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '-'}</Td>
+                    <Td><StatusBadge status={bill.status} /></Td>
+                    <Td>{fmtCurrency(bill.total)}</Td>
                     <Td>{bill.notes ?? '-'}</Td>
                   </tr>
                 ))}
@@ -220,12 +252,12 @@ export default function PurchaseOrderRelatedDocuments({
               <thead>
                 <tr>
                   <Th>Txn ID</Th>
+                  <Th>Date</Th>
                   <Th>Status</Th>
                   <Th>Amount</Th>
-                  <Th>Date</Th>
-                  <Th>Bill</Th>
                   <Th>Method</Th>
                   <Th>Reference</Th>
+                  <Th>Bill</Th>
                 </tr>
               </thead>
               <tbody>
@@ -236,19 +268,19 @@ export default function PurchaseOrderRelatedDocuments({
                         {payment.number}
                       </Link>
                     </Td>
+                    <Td>{new Date(payment.date).toLocaleDateString()}</Td>
                     <Td><StatusBadge status={payment.status} /></Td>
                     <Td>{fmtCurrency(payment.amount)}</Td>
-                    <Td>{new Date(payment.date).toLocaleDateString()}</Td>
-                    <Td>{payment.billNumber}</Td>
                     <Td>{payment.method ?? '-'}</Td>
                     <Td>{payment.reference ?? '-'}</Td>
+                    <Td>{payment.billNumber}</Td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )
         )}
-      </div>
+      </div> : null}
     </div>
   )
 }
@@ -268,9 +300,9 @@ function Th({ children }: { children: ReactNode }) {
   )
 }
 
-function Td({ children }: { children: ReactNode }) {
+function Td({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <td className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+    <td className={`px-4 py-2 text-sm ${className}`.trim()} style={{ color: 'var(--text-secondary)' }}>
       {children}
     </td>
   )

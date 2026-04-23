@@ -5,6 +5,19 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+type LegacyListRow = {
+  value: string
+  sortOrder: number | null
+  createdAt: Date | null
+  updatedAt: Date | null
+}
+
+type LegacyListDelegate = {
+  findMany(args: { orderBy: Array<Record<string, 'asc'>> }): Promise<LegacyListRow[]>
+}
+
+const legacyPrisma = prisma as unknown as Record<string, LegacyListDelegate>
+
 const LIST_MAPPINGS = [
   {
     table: 'customerIndustryOption',
@@ -49,10 +62,9 @@ function formatListId(code: string, sequence: number) {
 
 async function migrate() {
   for (const mapping of LIST_MAPPINGS) {
-    // @ts-ignore
-    const rows = await prisma[mapping.table].findMany({ orderBy: [{ sortOrder: 'asc' }, { value: 'asc' }] })
+    const rows = await legacyPrisma[mapping.table].findMany({ orderBy: [{ sortOrder: 'asc' }, { value: 'asc' }] })
     if (!rows.length) continue
-    const data = rows.map((row: any, idx: number) => ({
+    const data = rows.map((row, idx) => ({
       key: mapping.key,
       listId: formatListId(mapping.code, idx + 1),
       value: row.value,

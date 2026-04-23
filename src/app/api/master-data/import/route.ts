@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
-import { getRequiredHeaders, isSupportedEntity, type SupportedEntity } from '@/lib/master-data-import-schema'
+import { generateNextCurrencyId } from '@/lib/currency-number'
+import { generateNextLocationId } from '@/lib/location-number'
+import { getRequiredHeaders, isSupportedEntity } from '@/lib/master-data-import-schema'
 
 export const runtime = 'nodejs'
 
@@ -132,7 +134,7 @@ async function importCurrencies(rows: Array<Record<string, string>>, mode: Impor
     }
 
     if (!dryRun) {
-      const exists = await prisma.currency.findUnique({ where: { currencyId: code } })
+      const exists = await prisma.currency.findUnique({ where: { code } })
       
       if (mode === 'add' && exists) {
         errors.push({ row: rowNumber, message: `Currency "${code}" already exists (add mode)` })
@@ -146,18 +148,19 @@ async function importCurrencies(rows: Array<Record<string, string>>, mode: Impor
 
       if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
         await prisma.currency.upsert({
-          where: { currencyId: code },
+          where: { code },
           update: {
             name,
-            symbol: symbol || null,
+            symbol: symbol || code,
             decimals: parseNumber(decimalsStr, 2),
             isBase: parseBoolean(isBaseStr, false),
             active: parseBoolean(activeStr, true),
           },
           create: {
-            currencyId: code,
+            currencyId: await generateNextCurrencyId(),
+            code,
             name,
-            symbol: symbol || null,
+            symbol: symbol || code,
             decimals: parseNumber(decimalsStr, 2),
             isBase: parseBoolean(isBaseStr, false),
             active: parseBoolean(activeStr, true),
@@ -177,10 +180,10 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
 
   const currencyCodes = Array.from(new Set(rows.map((row) => (row.defaultcurrencycode ?? '').toUpperCase()).filter(Boolean)))
   const currencies = await prisma.currency.findMany({
-    where: { currencyId: { in: currencyCodes } },
-    select: { id: true, currencyId: true },
+    where: { code: { in: currencyCodes } },
+    select: { id: true, code: true },
   })
-  const currencyMap = new Map(currencies.map((currency) => [currency.currencyId.toUpperCase(), currency.id]))
+  const currencyMap = new Map(currencies.map((currency) => [currency.code.toUpperCase(), currency.id]))
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]
@@ -209,7 +212,7 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
     }
 
     if (!dryRun) {
-      const exists = await prisma.entity.findUnique({ where: { subsidiaryId: code } })
+      const exists = await prisma.subsidiary.findUnique({ where: { subsidiaryId: code } })
       
       if (mode === 'add' && exists) {
         errors.push({ row: rowNumber, message: `Subsidiary "${code}" already exists (add mode)` })
@@ -222,7 +225,7 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
       }
 
       if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
-        await prisma.entity.upsert({
+        await prisma.subsidiary.upsert({
           where: { subsidiaryId: code },
           update: {
             name,
@@ -253,16 +256,101 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
   return succeeded
 }
 
+async function importLocations(rows: Array<Record<string, string>>, mode: ImportMode, dryRun: boolean, errors: ImportError[]) {
+  let succeeded = 0
+  const parentIds = Array.from(new Set(rows.map((row) => (row.parentlocationid ?? '').toUpperCase().trim()).filter(Boolean)))
+  const subsidiaryCodes = Array.from(new Set(rows.map((row) => (row.subsidiaryid ?? row.subsidiarycode ?? '').toUpperCase().trim()).filter(Boolean)))
+  const parents = await prisma.location.findMany({
+    where: { locationId: { in: parentIds } },
+    select: { id: true, locationId: true },
+  })
+  const parentMap = new Map(parents.map((location) => [location.locationId.toUpperCase(), location.id]))
+  const subsidiaries = await prisma.subsidiary.findMany({
+    where: { subsidiaryId: { in: subsidiaryCodes } },
+    select: { id: true, subsidiaryId: true },
+  })
+  const subsidiaryMap = new Map(subsidiaries.map((subsidiary) => [subsidiary.subsidiaryId.toUpperCase(), subsidiary.id]))
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]
+    const rowNumber = index + 2
+    const providedLocationId = (row.locationid ?? '').toUpperCase().trim()
+    const code = (row.code ?? '').toUpperCase().trim()
+    const name = (row.name ?? '').trim()
+    const subsidiaryCode = (row.subsidiaryid ?? row.subsidiarycode ?? '').toUpperCase().trim()
+    const parentLocationNumber = (row.parentlocationid ?? '').toUpperCase().trim()
+
+    if (!code || !name) {
+      if (!code) errors.push({ row: rowNumber, message: 'code is required (cannot be empty)' })
+      if (!name) errors.push({ row: rowNumber, message: 'name is required (cannot be empty)' })
+      continue
+    }
+
+    if (parentLocationNumber && !parentMap.has(parentLocationNumber)) {
+      errors.push({ row: rowNumber, message: `parentLocationId "${parentLocationNumber}" not found.` })
+      continue
+    }
+    if (subsidiaryCode && !subsidiaryMap.has(subsidiaryCode)) {
+      errors.push({ row: rowNumber, message: `subsidiaryId "${subsidiaryCode}" not found.` })
+      continue
+    }
+
+    if (!dryRun) {
+      const exists = await prisma.location.findUnique({ where: { code } })
+      if (mode === 'add' && exists) {
+        errors.push({ row: rowNumber, message: `Location "${code}" already exists (add mode)` })
+        continue
+      }
+      if (mode === 'update' && !exists) {
+        errors.push({ row: rowNumber, message: `Location "${code}" does not exist (update mode)` })
+        continue
+      }
+
+      if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
+        const locationId = providedLocationId || exists?.locationId || await generateNextLocationId()
+        await prisma.location.upsert({
+          where: { code },
+          update: {
+            locationId,
+            name,
+            subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
+            parentLocationId: parentLocationNumber ? parentMap.get(parentLocationNumber) ?? null : null,
+            locationType: (row.locationtype ?? '').trim() || null,
+            makeInventoryAvailable: parseBoolean(row.makeinventoryavailable, true),
+            address: (row.address ?? '').trim() || null,
+            inactive: !parseBoolean(row.active, true),
+          },
+          create: {
+            locationId,
+            code,
+            name,
+            subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
+            parentLocationId: parentLocationNumber ? parentMap.get(parentLocationNumber) ?? null : null,
+            locationType: (row.locationtype ?? '').trim() || null,
+            makeInventoryAvailable: parseBoolean(row.makeinventoryavailable, true),
+            address: (row.address ?? '').trim() || null,
+            inactive: !parseBoolean(row.active, true),
+          },
+        })
+      }
+    }
+
+    succeeded += 1
+  }
+
+  return succeeded
+}
+
 async function importDepartments(rows: Array<Record<string, string>>, mode: ImportMode, dryRun: boolean, errors: ImportError[]) {
   let succeeded = 0
 
-  const managerNumbers = Array.from(new Set(rows.map((row) => (row.manageremployeenumber ?? '').trim()).filter(Boolean)))
+  const managerNumbers = Array.from(new Set(rows.map((row) => (row.manageremployeeid ?? row.manageremployeenumber ?? '').trim()).filter(Boolean)))
   const subsidiaryCodes = Array.from(new Set(rows.map((row) => (row.subsidiarycode ?? '').toUpperCase()).filter(Boolean)))
   const managers = await prisma.employee.findMany({
     where: { employeeId: { in: managerNumbers } },
     select: { id: true, employeeId: true },
   })
-  const subsidiaries = await prisma.entity.findMany({
+  const subsidiaries = await prisma.subsidiary.findMany({
     where: { subsidiaryId: { in: subsidiaryCodes } },
     select: { id: true, subsidiaryId: true },
   })
@@ -275,7 +363,7 @@ async function importDepartments(rows: Array<Record<string, string>>, mode: Impo
     const departmentId = (row.code ?? '').toUpperCase()
     const name = row.name ?? ''
     const subsidiaryCode = (row.subsidiarycode ?? '').toUpperCase()
-    const managerEmployeeNumber = (row.manageremployeenumber ?? '').trim()
+    const managerEmployeeNumber = (row.manageremployeeid ?? row.manageremployeenumber ?? '').trim()
 
     if (!departmentId || !name) {
       if (!departmentId) {
@@ -294,7 +382,7 @@ async function importDepartments(rows: Array<Record<string, string>>, mode: Impo
       const count = managerMap.size
       errors.push({
         row: rowNumber,
-        message: `managerEmployeeNumber "${managerEmployeeNumber}" not found (${count} employees available; examples: ${availableManagers || 'none'})`,
+        message: `managerEmployeeId "${managerEmployeeNumber}" not found (${count} employees available; examples: ${availableManagers || 'none'})`,
       })
       continue
     }
@@ -322,24 +410,39 @@ async function importDepartments(rows: Array<Record<string, string>>, mode: Impo
       }
 
       if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
+        const assignedEntityId = subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null
+
         await prisma.department.upsert({
           where: { departmentId },
           update: {
             name,
             description: row.description || null,
             division: row.division || null,
-            entityId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
-            managerId: managerEmployeeNumber ? managerMap.get(managerEmployeeNumber) ?? null : null,
+            managerEmployeeId: managerEmployeeNumber ? managerMap.get(managerEmployeeNumber) ?? null : null,
             active: parseBoolean(row.active, true),
+            departmentSubsidiaries: {
+              deleteMany: {},
+              ...(assignedEntityId
+                ? {
+                    create: [{ subsidiaryId: assignedEntityId }],
+                  }
+                : {}),
+            },
           },
           create: {
             departmentId,
             name,
             description: row.description || null,
             division: row.division || null,
-            entityId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
-            managerId: managerEmployeeNumber ? managerMap.get(managerEmployeeNumber) ?? null : null,
+            managerEmployeeId: managerEmployeeNumber ? managerMap.get(managerEmployeeNumber) ?? null : null,
             active: parseBoolean(row.active, true),
+            ...(assignedEntityId
+              ? {
+                  departmentSubsidiaries: {
+                    create: [{ subsidiaryId: assignedEntityId }],
+                  },
+                }
+              : {}),
           },
         })
       }
@@ -367,7 +470,7 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
   )
   const allCodes = Array.from(new Set([...parentCodes, ...selectedCodes]))
 
-  const subsidiaries = await prisma.entity.findMany({
+  const subsidiaries = await prisma.subsidiary.findMany({
     where: { subsidiaryId: { in: allCodes } },
     select: { id: true, subsidiaryId: true },
   })
@@ -376,7 +479,8 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]
     const rowNumber = index + 2
-    const accountId = (row.accountnumber ?? '').trim()
+    const accountId = (row.accountid ?? '').trim()
+    const accountNumber = (row.accountnumber ?? '').trim()
     const name = (row.name ?? '').trim()
     const accountType = (row.accounttype ?? '').trim()
     const scopeMode = ((row.scopemode ?? 'selected').trim().toLowerCase() || 'selected') as 'selected' | 'parent'
@@ -386,8 +490,8 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
       .map((value) => value.trim().toUpperCase())
       .filter(Boolean)
 
-    if (!accountId) {
-      errors.push({ row: rowNumber, message: 'accountId is required (cannot be empty)' })
+    if (!accountNumber) {
+      errors.push({ row: rowNumber, message: 'accountNumber is required (cannot be empty)' })
       continue
     }
 
@@ -431,22 +535,26 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
     }
 
     if (!dryRun) {
-      const exists = await prisma.chartOfAccounts.findUnique({ where: { accountId } })
+      const exists = accountId
+        ? await prisma.chartOfAccounts.findUnique({ where: { accountId } })
+        : await prisma.chartOfAccounts.findUnique({ where: { accountNumber } })
 
       if (mode === 'add' && exists) {
-        errors.push({ row: rowNumber, message: `Chart account "${accountId}" already exists (add mode)` })
+        errors.push({ row: rowNumber, message: `Chart account "${accountId || accountNumber}" already exists (add mode)` })
         continue
       }
 
       if (mode === 'update' && !exists) {
-        errors.push({ row: rowNumber, message: `Chart account "${accountId}" does not exist (update mode)` })
+        errors.push({ row: rowNumber, message: `Chart account "${accountId || accountNumber}" does not exist (update mode)` })
         continue
       }
 
       if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
         const upserted = await prisma.chartOfAccounts.upsert({
-          where: { accountId },
+          where: { accountId: exists?.accountId ?? (accountId || `__missing__${rowNumber}`) },
           update: {
+            ...(accountId ? { accountId } : {}),
+            accountNumber,
             name,
             description: (row.description ?? '').trim() || null,
             accountType,
@@ -458,7 +566,8 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
             includeChildren: scopeMode === 'parent' ? parseBoolean(row.includechildren, false) : false,
           },
           create: {
-            accountId,
+            accountId: accountId || accountNumber,
+            accountNumber,
             name,
             description: (row.description ?? '').trim() || null,
             accountType,
@@ -501,11 +610,11 @@ async function importItems(rows: Array<Record<string, string>>, mode: ImportMode
   const subsidiaryCodes = Array.from(new Set(rows.map((row) => (row.subsidiarycode ?? '').toUpperCase()).filter(Boolean)))
 
   const [currencies, subsidiaries] = await Promise.all([
-    prisma.currency.findMany({ where: { currencyId: { in: currencyCodes } }, select: { id: true, currencyId: true } }),
-    prisma.entity.findMany({ where: { subsidiaryId: { in: subsidiaryCodes } }, select: { id: true, subsidiaryId: true } }),
+    prisma.currency.findMany({ where: { code: { in: currencyCodes } }, select: { id: true, code: true } }),
+    prisma.subsidiary.findMany({ where: { subsidiaryId: { in: subsidiaryCodes } }, select: { id: true, subsidiaryId: true } }),
   ])
 
-  const currencyMap = new Map(currencies.map((currency) => [currency.currencyId.toUpperCase(), currency.id]))
+  const currencyMap = new Map(currencies.map((currency) => [currency.code.toUpperCase(), currency.id]))
   const subsidiaryMap = new Map(subsidiaries.map((subsidiary) => [subsidiary.subsidiaryId.toUpperCase(), subsidiary.id]))
 
   for (let index = 0; index < rows.length; index += 1) {
@@ -576,7 +685,7 @@ async function importItems(rows: Array<Record<string, string>>, mode: ImportMode
           uom: row.uom || null,
           listPrice: parseNumber(row.listprice, 0),
           currencyId: currencyCode ? currencyMap.get(currencyCode) ?? null : null,
-          entityId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
+          subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
           active: parseBoolean(row.active, true),
         }
 
@@ -604,14 +713,15 @@ async function importItems(rows: Array<Record<string, string>>, mode: ImportMode
 
 async function importEmployees(rows: Array<Record<string, string>>, mode: ImportMode, dryRun: boolean, errors: ImportError[]) {
   let succeeded = 0
+  const parseCodeList = (value: string | undefined) => String(value ?? '').split(',').map((entry) => entry.trim().toUpperCase()).filter(Boolean)
 
   const departmentCodes = Array.from(new Set(rows.map((row) => (row.departmentcode ?? '').toUpperCase()).filter(Boolean)))
-  const subsidiaryCodes = Array.from(new Set(rows.map((row) => (row.subsidiarycode ?? '').toUpperCase()).filter(Boolean)))
-  const managerNumbers = Array.from(new Set(rows.map((row) => (row.manageremployeenumber ?? '').trim()).filter(Boolean)))
+  const subsidiaryCodes = Array.from(new Set(rows.flatMap((row) => parseCodeList(row.subsidiaryids ?? row.subsidiarycode))))
+  const managerNumbers = Array.from(new Set(rows.map((row) => (row.manageremployeeid ?? row.manageremployeenumber ?? '').trim()).filter(Boolean)))
 
   const [departments, subsidiaries, managers] = await Promise.all([
     prisma.department.findMany({ where: { departmentId: { in: departmentCodes } }, select: { id: true, departmentId: true } }),
-    prisma.entity.findMany({ where: { subsidiaryId: { in: subsidiaryCodes } }, select: { id: true, subsidiaryId: true } }),
+    prisma.subsidiary.findMany({ where: { subsidiaryId: { in: subsidiaryCodes } }, select: { id: true, subsidiaryId: true } }),
     prisma.employee.findMany({ where: { employeeId: { in: managerNumbers } }, select: { id: true, employeeId: true } }),
   ])
 
@@ -624,11 +734,12 @@ async function importEmployees(rows: Array<Record<string, string>>, mode: Import
     const rowNumber = index + 2
     const firstName = row.firstname ?? ''
     const lastName = row.lastname ?? ''
-    const employeeNumber = (row.employeenumber ?? '').trim() || null
+    const employeeNumber = (row.employeeid ?? row.employeenumber ?? '').trim() || null
+    const eid = (row.eid ?? '').trim() || null
     const email = (row.email ?? '').trim() || null
     const departmentCode = (row.departmentcode ?? '').toUpperCase()
-    const subsidiaryCode = (row.subsidiarycode ?? '').toUpperCase()
-    const managerEmployeeNumber = (row.manageremployeenumber ?? '').trim()
+    const subsidiaryCodesForRow = parseCodeList(row.subsidiaryids ?? row.subsidiarycode)
+    const managerEmployeeNumber = (row.manageremployeeid ?? row.manageremployeenumber ?? '').trim()
 
     if (!firstName || !lastName) {
       if (!firstName) {
@@ -654,11 +765,12 @@ async function importEmployees(rows: Array<Record<string, string>>, mode: Import
       continue
     }
 
-    if (subsidiaryCode && !subsidiaryMap.has(subsidiaryCode)) {
+    const missingSubsidiaryCode = subsidiaryCodesForRow.find((code) => !subsidiaryMap.has(code))
+    if (missingSubsidiaryCode) {
       const availableSubsidiaries = Array.from(subsidiaryMap.keys()).join(', ')
       errors.push({
         row: rowNumber,
-        message: `subsidiaryCode "${subsidiaryCode}" not found. Available: ${availableSubsidiaries || '(none - add subsidiaries first)'}`,
+        message: `subsidiaryIds "${missingSubsidiaryCode}" not found. Available: ${availableSubsidiaries || '(none - add subsidiaries first)'}`,
       })
       continue
     }
@@ -670,7 +782,7 @@ async function importEmployees(rows: Array<Record<string, string>>, mode: Import
       const count = managerMap.size
       errors.push({
         row: rowNumber,
-        message: `managerEmployeeNumber "${managerEmployeeNumber}" not found (${count} employees available; examples: ${availableManagers || 'none'})`,
+        message: `managerEmployeeId "${managerEmployeeNumber}" not found (${count} employees available; examples: ${availableManagers || 'none'})`,
       })
       continue
     }
@@ -699,29 +811,37 @@ async function importEmployees(rows: Array<Record<string, string>>, mode: Import
       }
 
       if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
+        const selectedSubsidiaryIds = subsidiaryCodesForRow.map((code) => subsidiaryMap.get(code)).filter((value): value is string => Boolean(value))
         const updateData = {
           firstName,
           lastName,
           email,
           phone: (row.phone ?? '').trim() || null,
           title: (row.title ?? '').trim() || null,
+          eid,
+          laborType: (row.labortype ?? '').trim() || null,
           departmentId: departmentCode ? departmentMap.get(departmentCode) ?? null : null,
-          entityId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
+          subsidiaryId: selectedSubsidiaryIds[0] ?? null,
+          includeChildren: parseBoolean(row.includechildren, false),
           managerId: managerEmployeeNumber ? managerMap.get(managerEmployeeNumber) ?? null : null,
           active: parseBoolean(row.active, true),
+        }
+        const employeeSubsidiaries = {
+          deleteMany: {},
+          create: selectedSubsidiaryIds.map((subsidiaryId) => ({ subsidiaryId })),
         }
 
         if (employeeNumber) {
           await prisma.employee.upsert({
             where: { employeeId: employeeNumber },
-            update: updateData,
-            create: { ...updateData, employeeId: employeeNumber },
+            update: { ...updateData, employeeSubsidiaries },
+            create: { ...updateData, employeeId: employeeNumber, employeeSubsidiaries },
           })
         } else if (email) {
           await prisma.employee.upsert({
             where: { email },
-            update: { ...updateData, employeeId: employeeNumber },
-            create: { ...updateData, employeeId: employeeNumber },
+            update: { ...updateData, employeeId: employeeNumber, employeeSubsidiaries },
+            create: { ...updateData, employeeId: employeeNumber, employeeSubsidiaries },
           })
         }
       }
@@ -754,16 +874,16 @@ async function importCustomers(rows: Array<Record<string, string>>, mode: Import
     })
   }
 
-  const entityCodes = Array.from(new Set(rows.map((row) => (row.entitycode ?? '').toUpperCase()).filter(Boolean)))
+  const subsidiaryCodes = Array.from(new Set(rows.map((row) => (row.subsidiarycode ?? row.entitycode ?? '').toUpperCase()).filter(Boolean)))
   const currencyCodes = Array.from(new Set(rows.map((row) => (row.currencycode ?? '').toUpperCase()).filter(Boolean)))
 
   const [entities, currencies] = await Promise.all([
-    prisma.entity.findMany({ where: { subsidiaryId: { in: entityCodes } }, select: { id: true, subsidiaryId: true } }),
-    prisma.currency.findMany({ where: { currencyId: { in: currencyCodes } }, select: { id: true, currencyId: true } }),
+    prisma.subsidiary.findMany({ where: { subsidiaryId: { in: subsidiaryCodes } }, select: { id: true, subsidiaryId: true } }),
+    prisma.currency.findMany({ where: { code: { in: currencyCodes } }, select: { id: true, code: true } }),
   ])
 
-  const entityMap = new Map(entities.map((e) => [e.subsidiaryId.toUpperCase(), e.id]))
-  const currencyMap = new Map(currencies.map((c) => [c.currencyId.toUpperCase(), c.id]))
+  const subsidiaryMap = new Map(entities.map((e) => [e.subsidiaryId.toUpperCase(), e.id]))
+  const currencyMap = new Map(currencies.map((c) => [c.code.toUpperCase(), c.id]))
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]
@@ -771,7 +891,7 @@ async function importCustomers(rows: Array<Record<string, string>>, mode: Import
     const name = row.name ?? ''
     const customerNumber = (row.customernumber ?? '').trim() || null
     const email = (row.email ?? '').trim() || null
-    const entityCode = (row.entitycode ?? '').toUpperCase()
+    const subsidiaryCode = (row.subsidiarycode ?? row.entitycode ?? '').toUpperCase()
     const currencyCode = (row.currencycode ?? '').toUpperCase().trim()
 
     if (!name) {
@@ -779,11 +899,11 @@ async function importCustomers(rows: Array<Record<string, string>>, mode: Import
       continue
     }
 
-    if (entityCode && !entityMap.has(entityCode)) {
-      const availableEntities = Array.from(entityMap.keys()).join(', ')
+    if (subsidiaryCode && !subsidiaryMap.has(subsidiaryCode)) {
+      const availableSubsidiaries = Array.from(subsidiaryMap.keys()).join(', ')
       errors.push({
         row: rowNumber,
-        message: `entityCode "${entityCode}" not found. Available: ${availableEntities || '(none - add subsidiaries first)'}`,
+        message: `subsidiaryCode "${subsidiaryCode}" not found. Available: ${availableSubsidiaries || '(none - add subsidiaries first)'}`,
       })
       continue
     }
@@ -824,7 +944,7 @@ async function importCustomers(rows: Array<Record<string, string>>, mode: Import
             phone: (row.phone ?? '').trim() || null,
             address: (row.address ?? '').trim() || null,
             industry: (row.industry ?? '').trim() || null,
-            entityId: entityCode ? entityMap.get(entityCode) ?? null : null,
+            subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
             currencyId: currencyCode ? currencyMap.get(currencyCode) ?? null : null,
           }
 
@@ -842,7 +962,7 @@ async function importCustomers(rows: Array<Record<string, string>>, mode: Import
           phone: (row.phone ?? '').trim() || null,
           address: (row.address ?? '').trim() || null,
           industry: (row.industry ?? '').trim() || null,
-          entityId: entityCode ? entityMap.get(entityCode) ?? null : null,
+          subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
           currencyId: currencyCode ? currencyMap.get(currencyCode) ?? null : null,
         }
 
@@ -978,16 +1098,16 @@ async function importContacts(rows: Array<Record<string, string>>, mode: ImportM
 async function importVendors(rows: Array<Record<string, string>>, mode: ImportMode, dryRun: boolean, errors: ImportError[]) {
   let succeeded = 0
 
-  const entityCodes = Array.from(new Set(rows.map((row) => (row.entitycode ?? '').toUpperCase()).filter(Boolean)))
+  const subsidiaryCodes = Array.from(new Set(rows.map((row) => (row.subsidiarycode ?? row.entitycode ?? '').toUpperCase()).filter(Boolean)))
   const currencyCodes = Array.from(new Set(rows.map((row) => (row.currencycode ?? '').toUpperCase()).filter(Boolean)))
 
   const [entities, currencies] = await Promise.all([
-    prisma.entity.findMany({ where: { subsidiaryId: { in: entityCodes } }, select: { id: true, subsidiaryId: true } }),
-    prisma.currency.findMany({ where: { currencyId: { in: currencyCodes } }, select: { id: true, currencyId: true } }),
+    prisma.subsidiary.findMany({ where: { subsidiaryId: { in: subsidiaryCodes } }, select: { id: true, subsidiaryId: true } }),
+    prisma.currency.findMany({ where: { code: { in: currencyCodes } }, select: { id: true, code: true } }),
   ])
 
-  const entityMap = new Map(entities.map((e) => [e.subsidiaryId.toUpperCase(), e.id]))
-  const currencyMap = new Map(currencies.map((c) => [c.currencyId.toUpperCase(), c.id]))
+  const subsidiaryMap = new Map(entities.map((e) => [e.subsidiaryId.toUpperCase(), e.id]))
+  const currencyMap = new Map(currencies.map((c) => [c.code.toUpperCase(), c.id]))
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]
@@ -995,7 +1115,7 @@ async function importVendors(rows: Array<Record<string, string>>, mode: ImportMo
     const name = row.name ?? ''
     const vendorNumber = (row.vendornumber ?? '').trim() || null
     const email = (row.email ?? '').trim() || null
-    const entityCode = (row.entitycode ?? '').toUpperCase()
+    const subsidiaryCode = (row.subsidiarycode ?? row.entitycode ?? '').toUpperCase()
     const currencyCode = (row.currencycode ?? '').toUpperCase()
 
     if (!name) {
@@ -1003,11 +1123,11 @@ async function importVendors(rows: Array<Record<string, string>>, mode: ImportMo
       continue
     }
 
-    if (entityCode && !entityMap.has(entityCode)) {
-      const availableEntities = Array.from(entityMap.keys()).join(', ')
+    if (subsidiaryCode && !subsidiaryMap.has(subsidiaryCode)) {
+      const availableSubsidiaries = Array.from(subsidiaryMap.keys()).join(', ')
       errors.push({
         row: rowNumber,
-        message: `entityCode "${entityCode}" not found. Available: ${availableEntities || '(none - add subsidiaries first)'}`,
+        message: `subsidiaryCode "${subsidiaryCode}" not found. Available: ${availableSubsidiaries || '(none - add subsidiaries first)'}`,
       })
       continue
     }
@@ -1048,7 +1168,7 @@ async function importVendors(rows: Array<Record<string, string>>, mode: ImportMo
             phone: (row.phone ?? '').trim() || null,
             address: (row.address ?? '').trim() || null,
             taxId: (row.taxid ?? '').trim() || null,
-            entityId: entityCode ? entityMap.get(entityCode) ?? null : null,
+            subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
             currencyId: currencyCode ? currencyMap.get(currencyCode) ?? null : null,
           }
 
@@ -1066,7 +1186,7 @@ async function importVendors(rows: Array<Record<string, string>>, mode: ImportMo
           phone: (row.phone ?? '').trim() || null,
           address: (row.address ?? '').trim() || null,
           taxId: (row.taxid ?? '').trim() || null,
-          entityId: entityCode ? entityMap.get(entityCode) ?? null : null,
+          subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
           currencyId: currencyCode ? currencyMap.get(currencyCode) ?? null : null,
         }
 
@@ -1122,6 +1242,8 @@ export async function POST(request: Request) {
 
     if (entity === 'currencies') {
       succeeded = await importCurrencies(rows, mode, dryRun, errors)
+    } else if (entity === 'locations') {
+      succeeded = await importLocations(rows, mode, dryRun, errors)
     } else if (entity === 'subsidiaries') {
       succeeded = await importSubsidiaries(rows, mode, dryRun, errors)
     } else if (entity === 'departments') {

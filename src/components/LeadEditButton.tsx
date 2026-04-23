@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { isValidEmail } from '@/lib/validation'
-import { useListOptions } from '@/lib/list-options-client'
+import type { SelectOption } from '@/lib/list-source'
 import AddressModal, { parseAddress } from '@/components/AddressModal'
 
 type LeadEditValues = {
@@ -34,16 +34,19 @@ export default function LeadEditButton({
   values,
   entities,
   currencies,
+  leadSourceOptions,
+  leadRatingOptions,
+  leadStatusOptions,
 }: {
   leadId: string
   values: LeadEditValues
   entities: Array<{ id: string; subsidiaryId: string; name: string }>
-  currencies: Array<{ id: string; currencyId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; code?: string; name: string }>
+  leadSourceOptions: SelectOption[]
+  leadRatingOptions: SelectOption[]
+  leadStatusOptions: SelectOption[]
 }) {
   const router = useRouter()
-  const leadSourceOptions = useListOptions('lead', 'source')
-  const leadRatingOptions = useListOptions('lead', 'rating')
-  const leadStatusOptions = useListOptions('lead', 'status')
 
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -223,7 +226,7 @@ export default function LeadEditButton({
                     style={{ borderColor: 'var(--border-muted)' }}
                   >
                     {leadStatusOptions.map((option) => (
-                      <option key={option} value={option.toLowerCase()}>{option}</option>
+                      <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
                 </label>
@@ -237,7 +240,7 @@ export default function LeadEditButton({
                   >
                     <option value="">None</option>
                     {leadSourceOptions.map((option) => (
-                      <option key={option} value={option}>{option}</option>
+                      <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
                 </label>
@@ -254,7 +257,7 @@ export default function LeadEditButton({
                   >
                     <option value="">None</option>
                     {leadRatingOptions.map((option) => (
-                      <option key={option} value={option}>{option}</option>
+                      <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
                 </label>
@@ -314,7 +317,7 @@ export default function LeadEditButton({
                     style={{ borderColor: 'var(--border-muted)' }}
                   >
                     <option value="">None</option>
-                    {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.currencyId} - {currency.name}</option>)}
+                    {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.code ?? currency.currencyId} - {currency.name}</option>)}
                   </select>
                 </label>
               </div>

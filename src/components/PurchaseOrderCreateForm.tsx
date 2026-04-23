@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation'
 export default function PurchaseOrderCreateForm({
   userId,
   vendors,
+  fullPage,
   onSuccess,
   onCancel,
 }: {
   userId: string
   vendors: Array<{ id: string; name: string }>
+  fullPage?: boolean
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -46,20 +48,26 @@ export default function PurchaseOrderCreateForm({
         setSaving(false)
         return
       }
+      if (fullPage) {
+        router.push(`/purchase-orders/${body.id}`)
+        return
+      }
       setStatus('draft')
       setTotal('')
       setSaving(false)
       router.refresh()
       onSuccess?.()
-    } catch (err) {
+    } catch {
       setError('Unable to create purchase order')
       setSaving(false)
     }
   }
 
   return (
-    <section>
-      <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>Purchase order ID is generated automatically when the record is created.</p>
+    <section className={fullPage ? '' : ''}>
+      <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        Purchase order ID is generated automatically when the record is created.
+      </p>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Vendor</label>
@@ -105,7 +113,16 @@ export default function PurchaseOrderCreateForm({
         </div>
         {error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p>}
         <div className="flex items-center justify-end gap-3">
-          {onCancel ? (
+          {fullPage ? (
+            <button
+              type="button"
+              onClick={() => router.push('/purchase-orders')}
+              className="rounded-md border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </button>
+          ) : onCancel ? (
             <button
               type="button"
               onClick={onCancel}

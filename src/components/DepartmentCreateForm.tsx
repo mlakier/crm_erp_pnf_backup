@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DepartmentCustomizationConfig } from '@/lib/department-customization'
 import { isFieldRequired } from '@/lib/form-requirements'
+import type { SelectOption } from '@/lib/list-source'
 import {
   defaultDepartmentFormCustomization,
   DEPARTMENT_FORM_FIELDS,
@@ -14,39 +15,72 @@ import {
   CustomFieldDefinitionSummary,
   parseCustomFieldOptions,
 } from '@/lib/custom-fields'
+import MultiSelectDropdown from '@/components/MultiSelectDropdown'
 
 type DepartmentFormCustomizationResponse = {
   config?: DepartmentFormCustomizationConfig
 }
 
+export type DepartmentCreateInitialValues = {
+  departmentNumber?: string | null
+  name?: string
+  description?: string | null
+  division?: string | null
+  subsidiaryIds?: string[]
+  includeChildren?: boolean
+  planningCategory?: string | null
+  managerEmployeeId?: string | null
+  approverEmployeeId?: string | null
+  inactive?: boolean
+}
+
 export default function DepartmentCreateForm({
-  managers,
+  nextDepartmentId,
+  employees,
   subsidiaries,
   customization,
   divisionOptions,
+  planningCategoryOptions,
+  inactiveOptions,
   customFields,
+  formId,
+  showFooterActions = true,
+  redirectBasePath,
+  initialValues,
   onSuccess,
   onCancel,
 }: {
-  managers?: Array<{ id: string; firstName: string; lastName: string; employeeId?: string | null }>
+  nextDepartmentId?: string
+  employees?: Array<{ id: string; firstName: string; lastName: string; employeeId?: string | null }>
   subsidiaries?: Array<{ id: string; subsidiaryId: string; name: string }>
   customization?: DepartmentCustomizationConfig
   divisionOptions?: string[]
+  planningCategoryOptions?: string[]
+  inactiveOptions: SelectOption[]
   customFields?: CustomFieldDefinitionSummary[]
+  formId?: string
+  showFooterActions?: boolean
+  redirectBasePath?: string
+  initialValues?: DepartmentCreateInitialValues
   onSuccess?: () => void
   onCancel?: () => void
 }) {
   const router = useRouter()
-  const [departmentId, setDepartmentId] = useState('')
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [entityId, setEntityId] = useState('')
-  const [managerId, setManagerId] = useState('')
-  const [inactive, setInactive] = useState(false)
+  const [departmentId, setDepartmentId] = useState(nextDepartmentId ?? '')
+  const [departmentNumber, setDepartmentNumber] = useState(initialValues?.departmentNumber ?? '')
+  const [name, setName] = useState(initialValues?.name ?? '')
+  const [description, setDescription] = useState(initialValues?.description ?? '')
+  const [division, setDivision] = useState(() => initialValues?.division ?? customization?.listBindings.divisionDefaultValue ?? '')
+  const [subsidiaryIds, setSubsidiaryIds] = useState<string[]>(initialValues?.subsidiaryIds ?? [])
+  const [includeChildren, setIncludeChildren] = useState(initialValues?.includeChildren ?? false)
+  const [planningCategory, setPlanningCategory] = useState(initialValues?.planningCategory ?? '')
+  const [managerEmployeeId, setManagerEmployeeId] = useState(initialValues?.managerEmployeeId ?? '')
+  const [approverEmployeeId, setApproverEmployeeId] = useState(initialValues?.approverEmployeeId ?? '')
+  const [inactive, setInactive] = useState(initialValues?.inactive ?? false)
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      (customFields ?? []).map((field) => [field.id, field.defaultValue ?? (field.type === 'checkbox' ? 'false' : '')])
-    )
+      (customFields ?? []).map((field) => [field.id, field.defaultValue ?? (field.type === 'checkbox' ? 'false' : '')]),
+    ),
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +88,7 @@ export default function DepartmentCreateForm({
   const [layoutConfig, setLayoutConfig] = useState<DepartmentFormCustomizationConfig>(() => defaultDepartmentFormCustomization())
 
   const useDivisionDropdown = Boolean(customization?.listBindings.divisionCustomListId && (divisionOptions?.length ?? 0) > 0)
-  const [division, setDivision] = useState(() => customization?.listBindings.divisionDefaultValue ?? '')
+  const usePlanningCategoryDropdown = (planningCategoryOptions?.length ?? 0) > 0
 
   useEffect(() => {
     let mounted = true
@@ -83,7 +117,7 @@ export default function DepartmentCreateForm({
       }
     }
 
-    loadConfig()
+    void loadConfig()
     return () => {
       mounted = false
     }
@@ -138,6 +172,15 @@ export default function DepartmentCreateForm({
     }
   }
 
+  function renderEmployeeOptions() {
+    return (employees ?? []).map((employee) => (
+      <option key={employee.id} value={employee.id}>
+        {employee.firstName} {employee.lastName}
+        {employee.employeeId ? ` (${employee.employeeId})` : ''}
+      </option>
+    ))
+  }
+
   function renderField(fieldId: DepartmentFormFieldKey) {
     switch (fieldId) {
       case 'departmentId':
@@ -145,6 +188,13 @@ export default function DepartmentCreateForm({
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Department Id', req('departmentId'))}</span>
             <input value={departmentId} onChange={(e) => setDepartmentId(e.target.value.toUpperCase())} required={req('departmentId')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          </label>
+        )
+      case 'departmentNumber':
+        return (
+          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span>{requiredLabel('Department Number', req('departmentNumber'))}</span>
+            <input value={departmentNumber} onChange={(e) => setDepartmentNumber(e.target.value)} required={req('departmentNumber')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'name':
@@ -177,31 +227,64 @@ export default function DepartmentCreateForm({
             )}
           </label>
         )
-      case 'entityId':
+      case 'subsidiaryIds':
+        return (
+          <div key={fieldId} className="space-y-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span>{requiredLabel('Subsidiaries', req('subsidiaryIds'))}</span>
+            <MultiSelectDropdown
+              value={subsidiaryIds}
+              options={(subsidiaries ?? []).map((subsidiary) => ({
+                value: subsidiary.id,
+                label: `${subsidiary.subsidiaryId} - ${subsidiary.name}`,
+              }))}
+              placeholder="Select Subsidiaries"
+              onChange={setSubsidiaryIds}
+            />
+          </div>
+        )
+      case 'includeChildren':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Subsidiary', req('entityId'))}</span>
-            <select value={entityId} onChange={(e) => setEntityId(e.target.value)} required={req('entityId')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="">None</option>
-              {(subsidiaries ?? []).map((subsidiary) => (
-                <option key={subsidiary.id} value={subsidiary.id}>
-                  {subsidiary.subsidiaryId} - {subsidiary.name}
-                </option>
-              ))}
+            <span>{requiredLabel('Include Children', req('includeChildren'))}</span>
+            <select value={includeChildren ? 'true' : 'false'} onChange={(e) => setIncludeChildren(e.target.value === 'true')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
             </select>
           </label>
         )
-      case 'managerId':
+      case 'planningCategory':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Manager', req('managerId'))}</span>
-            <select value={managerId} onChange={(e) => setManagerId(e.target.value)} required={req('managerId')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
+            <span>{requiredLabel('Department Planning Category', req('planningCategory'))}</span>
+            {usePlanningCategoryDropdown ? (
+              <select value={planningCategory} onChange={(e) => setPlanningCategory(e.target.value)} required={req('planningCategory')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
+                <option value="">Select planning category</option>
+                {(planningCategoryOptions ?? []).map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            ) : (
+              <input value={planningCategory} onChange={(e) => setPlanningCategory(e.target.value)} required={req('planningCategory')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+            )}
+          </label>
+        )
+      case 'managerEmployeeId':
+        return (
+          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span>{requiredLabel('Department Manager', req('managerEmployeeId'))}</span>
+            <select value={managerEmployeeId} onChange={(e) => setManagerEmployeeId(e.target.value)} required={req('managerEmployeeId')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
-              {(managers ?? []).map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {manager.firstName} {manager.lastName}{manager.employeeId ? ` (${manager.employeeId})` : ''}
-                </option>
-              ))}
+              {renderEmployeeOptions()}
+            </select>
+          </label>
+        )
+      case 'approverEmployeeId':
+        return (
+          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span>{requiredLabel('Department Approver', req('approverEmployeeId'))}</span>
+            <select value={approverEmployeeId} onChange={(e) => setApproverEmployeeId(e.target.value)} required={req('approverEmployeeId')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
+              <option value="">None</option>
+              {renderEmployeeOptions()}
             </select>
           </label>
         )
@@ -210,8 +293,9 @@ export default function DepartmentCreateForm({
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Inactive', req('inactive'))}</span>
             <select value={inactive ? 'true' : 'false'} onChange={(e) => setInactive(e.target.value === 'true')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="false">No</option>
-              <option value="true">Yes</option>
+              {inactiveOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
         )
@@ -229,11 +313,14 @@ export default function DepartmentCreateForm({
       const missing: string[] = []
       const requiredFields = [
         ['departmentId', departmentId],
+        ['departmentNumber', departmentNumber],
         ['name', name],
         ['description', description],
         ['division', division],
-        ['entityId', entityId],
-        ['managerId', managerId],
+        ['subsidiaryIds', subsidiaryIds.join(',')],
+        ['planningCategory', planningCategory],
+        ['managerEmployeeId', managerEmployeeId],
+        ['approverEmployeeId', approverEmployeeId],
       ] as const
 
       for (const [fieldName, fieldValue] of requiredFields) {
@@ -249,7 +336,19 @@ export default function DepartmentCreateForm({
       const response = await fetch('/api/departments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ departmentId, name, description, division, entityId, managerId, inactive }),
+        body: JSON.stringify({
+          departmentId,
+          departmentNumber,
+          name,
+          description,
+          division,
+          subsidiaryIds,
+          includeChildren,
+          planningCategory,
+          managerEmployeeId,
+          approverEmployeeId,
+          inactive,
+        }),
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json?.error ?? 'Create failed')
@@ -284,6 +383,11 @@ export default function DepartmentCreateForm({
         await Promise.all(valueRequests)
       }
 
+      if (redirectBasePath && createdDepartmentId) {
+        router.push(`${redirectBasePath}/${createdDepartmentId}`)
+        router.refresh()
+        return
+      }
       router.refresh()
       onSuccess?.()
     } catch (err) {
@@ -294,7 +398,7 @@ export default function DepartmentCreateForm({
   }
 
   return (
-    <form className="space-y-5" onSubmit={submitForm}>
+    <form id={formId} className="space-y-5" onSubmit={submitForm}>
       {groupedVisibleFields.map(({ section, fields }) => (
         <section key={section} className="rounded-lg border p-4" style={{ borderColor: 'var(--border-muted)' }}>
           <div className="mb-4">
@@ -391,10 +495,12 @@ export default function DepartmentCreateForm({
         </section>
       ) : null}
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <div className="flex items-center justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Cancel</button>
-        <button type="submit" disabled={saving} className="rounded-md px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--accent-primary-strong)' }}>{saving ? 'Saving...' : 'Create Department'}</button>
-      </div>
+      {showFooterActions ? (
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Cancel</button>
+          <button type="submit" disabled={saving} className="rounded-md px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--accent-primary-strong)' }}>{saving ? 'Saving...' : 'Create Department'}</button>
+        </div>
+      ) : null}
     </form>
   )
 }

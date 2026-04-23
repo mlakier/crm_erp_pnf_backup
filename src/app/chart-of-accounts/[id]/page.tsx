@@ -3,20 +3,28 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import DeleteButton from '@/components/DeleteButton'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
+import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
+import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
+import MasterDataSystemInfoSection from '@/components/MasterDataSystemInfoSection'
 import ChartOfAccountsDetailCustomizeMode from '@/components/ChartOfAccountsDetailCustomizeMode'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
+import SystemNotesSection from '@/components/SystemNotesSection'
 import {
   RecordDetailCell,
   RecordDetailEmptyState,
   RecordDetailHeaderCell,
   RecordDetailSection,
 } from '@/components/RecordDetailPanels'
+import { buildConfiguredInlineSections, buildCustomizePreviewFields } from '@/lib/detail-page-helpers'
 import { loadChartOfAccountsFormCustomization } from '@/lib/chart-of-accounts-form-customization-store'
 import {
   CHART_OF_ACCOUNTS_FORM_FIELDS,
   type ChartOfAccountsFormFieldKey,
 } from '@/lib/chart-of-accounts-form-customization'
 import { loadFormRequirements } from '@/lib/form-requirements-store'
+import { buildFieldMetaById, getFieldSourceText, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { loadMasterDataSystemInfo } from '@/lib/master-data-system-info'
+import { loadMasterDataSystemNotes } from '@/lib/master-data-system-notes'
 
 async function getDescendantSubsidiaryIds(parentId: string): Promise<Set<string>> {
   const descendants = new Set<string>([parentId])
@@ -24,8 +32,8 @@ async function getDescendantSubsidiaryIds(parentId: string): Promise<Set<string>
 
   while (queue.length > 0) {
     const current = queue.shift() as string
-    const children = await prisma.entity.findMany({
-      where: { parentEntityId: current },
+    const children = await prisma.subsidiary.findMany({
+      where: { parentSubsidiaryId: current },
       select: { id: true },
     })
 
@@ -35,6 +43,17 @@ async function getDescendantSubsidiaryIds(parentId: string): Promise<Set<string>
         queue.push(child.id)
       }
     }
+  }
+
+  return descendants
+}
+
+async function getDescendantSubsidiaryIdsForParents(parentIds: string[]): Promise<Set<string>> {
+  const descendants = new Set<string>()
+
+  for (const parentId of parentIds) {
+    const childIds = await getDescendantSubsidiaryIds(parentId)
+    for (const childId of childIds) descendants.add(childId)
   }
 
   return descendants
@@ -51,8 +70,9 @@ export default async function ChartOfAccountDetailPage({
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
+  const fieldMetaById = buildFieldMetaById(CHART_OF_ACCOUNTS_FORM_FIELDS)
 
-  const [account, chartFormCustomization, formRequirements] = await Promise.all([
+  const [account, fieldOptions, chartFormCustomization, formRequirements] = await Promise.all([
     prisma.chartOfAccounts.findUnique({
       where: { id },
       include: {
@@ -65,26 +85,36 @@ export default async function ChartOfAccountDetailPage({
         },
       },
     }),
+    loadFieldOptionsMap(fieldMetaById, ['accountType', 'normalBalance']),
     loadChartOfAccountsFormCustomization(),
     loadFormRequirements(),
   ])
 
   if (!account) notFound()
 
-  const subsidiaries = await prisma.entity.findMany({
-    where: account.parentSubsidiaryId && account.includeChildren
-      ? { id: { in: Array.from(await getDescendantSubsidiaryIds(account.parentSubsidiaryId)) } }
-      : account.parentSubsidiaryId
-        ? { id: account.parentSubsidiaryId }
-        : { id: { in: account.subsidiaryAssignments.map((entry) => entry.subsidiaryId) } },
-    select: { id: true, subsidiaryId: true, name: true },
-    orderBy: { subsidiaryId: 'asc' },
-  })
+  const selectedSubsidiaryIds = account.parentSubsidiaryId
+    ? [account.parentSubsidiaryId]
+    : account.subsidiaryAssignments.map((entry) => entry.subsidiaryId)
+  const scopedSubsidiaryIds = account.includeChildren
+    ? Array.from(await getDescendantSubsidiaryIdsForParents(selectedSubsidiaryIds))
+    : selectedSubsidiaryIds
+
+  const [subsidiaries, allSubsidiaries] = await Promise.all([
+    prisma.subsidiary.findMany({
+      where: { id: { in: scopedSubsidiaryIds } },
+      select: { id: true, subsidiaryId: true, name: true },
+      orderBy: { subsidiaryId: 'asc' },
+    }),
+    prisma.subsidiary.findMany({
+      select: { id: true, subsidiaryId: true, name: true },
+      orderBy: { subsidiaryId: 'asc' },
+    }),
+  ])
 
   const accountOptions = await prisma.chartOfAccounts.findMany({
     where: { NOT: { id } },
     orderBy: { accountId: 'asc' },
-    select: { id: true, accountId: true, name: true },
+    select: { id: true, accountId: true, accountNumber: true, name: true },
   })
 
   const detailHref = `/chart-of-accounts/${account.id}`
@@ -96,7 +126,8 @@ export default async function ChartOfAccountDetailPage({
   }
 
   const fieldDefinitions: Record<ChartOfAccountsFormFieldKey, InlineRecordSection['fields'][number]> = {
-    accountId: { name: 'accountId', label: 'Account Id', value: account.accountId, helpText: 'Unique account number or code used throughout the ledger.' },
+    accountId: { name: 'accountId', label: 'Account Id', value: account.accountId, helpText: 'System-generated GL identifier used throughout the platform.' },
+    accountNumber: { name: 'accountNumber', label: 'Account Number', value: account.accountNumber, helpText: 'Business-facing account number such as 1000 or 760.' },
     name: { name: 'name', label: 'Name', value: account.name, helpText: 'Reporting name for the account.' },
     description: { name: 'description', label: 'Description', value: account.description ?? '', helpText: 'Longer explanation of the account purpose or usage guidance.' },
     accountType: {
@@ -104,18 +135,18 @@ export default async function ChartOfAccountDetailPage({
       label: 'Account Type',
       value: account.accountType,
       type: 'select',
-      options: ACCOUNT_TYPE_OPTIONS,
+      options: fieldOptions.accountType ?? [],
       helpText: 'Broad accounting classification for the account.',
-      sourceText: 'System account type values',
+      sourceText: getFieldSourceText(fieldMetaById, 'accountType'),
     },
     normalBalance: {
       name: 'normalBalance',
       label: 'Normal Balance',
       value: account.normalBalance ?? '',
       type: 'select',
-      options: [{ value: 'debit', label: 'Debit' }, { value: 'credit', label: 'Credit' }],
+      options: fieldOptions.normalBalance ?? [],
       helpText: 'Default debit or credit orientation for the account.',
-      sourceText: 'System balance values',
+      sourceText: getFieldSourceText(fieldMetaById, 'normalBalance'),
     },
     financialStatementSection: {
       name: 'financialStatementSection',
@@ -129,15 +160,34 @@ export default async function ChartOfAccountDetailPage({
       value: account.financialStatementGroup ?? '',
       helpText: 'More granular reporting group under the statement section.',
     },
+    subsidiaryIds: {
+      name: 'subsidiaryIds',
+      label: 'Subsidiaries',
+      value: selectedSubsidiaryIds.join(','),
+      type: 'select',
+      multiple: true,
+      placeholder: 'Select subsidiaries',
+      options: allSubsidiaries.map((subsidiary) => ({ value: subsidiary.id, label: `${subsidiary.subsidiaryId} - ${subsidiary.name}` })),
+      helpText: 'Subsidiaries where this GL account is available.',
+      sourceText: getFieldSourceText(fieldMetaById, 'subsidiaryIds'),
+    },
+    includeChildren: {
+      name: 'includeChildren',
+      label: 'Include Children',
+      value: String(account.includeChildren),
+      type: 'checkbox',
+      placeholder: 'Include Children',
+      helpText: 'If enabled, child subsidiaries under selected subsidiaries also inherit account availability.',
+    },
     parentAccountId: {
       name: 'parentAccountId',
       label: 'Parent Account',
       value: account.parentAccountId ?? '',
       type: 'select',
       placeholder: 'Select parent account',
-      options: accountOptions.map((option) => ({ value: option.id, label: `${option.accountId} - ${option.name}` })),
+      options: accountOptions.map((option) => ({ value: option.id, label: `${option.accountId} - ${option.accountNumber} - ${option.name}` })),
       helpText: 'Rollup parent for hierarchical reporting.',
-      sourceText: 'Chart of Accounts master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'parentAccountId'),
     },
     closeToAccountId: {
       name: 'closeToAccountId',
@@ -145,9 +195,9 @@ export default async function ChartOfAccountDetailPage({
       value: account.closeToAccountId ?? '',
       type: 'select',
       placeholder: 'Select close-to account',
-      options: accountOptions.map((option) => ({ value: option.id, label: `${option.accountId} - ${option.name}` })),
+      options: accountOptions.map((option) => ({ value: option.id, label: `${option.accountId} - ${option.accountNumber} - ${option.name}` })),
       helpText: 'Target account used when closing temporary balances.',
-      sourceText: 'Chart of Accounts master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'closeToAccountId'),
     },
     isPosting: { name: 'isPosting', label: 'Posting Account', value: String(account.isPosting), type: 'checkbox', helpText: 'Controls whether journals can post directly to this account.' },
     isControlAccount: { name: 'isControlAccount', label: 'Control Account', value: String(account.isControlAccount), type: 'checkbox', helpText: 'Marks accounts managed primarily by subledgers or protected processes.' },
@@ -160,56 +210,20 @@ export default async function ChartOfAccountDetailPage({
     summary: { name: 'summary', label: 'Summary', value: String(account.summary), type: 'checkbox', helpText: 'Indicates a header or summary account rather than a direct posting account.' },
   }
 
-  const customizeFields = CHART_OF_ACCOUNTS_FORM_FIELDS.map((field) => {
-    const definition = fieldDefinitions[field.id]
-    const rawValue = definition.value ?? ''
-    let previewValue = rawValue
-    if (definition.type === 'checkbox') {
-      previewValue = rawValue === 'true' ? 'Yes' : 'No'
-    } else if (definition.options) {
-      previewValue = definition.options.find((option) => option.value === rawValue)?.label ?? rawValue
-    }
-
-    return {
-      id: field.id,
-      label: definition.label,
-      fieldType: field.fieldType,
-      source: field.source,
-      description: field.description,
-      previewValue,
-    }
+  const customizeFields = buildCustomizePreviewFields(CHART_OF_ACCOUNTS_FORM_FIELDS, fieldDefinitions)
+  const detailSections: InlineRecordSection[] = buildConfiguredInlineSections({
+    fields: CHART_OF_ACCOUNTS_FORM_FIELDS,
+    layout: chartFormCustomization,
+    fieldDefinitions,
+    sectionDescriptions,
   })
-
-  const detailSections: InlineRecordSection[] = chartFormCustomization.sections
-    .map((sectionTitle) => {
-      const configuredFields = CHART_OF_ACCOUNTS_FORM_FIELDS
-        .filter((field) => {
-          const config = chartFormCustomization.fields[field.id]
-          return config.visible && config.section === sectionTitle
-        })
-        .sort((a, b) => {
-          const left = chartFormCustomization.fields[a.id]
-          const right = chartFormCustomization.fields[b.id]
-          if (left.column !== right.column) return left.column - right.column
-          return left.order - right.order
-        })
-        .map((field) => ({
-          ...fieldDefinitions[field.id],
-          column: chartFormCustomization.fields[field.id].column,
-          order: chartFormCustomization.fields[field.id].order,
-        }))
-
-      if (configuredFields.length === 0) return null
-
-      return {
-        title: sectionTitle,
-        description: sectionDescriptions[sectionTitle],
-        collapsible: true,
-        defaultExpanded: true,
-        fields: configuredFields,
-      }
-    })
-    .filter((section): section is InlineRecordSection => Boolean(section))
+  const systemInfo = await loadMasterDataSystemInfo({
+    entityType: 'chart-of-account',
+    entityId: account.id,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  })
+  const systemNotes = await loadMasterDataSystemNotes({ entityType: 'chart-of-account', entityId: account.id })
 
   return (
     <RecordDetailPageShell
@@ -224,6 +238,27 @@ export default async function ChartOfAccountDetailPage({
       }
       actions={
         <>
+          {isEditing && !isCustomizing ? (
+            <>
+              <Link
+                href={detailHref}
+                className="rounded-md border px-3 py-1.5 text-xs font-medium"
+                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+              >
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                form={`inline-record-form-${account.id}`}
+                className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Save
+              </button>
+            </>
+          ) : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailCreateMenu newHref="/chart-of-accounts/new" duplicateHref={`/chart-of-accounts/new?duplicateFrom=${account.id}`} /> : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailExportMenu title={account.name} fileName={`gl-account-${account.accountId}`} sections={detailSections} /> : null}
           {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?customize=1`}
@@ -233,7 +268,7 @@ export default async function ChartOfAccountDetailPage({
               Customize
             </Link>
           ) : null}
-          {!isEditing ? (
+          {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?edit=1`}
               className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
@@ -262,8 +297,11 @@ export default async function ChartOfAccountDetailPage({
             sections={detailSections}
             editing={isEditing}
             columns={chartFormCustomization.formColumns}
+            showInternalActions={false}
           />
         )}
+
+        {!isCustomizing ? <MasterDataSystemInfoSection info={systemInfo} /> : null}
 
         <RecordDetailSection title="Subsidiaries in Scope" count={subsidiaries.length}>
           {subsidiaries.length === 0 ? (
@@ -287,15 +325,7 @@ export default async function ChartOfAccountDetailPage({
             </table>
           )}
         </RecordDetailSection>
+        <SystemNotesSection notes={systemNotes} />
     </RecordDetailPageShell>
   )
 }
-
-const ACCOUNT_TYPE_OPTIONS = [
-  { value: 'Asset', label: 'Asset' },
-  { value: 'Liability', label: 'Liability' },
-  { value: 'Equity', label: 'Equity' },
-  { value: 'Revenue', label: 'Revenue' },
-  { value: 'Expense', label: 'Expense' },
-  { value: 'Other', label: 'Other' },
-]

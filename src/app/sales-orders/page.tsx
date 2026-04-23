@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency } from '@/lib/format'
-import CreateModalButton from '@/components/CreateModalButton'
-import SalesOrderCreateFromQuoteForm from '@/components/SalesOrderCreateFromQuoteForm'
 import ColumnSelector from '@/components/ColumnSelector'
 import ExportButton from '@/components/ExportButton'
 import PaginationFooter from '@/components/PaginationFooter'
@@ -12,9 +10,11 @@ import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
 import EditButton from '@/components/EditButton'
 import DeleteButton from '@/components/DeleteButton'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
+import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
 
 const SALES_ORDER_COLUMNS = [
-  { id: 'sales-order-number', label: 'Sales Order #' },
+  { id: 'sales-order-number', label: 'Sales Order Id' },
   { id: 'customer', label: 'Customer' },
   { id: 'quote', label: 'Quote' },
   { id: 'status', label: 'Status' },
@@ -34,7 +34,13 @@ export default async function SalesOrdersPage({
   const params = await searchParams
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const sortOptions = prependIdSortOption([
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'total-desc', label: 'Total high-low' },
+    { value: 'total-asc', label: 'Total low-high' },
+  ])
 
   const where = {
     ...(query
@@ -51,7 +57,9 @@ export default async function SalesOrdersPage({
   }
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ number: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'total-desc'
         ? [{ total: 'desc' as const }]
@@ -59,14 +67,8 @@ export default async function SalesOrdersPage({
           ? [{ total: 'asc' as const }]
           : [{ createdAt: 'desc' as const }]
 
-  const [totalSalesOrders, quotesWithoutSalesOrder, companySettings, cabinetFiles, statusValues] = await Promise.all([
+  const [totalSalesOrders, companySettings, cabinetFiles, statusValues] = await Promise.all([
     prisma.salesOrder.count({ where }),
-    prisma.quote.findMany({
-      where: { salesOrder: null },
-      include: { customer: true },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
     loadListValues('SO-STATUS'),
@@ -81,7 +83,7 @@ export default async function SalesOrdersPage({
     include: {
       customer: true,
       quote: true,
-      entity: true,
+      subsidiary: true,
       currency: true,
     },
     orderBy,
@@ -123,14 +125,14 @@ export default async function SalesOrdersPage({
             Orders are auto-created from accepted quotes, or create manually below
           </p>
         </div>
-        <CreateModalButton buttonLabel="New Sales Order" title="New Sales Order">
-          <SalesOrderCreateFromQuoteForm
-            quotes={quotesWithoutSalesOrder.map((quote) => ({
-              id: quote.id,
-              label: `${quote.number} - ${quote.customer.name}`,
-            }))}
-          />
-        </CreateModalButton>
+        <Link
+          href="/sales-orders/new"
+          className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+          style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+        >
+          <span className="mr-1.5 text-lg leading-none">+</span>
+          New Sales Order
+        </Link>
       </div>
 
       {/* Status tabs */}
@@ -168,33 +170,26 @@ export default async function SalesOrdersPage({
             />
             <input type="hidden" name="status" value={statusFilter} />
             <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="total-desc">Total high-low</option>
-              <option value="total-asc">Total low-high</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
             <input type="hidden" name="page" value="1" />
             <div className="flex items-center gap-2">
-              <Link href="/sales-orders" className="rounded-md border px-3 py-2 text-sm font-medium text-center" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Reset</Link>
               <ExportButton tableId="sales-orders-list" fileName="sales-orders" />            </div>
             <ColumnSelector tableId="sales-orders-list" columns={SALES_ORDER_COLUMNS} />
           </div>
         </form>
 
-        <div className="overflow-x-auto" data-column-selector-table="sales-orders-list">
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="sales-orders-list">
           <table className="min-w-full" id="sales-orders-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="sales-order-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Sales Order #</th>
-                <th data-column="customer" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Customer</th>
-                <th data-column="quote" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Quote</th>
-                <th data-column="status" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Status</th>
-                <th data-column="total" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Total</th>
-                <th data-column="subsidiary" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Subsidiary</th>
-                <th data-column="currency" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Currency</th>
-                <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
-                <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
-                              <th data-column="actions" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
+                {SALES_ORDER_COLUMNS.map((column) => (
+                  <th key={column.id} data-column={column.id} className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
+                    <RecordListHeaderLabel label={column.label} tooltip={'tooltip' in column ? column.tooltip : undefined} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -214,8 +209,8 @@ export default async function SalesOrdersPage({
                     <td data-column="quote" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{order.quote?.number ?? '—'}</td>
                     <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{order.status}</td>
                     <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(order.total)}</td>
-                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(order).entity?.name ?? '—'}</td>
-                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(order).currency?.currencyId ?? '—'}</td>
+                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(order).subsidiary?.name ?? '—'}</td>
+                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(order).currency?.code ?? '—'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(order.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(order.updatedAt).toLocaleDateString()}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">

@@ -6,6 +6,7 @@ import ExportButton from '@/components/ExportButton'
 export type MasterDataListColumn = {
   id: string
   label: string
+  defaultVisible?: boolean
   locked?: boolean
 }
 
@@ -33,8 +34,6 @@ export default function MasterDataListToolbar({
   tableId,
   exportFileName,
   columns,
-  sort,
-  sortOptions,
   resetHref,
   compactExport = false,
   extraControls,
@@ -51,24 +50,17 @@ export default function MasterDataListToolbar({
           style={{ borderColor: 'var(--border-muted)' }}
         />
         <input type="hidden" name="page" value="1" />
-        {sortOptions && sortOptions.length > 0 ? (
-          <select
-            name="sort"
-            defaultValue={sort}
-            className="rounded-md border bg-transparent px-3 py-2 text-sm text-white"
-            style={{ borderColor: 'var(--border-muted)' }}
-          >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        ) : null}
+        <button
+          type="submit"
+          className="shrink-0 rounded-md border px-3 py-2 text-sm font-medium transition"
+          style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+        >
+          Search
+        </button>
         {resetHref ? (
           <Link
             href={resetHref}
-            className="rounded-md border px-3 py-2 text-sm font-medium text-center"
+            className="w-24 shrink-0 rounded-md border px-3 py-2 text-sm font-medium text-center"
             style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
           >
             Reset

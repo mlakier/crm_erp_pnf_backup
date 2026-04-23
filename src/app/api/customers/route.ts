@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
 import { generateNextCustomerNumber } from '@/lib/customer-number'
-import { generateNextContactNumber } from '@/lib/contact-number'
+import { formatContactNumber } from '@/lib/contact-number'
 import { normalizePhone } from '@/lib/format'
 import { isFieldRequiredServer } from '@/lib/form-requirements-store'
+import { getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
 // GET /api/customers - Get all customers
 export async function GET() {
@@ -45,7 +46,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'At least one contact is required' }, { status: 400 })
     }
 
-    const primaryContact = Array.isArray(contacts) ? contacts[0] : null
+    const normalizedContacts = Array.isArray(contacts)
+      ? contacts
+          .map((contact) => ({
+            firstName: String(contact?.firstName ?? '').trim(),
+            lastName: String(contact?.lastName ?? '').trim(),
+            email: String(contact?.email ?? '').trim(),
+            phone: String(contact?.phone ?? '').trim(),
+            position: String(contact?.position ?? '').trim(),
+            isPrimaryForCustomer: String(contact?.isPrimaryForCustomer ?? 'false').trim().toLowerCase() === 'true' || contact?.isPrimaryForCustomer === true,
+            receivesQuotesSalesOrders: String(contact?.receivesQuotesSalesOrders ?? 'false').trim().toLowerCase() === 'true' || contact?.receivesQuotesSalesOrders === true,
+            receivesInvoices: String(contact?.receivesInvoices ?? 'false').trim().toLowerCase() === 'true' || contact?.receivesInvoices === true,
+            receivesInvoiceCc: String(contact?.receivesInvoiceCc ?? 'false').trim().toLowerCase() === 'true' || contact?.receivesInvoiceCc === true,
+          }))
+          .filter((contact) => contact.firstName || contact.lastName || contact.email || contact.phone || contact.position)
+      : []
+
+    if (normalizedContacts.length > 0 && !normalizedContacts.some((contact) => contact.isPrimaryForCustomer)) {
+      normalizedContacts[0].isPrimaryForCustomer = true
+    }
+    if (normalizedContacts.filter((contact) => contact.isPrimaryForCustomer).length > 1) {
+      let primarySeen = false
+      for (const contact of normalizedContacts) {
+        if (!contact.isPrimaryForCustomer) continue
+        if (!primarySeen) {
+          primarySeen = true
+        } else {
+          contact.isPrimaryForCustomer = false
+        }
+      }
+    }
+
+    const primaryContact = normalizedContacts.find((contact) => contact.isPrimaryForCustomer) ?? normalizedContacts[0] ?? null
     if (
       requiresPrimaryContact &&
       (((await isFieldRequiredServer('customerCreate', 'contactFirstName')) && !primaryContact?.firstName) ||
@@ -55,7 +87,16 @@ export async function POST(request: NextRequest) {
     }
 
     const customerNumber = await generateNextCustomerNumber()
-    const contactNumber = primaryContact ? await generateNextContactNumber() : null
+    const contactIdConfig = await loadIdSetting('contact')
+    const latestContacts = normalizedContacts.length
+      ? await prisma.contact.findMany({
+          where: { contactNumber: { startsWith: contactIdConfig.prefix } },
+          orderBy: { contactNumber: 'desc' },
+          select: { contactNumber: true },
+          take: 200,
+        })
+      : []
+    const nextContactSequence = getNextSequenceFromValues(latestContacts.map((contact) => contact.contactNumber), contactIdConfig)
 
     const customer = await prisma.customer.create({
       data: {
@@ -65,22 +106,26 @@ export async function POST(request: NextRequest) {
         phone: normalizePhone(phone),
         address,
         industry,
-        entityId: primarySubsidiaryId || null,
+        subsidiaryId: primarySubsidiaryId || null,
         currencyId: primaryCurrencyId || null,
         inactive: String(inactive).trim().toLowerCase() === 'true',
         userId,
-        ...(primaryContact
+        ...(normalizedContacts.length > 0
           ? {
               contacts: {
-                create: {
-                  contactNumber,
-                  firstName: primaryContact.firstName,
-                  lastName: primaryContact.lastName,
-                  email: primaryContact.email || null,
-                  phone: normalizePhone(primaryContact.phone),
-                  position: primaryContact.position || null,
+                create: normalizedContacts.map((contact, index) => ({
+                  contactNumber: formatContactNumber(nextContactSequence + index, contactIdConfig),
+                  firstName: contact.firstName,
+                  lastName: contact.lastName,
+                  email: contact.email || null,
+                  phone: normalizePhone(contact.phone),
+                  position: contact.position || null,
+                  isPrimaryForCustomer: contact.isPrimaryForCustomer,
+                  receivesQuotesSalesOrders: contact.receivesQuotesSalesOrders,
+                  receivesInvoices: contact.receivesInvoices,
+                  receivesInvoiceCc: contact.receivesInvoiceCc,
                   userId,
-                },
+                })),
               },
             }
           : {}),
@@ -123,7 +168,7 @@ export async function PUT(request: NextRequest) {
         phone: normalizePhone(phone),
         address: address || null,
         industry: industry || null,
-        entityId: primarySubsidiaryId || null,
+        subsidiaryId: primarySubsidiaryId || null,
         currencyId: primaryCurrencyId || null,
         ...(inactive !== undefined ? { inactive: inactive === true || inactive === 'true' } : {}),
       },

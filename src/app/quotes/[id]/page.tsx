@@ -52,7 +52,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Quote details</h2>
           <dl className="grid gap-4 sm:grid-cols-2">
-            <Field label="Quote #" value={quote.number} />
+            <Field label="Quote Id" value={quote.number} />
             <Field label="Customer" value={quote.customer.name} />
             <Field label="Opportunity" value={quote.opportunity?.name} />
             <Field label="Sales Order" value={quote.salesOrder?.number} />

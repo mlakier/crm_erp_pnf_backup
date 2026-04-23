@@ -9,7 +9,7 @@ import {
 } from '@/lib/list-options'
 
 const CLIENT_KEY_MAP: Record<string, string> = {
-  'customer.industry': 'INDUSTRY',
+  'customer.industry': 'CUST-INDUSTRY',
   'item.type': 'ITEM-TYPE',
   'lead.source': 'LEAD-SRC',
   'lead.rating': 'LEAD-RAT',

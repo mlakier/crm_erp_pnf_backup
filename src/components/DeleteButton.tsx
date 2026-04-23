@@ -3,13 +3,20 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function DeleteButton({ resource, id }: { resource: string; id: string }) {
+type DeleteButtonProps = {
+  id: string
+  resource?: string
+  endpoint?: string
+  label?: string
+}
+
+export default function DeleteButton({ resource, endpoint, id, label }: DeleteButtonProps) {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
 
   const handleDelete = async () => {
-    if (!confirm('Delete this item permanently?')) {
+    if (!confirm(`Delete ${label ?? 'this item'} permanently?`)) {
       return
     }
 
@@ -17,19 +24,27 @@ export default function DeleteButton({ resource, id }: { resource: string; id: s
     setError('')
 
     try {
-      const response = await fetch(`/api/${resource}?id=${encodeURIComponent(id)}`, {
+      const deleteEndpoint = endpoint ?? (resource ? `/api/${resource}` : null)
+
+      if (!deleteEndpoint) {
+        setError('Unable to delete item')
+        setDeleting(false)
+        return
+      }
+
+      const response = await fetch(`${deleteEndpoint}?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
 
       if (!response.ok) {
-        const body = await response.json()
+        const body = await response.json().catch(() => null)
         setError(body?.error || 'Unable to delete item')
         setDeleting(false)
         return
       }
 
       router.refresh()
-    } catch (err) {
+    } catch {
       setError('Unable to delete item')
       setDeleting(false)
     }
@@ -45,7 +60,7 @@ export default function DeleteButton({ resource, id }: { resource: string; id: s
       >
         {deleting ? 'Deleting…' : 'Delete'}
       </button>
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
+      {error ? <span className="whitespace-pre-line text-xs text-red-600">{error}</span> : null}
     </div>
   )
 }

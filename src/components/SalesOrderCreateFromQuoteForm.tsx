@@ -10,10 +10,12 @@ type QuoteOption = {
 
 export default function SalesOrderCreateFromQuoteForm({
   quotes,
+  fullPage,
   onSuccess,
   onCancel,
 }: {
   quotes: QuoteOption[]
+  fullPage?: boolean
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -38,6 +40,11 @@ export default function SalesOrderCreateFromQuoteForm({
       if (!response.ok) {
         setError(body?.error || 'Unable to create sales order')
         setSaving(false)
+        return
+      }
+
+      if (fullPage) {
+        router.push(`/sales-orders/${body.id}`)
         return
       }
 
@@ -73,14 +80,25 @@ export default function SalesOrderCreateFromQuoteForm({
       {error ? <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p> : null}
 
       <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border px-4 py-2 text-sm font-medium"
-          style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-        >
-          Cancel
-        </button>
+        {fullPage ? (
+          <button
+            type="button"
+            onClick={() => router.push('/sales-orders')}
+            className="rounded-md border px-4 py-2 text-sm font-medium"
+            style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+          >
+            Cancel
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border px-4 py-2 text-sm font-medium"
+            style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="submit"
           disabled={saving || quotes.length === 0}

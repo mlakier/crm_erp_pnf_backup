@@ -6,15 +6,23 @@ import { useRouter } from 'next/navigation'
 type CurrencyOption = {
   id: string
   currencyId: string
+  code?: string
   name: string
+}
+
+type SelectOption = {
+  value: string
+  label: string
 }
 
 export default function ExchangeRateCreateForm({
   currencies,
+  rateTypeOptions,
   onSuccess,
   onCancel,
 }: {
   currencies: CurrencyOption[]
+  rateTypeOptions: SelectOption[]
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -23,7 +31,7 @@ export default function ExchangeRateCreateForm({
   const [quoteCurrencyId, setQuoteCurrencyId] = useState(currencies[1]?.id ?? currencies[0]?.id ?? '')
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10))
   const [rate, setRate] = useState('')
-  const [rateType, setRateType] = useState('spot')
+  const [rateType, setRateType] = useState(rateTypeOptions[0]?.value ?? '')
   const [source, setSource] = useState('')
   const [notes, setNotes] = useState('')
   const [active, setActive] = useState(true)
@@ -77,7 +85,7 @@ export default function ExchangeRateCreateForm({
           >
             {currencies.map((currency) => (
               <option key={currency.id} value={currency.id} style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
-                {currency.currencyId} - {currency.name}
+                {currency.code ?? currency.currencyId} - {currency.name}
               </option>
             ))}
           </select>
@@ -93,7 +101,7 @@ export default function ExchangeRateCreateForm({
           >
             {currencies.map((currency) => (
               <option key={currency.id} value={currency.id} style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
-                {currency.currencyId} - {currency.name}
+                {currency.code ?? currency.currencyId} - {currency.name}
               </option>
             ))}
           </select>
@@ -133,10 +141,9 @@ export default function ExchangeRateCreateForm({
             className="w-full rounded-md border bg-transparent px-3 py-2 text-white"
             style={{ borderColor: 'var(--border-muted)' }}
           >
-            <option value="spot" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>Spot</option>
-            <option value="average" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>Average</option>
-            <option value="closing" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>Closing</option>
-            <option value="budget" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>Budget</option>
+            {rateTypeOptions.map((option) => (
+              <option key={option.value} value={option.value} style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>{option.label}</option>
+            ))}
           </select>
         </label>
       </div>

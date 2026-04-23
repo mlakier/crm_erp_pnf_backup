@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { Children, isValidElement, type ReactNode } from 'react'
 import MasterDataListToolbar, { type MasterDataListToolbarProps } from '@/components/MasterDataListToolbar'
+import PaginationFooter from '@/components/PaginationFooter'
 
 type MasterDataListSectionProps = MasterDataListToolbarProps & {
   children: ReactNode
@@ -10,9 +11,14 @@ type MasterDataListSectionProps = MasterDataListToolbarProps & {
 export default function MasterDataListSection({
   children,
   tableContainerId,
-  tableContainerClassName = 'overflow-x-auto',
+  tableContainerClassName = 'record-list-scroll-region overflow-x-auto',
   ...toolbarProps
 }: MasterDataListSectionProps) {
+  const childNodes = Children.toArray(children)
+  const lastChild = childNodes.at(-1)
+  const hasPaginationFooter = isValidElement(lastChild) && lastChild.type === PaginationFooter
+  const tableContent = hasPaginationFooter ? childNodes.slice(0, -1) : childNodes
+
   return (
     <section
       className="overflow-hidden rounded-2xl border"
@@ -24,8 +30,9 @@ export default function MasterDataListSection({
         className={tableContainerClassName}
         data-column-selector-table={toolbarProps.tableId}
       >
-        {children}
+        {tableContent}
       </div>
+      {hasPaginationFooter ? lastChild : null}
     </section>
   )
 }

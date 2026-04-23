@@ -2,16 +2,18 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useListOptions } from '@/lib/list-options-client'
+import type { SelectOption } from '@/lib/list-source'
 
 export default function CustomerDetailOpportunityForm({
   customerId,
   userId,
+  stageOptions,
   onSuccess,
   onCancel,
 }: {
   customerId: string
   userId: string
+  stageOptions: SelectOption[]
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -23,7 +25,6 @@ export default function CustomerDetailOpportunityForm({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const router = useRouter()
-  const stageOptions = useListOptions('opportunity', 'stage')
 
   const focusRow = (rowId: string) => {
     window.setTimeout(() => {
@@ -113,7 +114,7 @@ export default function CustomerDetailOpportunityForm({
             style={{ borderColor: 'var(--border-muted)' }}
           >
             {stageOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </div>

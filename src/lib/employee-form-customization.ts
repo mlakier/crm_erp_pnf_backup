@@ -1,12 +1,17 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type EmployeeFormFieldKey =
   | 'employeeId'
+  | 'eid'
   | 'firstName'
   | 'lastName'
   | 'email'
   | 'phone'
   | 'title'
+  | 'laborType'
   | 'departmentId'
-  | 'entityId'
+  | 'subsidiaryIds'
+  | 'includeChildren'
   | 'managerId'
   | 'userId'
   | 'hireDate'
@@ -17,6 +22,8 @@ export type EmployeeFormFieldMeta = {
   id: EmployeeFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -37,18 +44,21 @@ export type EmployeeFormCustomizationConfig = {
 
 export const EMPLOYEE_FORM_FIELDS: EmployeeFormFieldMeta[] = [
   { id: 'employeeId', label: 'Employee ID', fieldType: 'text', description: 'Unique employee number or code.' },
+  { id: 'eid', label: 'EID', fieldType: 'text', description: 'External or enterprise employee identifier.' },
   { id: 'firstName', label: 'First Name', fieldType: 'text', description: 'Given name of the employee.' },
   { id: 'lastName', label: 'Last Name', fieldType: 'text', description: 'Family name of the employee.' },
   { id: 'email', label: 'Email', fieldType: 'text', description: 'Primary work email address.' },
   { id: 'phone', label: 'Phone', fieldType: 'text', description: 'Primary work phone number.' },
   { id: 'title', label: 'Title', fieldType: 'text', description: 'Job title or role label.' },
-  { id: 'departmentId', label: 'Department', fieldType: 'list', source: 'Departments master data', description: 'Department the employee belongs to.' },
-  { id: 'entityId', label: 'Subsidiary', fieldType: 'list', source: 'Subsidiaries master data', description: 'Legal entity or subsidiary the employee belongs to.' },
-  { id: 'managerId', label: 'Manager', fieldType: 'list', source: 'Employees master data', description: 'Direct manager of the employee.' },
-  { id: 'userId', label: 'Linked User', fieldType: 'list', source: 'Users master data', description: 'User account linked to this employee.' },
+  { id: 'laborType', label: 'Labor Type', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-EMP-LABOR-TYPE', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-EMP-LABOR-TYPE' }), description: 'Labor classification used for staffing, costing, or billing.' },
+  { id: 'departmentId', label: 'Department', fieldType: 'list', sourceType: 'reference', sourceKey: 'departments', source: getListSourceText({ sourceType: 'reference', sourceKey: 'departments' }), description: 'Department the employee belongs to.' },
+  { id: 'subsidiaryIds', label: 'Subsidiaries', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Subsidiaries where the employee is available.' },
+  { id: 'includeChildren', label: 'Include Children', fieldType: 'boolean', description: 'If enabled, child subsidiaries under selected subsidiaries also inherit employee availability.' },
+  { id: 'managerId', label: 'Manager', fieldType: 'list', sourceType: 'reference', sourceKey: 'employees', source: getListSourceText({ sourceType: 'reference', sourceKey: 'employees' }), description: 'Direct manager of the employee.' },
+  { id: 'userId', label: 'Linked User', fieldType: 'list', sourceType: 'reference', sourceKey: 'users', source: getListSourceText({ sourceType: 'reference', sourceKey: 'users' }), description: 'User account linked to this employee.' },
   { id: 'hireDate', label: 'Hire Date', fieldType: 'date', description: 'Date the employee joined the company.' },
   { id: 'terminationDate', label: 'Termination Date', fieldType: 'date', description: 'Date the employee left the company, if applicable.' },
-  { id: 'inactive', label: 'Inactive', fieldType: 'boolean', description: 'Marks the employee unavailable for new activity while preserving history.' },
+  { id: 'inactive', label: 'Inactive', fieldType: 'list', sourceType: 'system', sourceKey: 'activeInactive', source: getListSourceText({ sourceType: 'system', sourceKey: 'activeInactive' }), description: 'Marks the employee unavailable for new activity while preserving history.' },
 ]
 
 export const DEFAULT_EMPLOYEE_FORM_SECTIONS = [
@@ -62,13 +72,16 @@ export const DEFAULT_EMPLOYEE_FORM_SECTIONS = [
 export function defaultEmployeeFormCustomization(): EmployeeFormCustomizationConfig {
   const sectionMap: Record<EmployeeFormFieldKey, string> = {
     employeeId: 'Core',
+    eid: 'Core',
     firstName: 'Core',
     lastName: 'Core',
     email: 'Core',
     phone: 'Core',
     title: 'Organization',
+    laborType: 'Organization',
     departmentId: 'Organization',
-    entityId: 'Organization',
+    subsidiaryIds: 'Organization',
+    includeChildren: 'Organization',
     managerId: 'Organization',
     userId: 'Access',
     hireDate: 'Employment',
@@ -78,14 +91,17 @@ export function defaultEmployeeFormCustomization(): EmployeeFormCustomizationCon
 
   const columnMap: Record<EmployeeFormFieldKey, number> = {
     employeeId: 1,
+    eid: 2,
     firstName: 1,
     lastName: 2,
     email: 1,
     phone: 2,
     title: 1,
-    departmentId: 2,
-    entityId: 1,
-    managerId: 2,
+    laborType: 2,
+    departmentId: 1,
+    subsidiaryIds: 2,
+    includeChildren: 1,
+    managerId: 1,
     userId: 1,
     hireDate: 1,
     terminationDate: 2,
@@ -94,14 +110,17 @@ export function defaultEmployeeFormCustomization(): EmployeeFormCustomizationCon
 
   const rowMap: Record<EmployeeFormFieldKey, number> = {
     employeeId: 0,
+    eid: 0,
     firstName: 1,
     lastName: 1,
     email: 2,
     phone: 2,
     title: 0,
-    departmentId: 0,
-    entityId: 1,
-    managerId: 1,
+    laborType: 0,
+    departmentId: 1,
+    subsidiaryIds: 1,
+    includeChildren: 2,
+    managerId: 3,
     userId: 0,
     hireDate: 0,
     terminationDate: 0,
@@ -113,7 +132,7 @@ export function defaultEmployeeFormCustomization(): EmployeeFormCustomizationCon
     sections: [...DEFAULT_EMPLOYEE_FORM_SECTIONS],
     sectionRows: {
       Core: 3,
-      Organization: 2,
+      Organization: 4,
       Access: 1,
       Employment: 1,
       Status: 1,

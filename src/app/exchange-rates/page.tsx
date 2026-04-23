@@ -10,6 +10,7 @@ import ExchangeRateSyncButton from '@/components/ExchangeRateSyncButton'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
+import { loadListValues } from '@/lib/load-list-values'
 
 const COLS = [
   { id: 'pair', label: 'Currency Pair' },
@@ -39,8 +40,8 @@ export default async function ExchangeRatesPage({
           OR: [
             { source: { contains: query, mode: 'insensitive' as const } },
             { rateType: { contains: query, mode: 'insensitive' as const } },
-            { baseCurrency: { currencyId: { contains: query, mode: 'insensitive' as const } } },
-            { quoteCurrency: { currencyId: { contains: query, mode: 'insensitive' as const } } },
+            { baseCurrency: { code: { contains: query, mode: 'insensitive' as const } } },
+            { quoteCurrency: { code: { contains: query, mode: 'insensitive' as const } } },
           ],
         }
       : {}),
@@ -51,26 +52,23 @@ export default async function ExchangeRatesPage({
     sort === 'effective-asc'
       ? [{ effectiveDate: 'asc' as const }]
       : sort === 'pair'
-        ? [{ baseCurrency: { currencyId: 'asc' as const } }, { quoteCurrency: { currencyId: 'asc' as const } }]
+        ? [{ baseCurrency: { code: 'asc' as const } }, { quoteCurrency: { code: 'asc' as const } }]
         : sort === 'rate-desc'
           ? [{ rate: 'desc' as const }]
           : [{ effectiveDate: 'desc' as const }, { createdAt: 'desc' as const }]
 
-  const [total, currencies, rateTypes, latestSyncLog, companySettings, cabinetFiles] = await Promise.all([
+  const [total, currencies, latestSyncLog, companySettings, cabinetFiles, rateTypeValues] = await Promise.all([
     prisma.exchangeRate.count({ where }),
-    prisma.currency.findMany({ orderBy: { currencyId: 'asc' } }),
-    prisma.exchangeRate.findMany({
-      distinct: ['rateType'],
-      select: { rateType: true },
-      orderBy: { rateType: 'asc' },
-    }),
+    prisma.currency.findMany({ orderBy: { code: 'asc' } }),
     prisma.integrationLog.findFirst({
       where: { integration: 'frankfurter-exchange-rates' },
       orderBy: { createdAt: 'desc' },
     }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
+    loadListValues('EXCHANGE-RATE-TYPE'),
   ])
+  const rateTypeOptions = rateTypeValues.map((value) => ({ value: value.toLowerCase(), label: value }))
 
   const pagination = getPagination(total, params.page)
 
@@ -112,7 +110,7 @@ export default async function ExchangeRatesPage({
         <div className="flex items-center gap-3">
           <ExchangeRateSyncButton />
           <CreateModalButton buttonLabel="New Exchange Rate" title="New Exchange Rate">
-            <ExchangeRateCreateForm currencies={currencies} />
+            <ExchangeRateCreateForm currencies={currencies} rateTypeOptions={rateTypeOptions} />
           </CreateModalButton>
         </div>
       </div>
@@ -159,9 +157,9 @@ export default async function ExchangeRatesPage({
               style={{ borderColor: 'var(--border-muted)' }}
             >
               <option value="all">All Types</option>
-              {rateTypes.map((row) => (
-                <option key={row.rateType} value={row.rateType}>
-                  {row.rateType}
+              {rateTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -181,7 +179,7 @@ export default async function ExchangeRatesPage({
           </div>
         </form>
 
-        <div className="overflow-x-auto" data-column-selector-table="exchange-rates-list">
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="exchange-rates-list">
           <table className="min-w-full" id="exchange-rates-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
@@ -208,7 +206,7 @@ export default async function ExchangeRatesPage({
                 rows.map((row, index) => (
                   <tr key={row.id} style={index < rows.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
                     <td data-column="pair" className="px-4 py-2 text-sm font-medium" style={{ color: 'var(--accent-primary-strong)' }}>
-                      {row.baseCurrency.currencyId}/{row.quoteCurrency.currencyId}
+                      {row.baseCurrency.code}/{row.quoteCurrency.code}
                     </td>
                     <td data-column="effective-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {new Date(row.effectiveDate).toLocaleDateString()}
@@ -239,12 +237,7 @@ export default async function ExchangeRatesPage({
                           fields={[
                             { name: 'effectiveDate', label: 'Effective Date', value: new Date(row.effectiveDate).toISOString().slice(0, 10), type: 'date' },
                             { name: 'rate', label: 'Rate', value: String(row.rate), type: 'number' },
-                            { name: 'rateType', label: 'Rate Type', value: row.rateType, type: 'select', options: [
-                              { value: 'spot', label: 'Spot' },
-                              { value: 'average', label: 'Average' },
-                              { value: 'closing', label: 'Closing' },
-                              { value: 'budget', label: 'Budget' },
-                            ] },
+                            { name: 'rateType', label: 'Rate Type', value: row.rateType, type: 'select', options: rateTypeOptions },
                             { name: 'source', label: 'Source', value: row.source ?? '' },
                             { name: 'active', label: 'Active', value: row.active ? 'true' : 'false', type: 'checkbox', placeholder: 'Active' },
                           ]}

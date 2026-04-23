@@ -8,13 +8,15 @@ import EditButton from '@/components/EditButton'
 import ColumnSelector from '@/components/ColumnSelector'
 import ExportButton from '@/components/ExportButton'
 import PaginationFooter from '@/components/PaginationFooter'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
+import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
 
 const BILL_COLUMNS = [
-  { id: 'bill-number', label: 'Bill #' },
+  { id: 'bill-number', label: 'Bill Id' },
   { id: 'vendor', label: 'Vendor' },
   { id: 'status', label: 'Status' },
   { id: 'total', label: 'Total' },
@@ -32,7 +34,14 @@ export default async function BillsPage({
   const params = await searchParams
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const sortOptions = prependIdSortOption([
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'amount-desc', label: 'Amount high-low' },
+    { value: 'amount-asc', label: 'Amount low-high' },
+    { value: 'due-soonest', label: 'Due soonest' },
+  ])
 
   const where = {
     ...(query
@@ -49,7 +58,9 @@ export default async function BillsPage({
   }
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ number: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'amount-desc'
         ? [{ total: 'desc' as const }]
@@ -151,34 +162,29 @@ export default async function BillsPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search bill #, vendor, status, notes"
+              placeholder="Search bill id, vendor, status, notes"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="amount-desc">Amount high-low</option>
-              <option value="amount-asc">Amount low-high</option>
-              <option value="due-soonest">Due soonest</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
             <ExportButton tableId="bills-list" fileName="bills" />
             <ColumnSelector tableId="bills-list" columns={BILL_COLUMNS} />
           </div>
         </form>
 
-        <div className="overflow-x-auto" data-column-selector-table="bills-list">
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="bills-list">
           <table className="min-w-full" id="bills-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="bill-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Bill #</th>
-                <th data-column="vendor" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Vendor</th>
-                <th data-column="status" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Status</th>
-                <th data-column="total" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Total</th>
-                <th data-column="bill-date" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Bill Date</th>
-                <th data-column="due-date" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Due Date</th>
-                <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
-                <th data-column="actions" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
+                {BILL_COLUMNS.map((column) => (
+                  <th key={column.id} data-column={column.id} className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
+                    <RecordListHeaderLabel label={column.label} tooltip={'tooltip' in column ? column.tooltip : undefined} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>

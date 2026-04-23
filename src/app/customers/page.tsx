@@ -1,10 +1,8 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { normalizePhone } from '@/lib/format'
-import CustomerCreateForm from '@/components/CustomerCreateForm'
 import DeleteButton from '@/components/DeleteButton'
 import EditButton from '@/components/EditButton'
-import CreateModalButton from '@/components/CreateModalButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -13,9 +11,11 @@ import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
 import { displayMasterDataValue, formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
-import { loadListOptions } from '@/lib/list-options-store'
 import { loadCustomerFormCustomization } from '@/lib/customer-form-customization-store'
+import { CUSTOMER_FORM_FIELDS } from '@/lib/customer-form-customization'
 import { customerListDefinition } from '@/lib/master-data-list-definitions'
+import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 export default async function CRMPage({
   searchParams,
@@ -24,33 +24,35 @@ export default async function CRMPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
 
   const where = query
     ? {
         OR: [
-          { customerId: { contains: query } },
-          { name: { contains: query } },
-          { email: { contains: query } },
-          { industry: { contains: query } },
+          { customerId: { contains: query, mode: 'insensitive' as const } },
+          { name: { contains: query, mode: 'insensitive' as const } },
+          { email: { contains: query, mode: 'insensitive' as const } },
+          { industry: { contains: query, mode: 'insensitive' as const } },
         ],
       }
     : {}
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ customerId: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'name'
         ? [{ name: 'asc' as const }, { createdAt: 'desc' as const }]
         : [{ createdAt: 'desc' as const }]
+  const customerFieldMetaById = buildFieldMetaById(CUSTOMER_FORM_FIELDS)
 
-  const [totalCustomers, adminUser, subsidiaries, currencies, companyLogoPages, listOptions, formCustomization] = await Promise.all([
+  const [totalCustomers, subsidiaries, currencies, companyLogoPages, fieldOptions, formCustomization] = await Promise.all([
     prisma.customer.count({ where }),
-    prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
+    prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, currencyId: true, code: true, name: true } }),
     loadCompanyPageLogo(),
-    loadListOptions(),
+    loadFieldOptionsMap(customerFieldMetaById, ['industry', 'inactive']),
     loadCustomerFormCustomization(),
   ])
 
@@ -58,7 +60,7 @@ export default async function CRMPage({
 
   const customers = await prisma.customer.findMany({
     where,
-    include: { entity: true, currency: true },
+    include: { subsidiary: true, currency: true },
     orderBy,
     skip: pagination.skip,
     take: pagination.pageSize,
@@ -79,9 +81,14 @@ export default async function CRMPage({
         total={totalCustomers}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Customer" title="New Customer">
-            <CustomerCreateForm ownerUserId={adminUser.id} subsidiaries={subsidiaries} currencies={currencies} />
-          </CreateModalButton>
+          <Link
+            href="/customers/new"
+            className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            <span className="mr-1.5 text-lg leading-none">+</span>
+            New Customer
+          </Link>
         }
       />
 
@@ -120,8 +127,8 @@ export default async function CRMPage({
                     </Link>
                   </MasterDataBodyCell>
                   <MasterDataBodyCell columnId="name" className="px-4 py-2 text-sm text-white">{customer.name}</MasterDataBodyCell>
-                  <MasterDataMutedCell columnId="subsidiary">{customer.entity ? `${customer.entity.subsidiaryId} (${customer.entity.name})` : displayMasterDataValue(null)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="currency">{displayMasterDataValue(customer.currency?.currencyId)}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="subsidiary">{customer.subsidiary ? `${customer.subsidiary.subsidiaryId} (${customer.subsidiary.name})` : displayMasterDataValue(null)}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="currency">{displayMasterDataValue(customer.currency?.code)}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="address">{displayMasterDataValue(customer.address)}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="inactive">{customer.inactive ? 'Yes' : 'No'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="created">{formatMasterDataDate(customer.createdAt)}</MasterDataMutedCell>
@@ -143,14 +150,14 @@ export default async function CRMPage({
                                 label: 'Industry',
                                 value: customer.industry ?? '',
                                 type: 'select' as const,
-                                options: [{ value: '', label: 'None' }, ...listOptions.customer.industry.map((option) => ({ value: option, label: option }))],
+                                options: [{ value: '', label: 'None' }, ...(fieldOptions.industry ?? [])],
                               }]
                             : []),
                           ...(formCustomization.fields.primarySubsidiaryId.visible
                             ? [{
                                 name: 'primarySubsidiaryId',
                                 label: 'Primary Subsidiary',
-                                value: customer.entityId ?? '',
+                                value: customer.subsidiaryId ?? '',
                                 type: 'select' as const,
                                 options: [{ value: '', label: 'None' }, ...subsidiaries.map((subsidiary) => ({ value: subsidiary.id, label: `${subsidiary.subsidiaryId} - ${subsidiary.name}` }))],
                               }]
@@ -161,7 +168,7 @@ export default async function CRMPage({
                                 label: 'Primary Currency',
                                 value: customer.currencyId ?? '',
                                 type: 'select' as const,
-                                options: [{ value: '', label: 'None' }, ...currencies.map((currency) => ({ value: currency.id, label: `${currency.currencyId} - ${currency.name}` }))],
+                                options: [{ value: '', label: 'None' }, ...currencies.map((currency) => ({ value: currency.id, label: `${currency.code} - ${currency.name}` }))],
                               }]
                             : []),
                           ...(formCustomization.fields.inactive.visible
@@ -170,7 +177,7 @@ export default async function CRMPage({
                                 label: 'Inactive',
                                 value: customer.inactive ? 'true' : 'false',
                                 type: 'select' as const,
-                                options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
+                                options: fieldOptions.inactive ?? [],
                               }]
                             : []),
                         ]}

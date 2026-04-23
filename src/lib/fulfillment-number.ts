@@ -1,10 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const db = prisma as any
+export function formatFulfillmentNumber(sequence: number, config = DEFAULT_ID_SETTINGS.fulfillment) {
+  return formatIdentifier(sequence, config)
+}
 
 export async function generateFulfillmentNumber(): Promise<string> {
-  const all = await db.fulfillment.findMany({ select: { number: true } })
-  const nums = all.map((f: any) => parseInt(f.number.replace('FUL-', ''), 10)).filter((n: number) => !isNaN(n))
-  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
-  return 'FUL-' + String(next).padStart(6, '0')
+  const config = await loadIdSetting('fulfillment')
+  const all = await prisma.fulfillment.findMany({
+    where: { number: { startsWith: config.prefix } },
+    select: { number: true },
+    orderBy: { number: 'desc' },
+    take: 200,
+  })
+  const nextSequence = getNextSequenceFromValues(all.map((record) => record.number), config)
+  return formatFulfillmentNumber(nextSequence, config)
 }

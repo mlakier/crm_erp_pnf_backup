@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import LeadEditButton from '@/components/LeadEditButton'
 import DeleteButton from '@/components/DeleteButton'
+import { loadListOptionsForSource } from '@/lib/list-source'
 
 function leadName(lead: { firstName: string | null; lastName: string | null; email: string | null }) {
   const fullName = [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim()
@@ -16,19 +17,22 @@ function fmtDate(value: Date | null | undefined) {
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [lead, entities, currencies] = await Promise.all([
+  const [lead, entities, currencies, leadSourceOptions, leadRatingOptions, leadStatusOptions] = await Promise.all([
     prisma.lead.findUnique({
       where: { id },
       include: {
-        entity: true,
+        subsidiary: true,
         currency: true,
         customer: { select: { id: true, name: true, customerId: true } },
         contact: { select: { id: true, firstName: true, lastName: true, contactNumber: true } },
         opportunity: { select: { id: true, name: true, opportunityNumber: true } },
       },
     }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
+    prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, currencyId: true, code: true, name: true } }),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-LEAD-SRC' }),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-LEAD-RAT' }),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-LEAD-STATUS' }),
   ])
 
   if (!lead) notFound()
@@ -54,6 +58,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               leadId={lead.id}
               entities={entities}
               currencies={currencies}
+              leadSourceOptions={leadSourceOptions}
+              leadRatingOptions={leadRatingOptions}
+              leadStatusOptions={leadStatusOptions}
               values={{
                 firstName: lead.firstName ?? '',
                 lastName: lead.lastName ?? '',
@@ -67,7 +74,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 source: lead.source ?? '',
                 rating: lead.rating ?? '',
                 expectedValue: lead.expectedValue?.toString() ?? '',
-                entityId: lead.entityId ?? '',
+                entityId: lead.subsidiaryId ?? '',
                 currencyId: lead.currencyId ?? '',
                 lastContactedAt: lead.lastContactedAt ? new Date(lead.lastContactedAt).toISOString().split('T')[0] : '',
                 qualifiedAt: lead.qualifiedAt ? new Date(lead.qualifiedAt).toISOString().split('T')[0] : '',
@@ -89,7 +96,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Lead details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Lead #" value={lead.leadNumber} />
+            <Field label="Lead Id" value={lead.leadNumber} />
             <Field label="Name" value={leadName(lead)} />
             <Field label="Email" value={lead.email} />
             <Field label="Phone" value={lead.phone} />
@@ -98,8 +105,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <Field label="Status" value={lead.status} />
             <Field label="Source" value={lead.source} />
             <Field label="Rating" value={lead.rating} />
-            <Field label="Subsidiary" value={lead.entity ? `${lead.entity.subsidiaryId} – ${lead.entity.name}` : null} />
-            <Field label="Currency" value={lead.currency ? `${lead.currency.currencyId} – ${lead.currency.name}` : null} />
+            <Field label="Subsidiary" value={lead.subsidiary ? `${lead.subsidiary.subsidiaryId} – ${lead.subsidiary.name}` : null} />
+            <Field label="Currency" value={lead.currency ? `${lead.currency.code} – ${lead.currency.name}` : null} />
             <Field label="Created" value={fmtDate(lead.createdAt)} />
             <Field label="Last Contacted" value={fmtDate(lead.lastContactedAt)} />
             <Field label="Qualified At" value={fmtDate(lead.qualifiedAt)} />

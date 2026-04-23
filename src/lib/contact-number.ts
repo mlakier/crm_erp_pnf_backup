@@ -1,30 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const CONTACT_NUMBER_PREFIX = 'CONT-'
-const CONTACT_NUMBER_WIDTH = 6
-
-export function formatContactNumber(sequence: number) {
-  return `${CONTACT_NUMBER_PREFIX}${String(sequence).padStart(CONTACT_NUMBER_WIDTH, '0')}`
+export function formatContactNumber(sequence: number, config = DEFAULT_ID_SETTINGS.contact) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextContactNumber() {
-  const latestContact = await prisma.contact.findFirst({
-    where: {
-      contactNumber: {
-        not: null,
-      },
-    },
-    orderBy: {
-      contactNumber: 'desc',
-    },
-    select: {
-      contactNumber: true,
-    },
+  const config = await loadIdSetting('contact')
+  const latestContacts = await prisma.contact.findMany({
+    where: { contactNumber: { startsWith: config.prefix } },
+    orderBy: { contactNumber: 'desc' },
+    select: { contactNumber: true },
+    take: 200,
   })
-
-  const latestSequence = latestContact?.contactNumber
-    ? Number.parseInt(latestContact.contactNumber.replace(CONTACT_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatContactNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestContacts.map((contact) => contact.contactNumber), config)
+  return formatContactNumber(nextSequence, config)
 }

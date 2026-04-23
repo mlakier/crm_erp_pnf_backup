@@ -7,10 +7,6 @@ const INCLUDE = {
   vendor: true,
 } as const
 
-function parseBoolean(value: unknown) {
-  return value === true || value === 'true'
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

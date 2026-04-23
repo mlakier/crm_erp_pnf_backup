@@ -1,3 +1,5 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type VendorFormFieldKey =
   | 'vendorNumber'
   | 'name'
@@ -13,6 +15,8 @@ export type VendorFormFieldMeta = {
   id: VendorFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -38,9 +42,9 @@ export const VENDOR_FORM_FIELDS: VendorFormFieldMeta[] = [
   { id: 'phone', label: 'Phone', fieldType: 'text', description: 'Primary vendor phone number.' },
   { id: 'address', label: 'Address', fieldType: 'address', description: 'Mailing or remittance address for the vendor.' },
   { id: 'taxId', label: 'Tax ID', fieldType: 'text', description: 'Tax identifier for the vendor.' },
-  { id: 'primarySubsidiaryId', label: 'Primary Subsidiary', fieldType: 'list', source: 'Subsidiaries master data', description: 'Default legal entity context for this vendor.' },
-  { id: 'primaryCurrencyId', label: 'Primary Currency', fieldType: 'list', source: 'Currencies master data', description: 'Default transaction currency for this vendor.' },
-  { id: 'inactive', label: 'Inactive', fieldType: 'boolean', description: 'Marks the vendor unavailable for new activity while preserving history.' },
+  { id: 'primarySubsidiaryId', label: 'Primary Subsidiary', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Default subsidiary context for this vendor.' },
+  { id: 'primaryCurrencyId', label: 'Primary Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Default transaction currency for this vendor.' },
+  { id: 'inactive', label: 'Inactive', fieldType: 'list', sourceType: 'system', sourceKey: 'activeInactive', source: getListSourceText({ sourceType: 'system', sourceKey: 'activeInactive' }), description: 'Marks the vendor unavailable for new activity while preserving history.' },
 ]
 
 export const DEFAULT_VENDOR_FORM_SECTIONS = [

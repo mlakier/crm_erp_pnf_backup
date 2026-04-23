@@ -1,0 +1,88 @@
+{
+  "idSettings": {
+    "user": {
+      "prefix": "USER-",
+      "digits": 5
+    },
+    "chartOfAccount": {
+      "prefix": "GL-",
+      "digits": 5
+    },
+    "department": {
+      "prefix": "DEPT-",
+      "digits": 5
+    },
+    "item": {
+      "prefix": "ITEM-",
+      "digits": 6
+    },
+    "contact": {
+      "prefix": "CONT-",
+      "digits": 6
+    },
+    "customer": {
+      "prefix": "CUST-",
+      "digits": 6
+    },
+    "vendor": {
+      "prefix": "VEND-",
+      "digits": 6
+    },
+    "subsidiary": {
+      "prefix": "SUB-",
+      "digits": 3
+    },
+    "currency": {
+      "prefix": "CUR-",
+      "digits": 5
+    },
+    "location": {
+      "prefix": "LOC-",
+      "digits": 5
+    },
+    "lead": {
+      "prefix": "LEAD-",
+      "digits": 6
+    },
+    "opportunity": {
+      "prefix": "OPP-",
+      "digits": 6
+    },
+    "quote": {
+      "prefix": "QUO-",
+      "digits": 6
+    },
+    "salesOrder": {
+      "prefix": "SO-",
+      "digits": 6
+    },
+    "purchaseRequisition": {
+      "prefix": "PR-",
+      "digits": 6
+    },
+    "purchaseOrder": {
+      "prefix": "PO-",
+      "digits": 6
+    },
+    "invoice": {
+      "prefix": "INV-",
+      "digits": 6
+    },
+    "invoiceReceipt": {
+      "prefix": "IR-",
+      "digits": 6
+    },
+    "bill": {
+      "prefix": "BILL-",
+      "digits": 6
+    },
+    "fulfillment": {
+      "prefix": "FUL-",
+      "digits": 6
+    },
+    "billPayment": {
+      "prefix": "BP-",
+      "digits": 6
+    }
+  }
+}

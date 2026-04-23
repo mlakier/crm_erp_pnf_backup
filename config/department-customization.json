@@ -1,5 +1,9 @@
 {
   "fields": {
+    "departmentNumber": {
+      "visible": true,
+      "required": false
+    },
     "description": {
       "visible": true,
       "required": false
@@ -8,33 +12,54 @@
       "visible": true,
       "required": false
     },
-    "entityId": {
+    "subsidiaryIds": {
       "visible": true,
       "required": false
     },
-    "managerId": {
+    "includeChildren": {
+      "visible": true,
+      "required": false
+    },
+    "planningCategory": {
+      "visible": true,
+      "required": false
+    },
+    "managerEmployeeId": {
+      "visible": true,
+      "required": false
+    },
+    "approverEmployeeId": {
       "visible": true,
       "required": false
     }
   },
   "listBindings": {
-    "divisionCustomListId": "86bc9a4e-cd4a-443d-9e5c-064bae74e98c"
+    "divisionCustomListId": "86bc9a4e-cd4a-443d-9e5c-064bae74e98c",
+    "divisionDefaultValue": null
   },
   "tableVisibility": {
+    "departmentNumber": true,
     "name": true,
     "description": true,
     "division": true,
-    "subsidiary": true,
+    "subsidiaries": true,
+    "includeChildren": true,
+    "planningCategory": true,
     "manager": true,
+    "approver": true,
     "status": true
   },
   "columnOrder": [
     "department-id",
     "name",
-    "division",
+    "department-number",
     "description",
-    "subsidiary",
+    "division",
+    "subsidiaries",
+    "include-children",
+    "planning-category",
     "manager",
+    "approver",
     "status",
     "created",
     "last-modified",

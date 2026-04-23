@@ -4,6 +4,8 @@ import {
   type MasterDataColumn,
   withMasterDataDefaults,
 } from '@/lib/master-data-columns'
+import { ITEM_FORM_FIELDS } from '@/lib/item-form-customization'
+import { ID_NEWEST_OLDEST_NAME_SORT_OPTIONS } from '@/lib/record-list-sort'
 
 export type MasterDataListDefinition = {
   columns: MasterDataColumn[]
@@ -14,50 +16,81 @@ export type MasterDataListDefinition = {
   compactExport?: boolean
 }
 
-const NEWEST_OLDEST_NAME_SORT_OPTIONS: MasterDataListSortOption[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'oldest', label: 'Oldest' },
-  { value: 'name', label: 'Name A-Z' },
-]
-
 export const currencyListDefinition: MasterDataListDefinition = {
   columns: [
     { id: 'currency-id', label: 'Currency Id' },
+    { id: 'code', label: 'Code' },
     { id: 'name', label: 'Name' },
     { id: 'symbol', label: 'Symbol' },
     { id: 'decimals', label: 'Decimals' },
     { id: 'inactive', label: 'Inactive' },
-    { id: 'created', label: 'Created' },
-    { id: 'last-modified', label: 'Last Modified' },
+    { id: 'created', label: 'Created', defaultVisible: false },
+    { id: 'last-modified', label: 'Last Modified', defaultVisible: false },
     { id: 'actions', label: 'Actions', locked: true },
   ],
-  searchPlaceholder: 'Search Currency Id or name',
+  searchPlaceholder: 'Search Currency Id, code, or name',
   tableId: 'currencies-list',
   exportFileName: 'currencies',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
+}
+
+export const locationListDefinition: MasterDataListDefinition = {
+  columns: [
+    { id: 'location-id', label: 'Location Id' },
+    { id: 'code', label: 'Code' },
+    { id: 'name', label: 'Name' },
+    { id: 'subsidiary', label: 'Subsidiary' },
+    { id: 'parent-location', label: 'Parent Location' },
+    { id: 'location-type', label: 'Location Type' },
+    { id: 'make-inventory-available', label: 'Make Inventory Available' },
+    { id: 'address', label: 'Address' },
+    { id: 'inactive', label: 'Inactive' },
+    { id: 'created', label: 'Created', defaultVisible: false },
+    { id: 'last-modified', label: 'Last Modified', defaultVisible: false },
+    { id: 'actions', label: 'Actions', locked: true },
+  ],
+  searchPlaceholder: 'Search Location Id, code, name, subsidiary, type, or address',
+  tableId: 'locations-list',
+  exportFileName: 'locations',
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
+}
+
+export const managedListDefinition: MasterDataListDefinition = {
+  columns: [
+    { id: 'list-key', label: 'List Key' },
+    { id: 'list-name', label: 'Name' },
+    { id: 'where-used', label: 'Where Used' },
+    { id: 'values', label: 'Values' },
+    { id: 'display-order', label: 'Display Order' },
+    { id: 'type', label: 'Type' },
+    { id: 'actions', label: 'Actions', locked: true },
+  ],
+  searchPlaceholder: 'Search list key, name, or where used',
+  tableId: 'managed-lists-list',
+  exportFileName: 'managed_lists',
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const itemListDefinition: MasterDataListDefinition = {
   columns: [
-    { id: 'item-id', label: 'Item Id' },
-    { id: 'name', label: 'Name' },
-    { id: 'sku', label: 'SKU' },
-    { id: 'type', label: 'Item Type' },
-    { id: 'price', label: 'Price' },
-    { id: 'subsidiary', label: 'Subsidiary' },
-    { id: 'currency', label: 'Currency' },
-    { id: 'revenue-stream', label: 'Revenue Stream' },
-    { id: 'recognition-method', label: 'Recognition Method' },
-    { id: 'rev-rec-template', label: 'Rev Rec Template' },
-    { id: 'ssp', label: 'SSP' },
-    { id: 'standard-cost', label: 'Standard Cost' },
-    { id: 'income-account', label: 'Income Account' },
-    { id: 'deferred-revenue-account', label: 'Deferred Revenue Account' },
-    { id: 'inventory-account', label: 'Inventory Account' },
-    { id: 'cogs-expense-account', label: 'COGS / Expense Account' },
-    { id: 'deferred-cost-account', label: 'Deferred Cost Account' },
-    { id: 'direct-revenue-posting', label: 'Direct Revenue Posting' },
-    { id: 'inactive', label: 'Inactive' },
+    { id: 'itemId', label: 'Item Id', defaultVisible: true },
+    { id: 'name', label: 'Name', defaultVisible: true },
+    ...ITEM_FORM_FIELDS.filter((field) => field.id !== 'itemId' && field.id !== 'name').map((field) => ({
+      id: field.id,
+      label: field.id === 'defaultRevRecTemplateId' ? 'Rev Rec Template' : field.label,
+      defaultVisible: [
+        'sku',
+        'itemType',
+        'listPrice',
+        'subsidiaryIds',
+        'currencyId',
+        'itemCategory',
+        'revenueStream',
+        'incomeAccountId',
+        'standardCost',
+        'directRevenuePosting',
+      ].includes(field.id),
+    })),
     { id: 'created', label: 'Created' },
     { id: 'last-modified', label: 'Last Modified' },
     { id: 'actions', label: 'Actions', locked: true },
@@ -65,60 +98,73 @@ export const itemListDefinition: MasterDataListDefinition = {
   searchPlaceholder: 'Search name, Item Id, SKU',
   tableId: 'items-list',
   exportFileName: 'items',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const chartOfAccountsListDefinition: MasterDataListDefinition = {
   columns: [
     { id: 'account-id', label: 'Account Id' },
+    { id: 'account-number', label: 'Account Number' },
     { id: 'name', label: 'Name' },
+    { id: 'description', label: 'Description' },
     { id: 'type', label: 'Account Type' },
     { id: 'normal-balance', label: 'Normal Balance' },
+    { id: 'fs-section', label: 'FS Section' },
     { id: 'fs-group', label: 'FS Group' },
     { id: 'posting', label: 'Posting' },
     { id: 'control', label: 'Control' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'summary', label: 'Summary' },
     { id: 'subsidiaries', label: 'Subsidiaries' },
+    { id: 'include-children', label: 'Include Children' },
     { id: 'created', label: 'Created' },
     { id: 'actions', label: 'Actions', locked: true },
   ],
-  searchPlaceholder: 'Search Account Id, name, type',
+  searchPlaceholder: 'Search Account Id, Account Number, name, type',
   tableId: 'chart-of-accounts-list',
   exportFileName: 'chart_of_accounts',
   sortOptions: [
+    { value: 'id', label: 'Id' },
     { value: 'newest', label: 'Newest' },
     { value: 'oldest', label: 'Oldest' },
-    { value: 'account', label: 'Account #' },
+    { value: 'name', label: 'Name A-Z' },
   ],
 }
 
 export const departmentListDefinition: MasterDataListDefinition = {
   columns: [
     { id: 'department-id', label: 'Department Id' },
+    { id: 'department-number', label: 'Department Number' },
     { id: 'name', label: 'Name' },
     { id: 'description', label: 'Description' },
     { id: 'division', label: 'Division' },
-    { id: 'subsidiary', label: 'Subsidiary' },
+    { id: 'subsidiaries', label: 'Subsidiaries' },
+    { id: 'include-children', label: 'Include Children' },
+    { id: 'planning-category', label: 'Planning Category' },
     { id: 'manager', label: 'Manager' },
+    { id: 'approver', label: 'Approver' },
     { id: 'status', label: 'Inactive' },
     { id: 'created', label: 'Created' },
     { id: 'last-modified', label: 'Last Modified' },
     { id: 'actions', label: 'Actions', locked: true },
   ],
-  searchPlaceholder: 'Search Department Id, name, description, or division',
+  searchPlaceholder: 'Search Department Id, Department Number, name, description, or division',
   tableId: 'departments-list',
   exportFileName: 'departments',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const departmentColumnLabels: Record<string, string> = {
   'department-id': 'Department Id',
+  'department-number': 'Department Number',
   name: 'Name',
   description: 'Description',
   division: 'Division',
-  subsidiary: 'Subsidiary',
+  subsidiaries: 'Subsidiaries',
+  'include-children': 'Include Children',
+  'planning-category': 'Planning Category',
   manager: 'Manager',
+  approver: 'Approver',
   status: 'Inactive',
   created: 'Created',
   'last-modified': 'Last Modified',
@@ -148,28 +194,31 @@ export const subsidiaryListDefinition: MasterDataListDefinition = {
   searchPlaceholder: 'Search subsidiary id or name',
   tableId: 'subsidiaries-list',
   exportFileName: 'subsidiaries',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
   compactExport: true,
 }
 
 export const employeeListDefinition: MasterDataListDefinition = {
   columns: [
     { id: 'employee-id', label: 'Employee Id' },
+    { id: 'eid', label: 'EID' },
     { id: 'name', label: 'Name' },
     { id: 'email', label: 'Email' },
     { id: 'title', label: 'Title' },
+    { id: 'labor-type', label: 'Labor Type' },
     { id: 'department', label: 'Department' },
-    { id: 'subsidiary', label: 'Subsidiary' },
+    { id: 'subsidiaries', label: 'Subsidiaries' },
+    { id: 'include-children', label: 'Include Children' },
     { id: 'linked-user', label: 'Linked User' },
     { id: 'inactive', label: 'Inactive' },
     { id: 'created', label: 'Created' },
     { id: 'last-modified', label: 'Last Modified' },
     { id: 'actions', label: 'Actions', locked: true },
   ],
-  searchPlaceholder: 'Search name or email',
+  searchPlaceholder: 'Search employee id, EID, name or email',
   tableId: 'employees-list',
   exportFileName: 'employees',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const userListDefinition: MasterDataListDefinition = {
@@ -179,16 +228,22 @@ export const userListDefinition: MasterDataListDefinition = {
     { id: 'email', label: 'Email' },
     { id: 'role', label: 'Role' },
     { id: 'department', label: 'Department' },
+    { id: 'default-subsidiary', label: 'Default Subsidiary' },
+    { id: 'subsidiaries', label: 'Subsidiaries' },
+    { id: 'include-children', label: 'Include Children' },
+    { id: 'approval-limit', label: 'Approval Limit', defaultVisible: false },
+    { id: 'delegated-approver', label: 'Delegated Approver', defaultVisible: false },
+    { id: 'locked', label: 'Locked', defaultVisible: false },
     { id: 'employee', label: 'Linked Employee' },
     { id: 'inactive', label: 'Inactive' },
     { id: 'created', label: 'Created' },
     { id: 'last-modified', label: 'Last Modified' },
     { id: 'actions', label: 'Actions', locked: true },
   ]),
-  searchPlaceholder: 'Search user #, name, email or role',
+  searchPlaceholder: 'Search user #, name, email, role, or subsidiary',
   tableId: 'users-list',
   exportFileName: 'users',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const roleListDefinition: MasterDataListDefinition = {
@@ -207,7 +262,7 @@ export const roleListDefinition: MasterDataListDefinition = {
   searchPlaceholder: 'Search role',
   tableId: 'roles-list',
   exportFileName: 'roles',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const contactListDefinition: MasterDataListDefinition = {
@@ -215,7 +270,8 @@ export const contactListDefinition: MasterDataListDefinition = {
     idColumnId: 'contact-number',
     idLabel: 'Contact Id',
     extraColumns: [
-      { id: 'customer', label: 'Customer' },
+      { id: 'account-type', label: 'Account Type' },
+      { id: 'account', label: 'Account' },
       { id: 'email', label: 'Email' },
       { id: 'phone', label: 'Phone' },
       { id: 'address', label: 'Address' },
@@ -223,10 +279,10 @@ export const contactListDefinition: MasterDataListDefinition = {
     ],
     includeActionsColumn: true,
   }),
-  searchPlaceholder: 'Search contact ID, name, customer, email, phone',
+  searchPlaceholder: 'Search contact ID, name, customer, vendor, email, phone',
   tableId: 'contacts-list',
   exportFileName: 'contacts',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const customerListDefinition: MasterDataListDefinition = {
@@ -244,7 +300,7 @@ export const customerListDefinition: MasterDataListDefinition = {
   searchPlaceholder: 'Search customer #, name, email, industry',
   tableId: 'customers-list',
   exportFileName: 'customers',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
 export const vendorListDefinition: MasterDataListDefinition = {
@@ -265,5 +321,5 @@ export const vendorListDefinition: MasterDataListDefinition = {
   searchPlaceholder: 'Search vendor id, name, email, phone, tax id',
   tableId: 'vendors-list',
   exportFileName: 'vendors',
-  sortOptions: NEWEST_OLDEST_NAME_SORT_OPTIONS,
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }

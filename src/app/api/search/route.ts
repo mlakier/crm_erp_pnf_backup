@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 const PAGES = [
   { label: 'Dashboard',             href: '/dashboard' },
   { label: 'Company Information',   href: '/company-information' },
+  { label: 'Company Prefs',         href: '/company-preferences' },
   { label: 'File Cabinet',          href: '/company-information/file-cabinet' },
   { label: 'Manage Lists',          href: '/lists' },
   { label: 'Manage Integrations',   href: '/integrations' },
@@ -17,6 +18,7 @@ const PAGES = [
   { label: 'Vendors',               href: '/vendors' },
   { label: 'Subsidiaries',          href: '/subsidiaries' },
   { label: 'Currencies',            href: '/currencies' },
+  { label: 'Locations',             href: '/locations' },
   { label: 'Items',                 href: '/items' },
   { label: 'Chart of Accounts',     href: '/chart-of-accounts' },
   { label: 'Departments',           href: '/departments' },
@@ -44,7 +46,7 @@ type Hit = { type: 'page' | 'record' | 'list' | 'listValue' | 'field' | 'fieldVa
 
 async function searchRecords(q: string, limit: number): Promise<Hit[]> {
   const hits: Hit[] = []
-  const [customers, contacts, vendors, leads, items, employees, departments, opportunities] = await Promise.all([
+  const [customers, contacts, vendors, leads, items, employees, departments, locations, opportunities] = await Promise.all([
     prisma.customer.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { customerId: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, customerId: true } }),
     prisma.contact.findMany({ where: { OR: [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, firstName: true, lastName: true, email: true } }),
     prisma.vendor.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { vendorNumber: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, vendorNumber: true } }),
@@ -52,6 +54,19 @@ async function searchRecords(q: string, limit: number): Promise<Hit[]> {
     prisma.item.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { itemId: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, itemId: true } }),
     prisma.employee.findMany({ where: { OR: [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, firstName: true, lastName: true } }),
     prisma.department.findMany({ where: { name: { contains: q, mode: 'insensitive' } }, take: limit, select: { id: true, name: true } }),
+    prisma.location.findMany({
+      where: {
+        OR: [
+          { locationId: { contains: q, mode: 'insensitive' } },
+          { code: { contains: q, mode: 'insensitive' } },
+          { name: { contains: q, mode: 'insensitive' } },
+          { subsidiary: { is: { subsidiaryId: { contains: q, mode: 'insensitive' } } } },
+          { subsidiary: { is: { name: { contains: q, mode: 'insensitive' } } } },
+        ],
+      },
+      take: limit,
+      select: { id: true, locationId: true, code: true, name: true, subsidiary: { select: { subsidiaryId: true } } },
+    }),
     prisma.opportunity.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { opportunityNumber: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, opportunityNumber: true } }),
   ])
 
@@ -62,6 +77,7 @@ async function searchRecords(q: string, limit: number): Promise<Hit[]> {
   for (const r of items) hits.push({ type: 'record', label: r.name, href: `/items/${r.id}`, detail: `Item ${r.itemId || ''}` })
   for (const r of employees) hits.push({ type: 'record', label: `${r.firstName} ${r.lastName}`, href: `/employees/${r.id}`, detail: 'Employee' })
   for (const r of departments) hits.push({ type: 'record', label: r.name, href: `/departments/${r.id}`, detail: 'Department' })
+  for (const r of locations) hits.push({ type: 'record', label: r.name, href: '/locations', detail: `${r.locationId} - ${r.code}${r.subsidiary ? ` - ${r.subsidiary.subsidiaryId}` : ''}` })
   for (const r of opportunities) hits.push({ type: 'record', label: r.name, href: `/opportunities/${r.id}`, detail: `Opportunity ${r.opportunityNumber || ''}` })
 
   return hits

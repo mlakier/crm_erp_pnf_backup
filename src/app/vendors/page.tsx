@@ -1,10 +1,9 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtPhone, normalizePhone } from '@/lib/format'
-import VendorCreateForm from '@/components/VendorCreateForm'
+import CreatePageLinkButton from '@/components/CreatePageLinkButton'
 import DeleteButton from '@/components/DeleteButton'
 import EditButton from '@/components/EditButton'
-import CreateModalButton from '@/components/CreateModalButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -14,7 +13,10 @@ import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/ma
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadVendorFormCustomization } from '@/lib/vendor-form-customization-store'
+import { VENDOR_FORM_FIELDS } from '@/lib/vendor-form-customization'
 import { vendorListDefinition } from '@/lib/master-data-list-definitions'
+import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 export default async function VendorsPage({
   searchParams,
@@ -23,39 +25,43 @@ export default async function VendorsPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const vendorFieldMetaById = buildFieldMetaById(VENDOR_FORM_FIELDS)
 
   const where = query
     ? {
         OR: [
-          { vendorNumber: { contains: query } },
-          { name: { contains: query } },
-          { email: { contains: query } },
-          { phone: { contains: query } },
-          { taxId: { contains: query } },
+          { vendorNumber: { contains: query, mode: 'insensitive' as const } },
+          { name: { contains: query, mode: 'insensitive' as const } },
+          { email: { contains: query, mode: 'insensitive' as const } },
+          { phone: { contains: query, mode: 'insensitive' as const } },
+          { taxId: { contains: query, mode: 'insensitive' as const } },
         ],
       }
     : {}
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ vendorNumber: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'name'
         ? [{ name: 'asc' as const }]
         : [{ createdAt: 'desc' as const }]
 
-  const [totalVendors, subsidiaries, currencies, companyLogoPages, formCustomization] = await Promise.all([
+  const [totalVendors, subsidiaries, currencies, companyLogoPages, fieldOptions, formCustomization] = await Promise.all([
     prisma.vendor.count({ where }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
+    prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, currencyId: true, code: true, name: true } }),
     loadCompanyPageLogo(),
+    loadFieldOptionsMap(vendorFieldMetaById, ['inactive']),
     loadVendorFormCustomization(),
   ])
   const pagination = getPagination(totalVendors, params.page)
 
   const vendors = await prisma.vendor.findMany({
     where,
-    include: { entity: true, currency: true },
+    include: { subsidiary: true, currency: true },
     orderBy,
     skip: pagination.skip,
     take: pagination.pageSize,
@@ -76,9 +82,7 @@ export default async function VendorsPage({
         total={totalVendors}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Vendor" title="New Vendor">
-            <VendorCreateForm subsidiaries={subsidiaries} currencies={currencies} />
-          </CreateModalButton>
+          <CreatePageLinkButton href="/vendors/new" label="New Vendor" />
         }
       />
 
@@ -119,8 +123,8 @@ export default async function VendorsPage({
                   </Link>
                 </MasterDataBodyCell>
                 <MasterDataBodyCell columnId="name" className="whitespace-nowrap px-4 py-2 text-sm text-white">{vendor.name}</MasterDataBodyCell>
-                <MasterDataMutedCell columnId="subsidiary" className="whitespace-nowrap px-4 py-2 text-sm">{vendor.entity ? `${vendor.entity.subsidiaryId} (${vendor.entity.name})` : '-'}</MasterDataMutedCell>
-                <MasterDataMutedCell columnId="currency" className="whitespace-nowrap px-4 py-2 text-sm">{vendor.currency?.currencyId ?? '-'}</MasterDataMutedCell>
+                <MasterDataMutedCell columnId="subsidiary" className="whitespace-nowrap px-4 py-2 text-sm">{vendor.subsidiary ? `${vendor.subsidiary.subsidiaryId} (${vendor.subsidiary.name})` : '-'}</MasterDataMutedCell>
+                <MasterDataMutedCell columnId="currency" className="whitespace-nowrap px-4 py-2 text-sm">{vendor.currency?.code ?? '-'}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="email" className="whitespace-nowrap px-4 py-2 text-sm">{vendor.email ?? '-'}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="phone" className="whitespace-nowrap px-4 py-2 text-sm">{fmtPhone(vendor.phone)}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="address" className="whitespace-nowrap px-4 py-2 text-sm">{vendor.address ?? '-'}</MasterDataMutedCell>
@@ -144,7 +148,7 @@ export default async function VendorsPage({
                           ? [{
                               name: 'primarySubsidiaryId',
                               label: 'Primary Subsidiary',
-                              value: vendor.entityId ?? '',
+                              value: vendor.subsidiaryId ?? '',
                               type: 'select' as const,
                               options: [{ value: '', label: 'None' }, ...subsidiaries.map((subsidiary) => ({ value: subsidiary.id, label: `${subsidiary.subsidiaryId} - ${subsidiary.name}` }))],
                             }]
@@ -155,7 +159,7 @@ export default async function VendorsPage({
                               label: 'Primary Currency',
                               value: vendor.currencyId ?? '',
                               type: 'select' as const,
-                              options: [{ value: '', label: 'None' }, ...currencies.map((currency) => ({ value: currency.id, label: `${currency.currencyId} - ${currency.name}` }))],
+                              options: [{ value: '', label: 'None' }, ...currencies.map((currency) => ({ value: currency.id, label: `${currency.code} - ${currency.name}` }))],
                             }]
                           : []),
                         ...(formCustomization.fields.inactive.visible
@@ -164,7 +168,7 @@ export default async function VendorsPage({
                               label: 'Inactive',
                               value: String(vendor.inactive),
                               type: 'select' as const,
-                              options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
+                              options: fieldOptions.inactive ?? [],
                             }]
                           : []),
                       ]}

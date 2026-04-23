@@ -18,9 +18,11 @@ type ListInputRow = {
 type ListStoreClient = Prisma.TransactionClient | typeof prisma
 
 function getListCode(page: ListPageKey, list: string): string {
-  if (page === 'customer' && list === 'industry') return 'INDUSTRY'
+  if (page === 'customer' && list === 'industry') return 'CUST-INDUSTRY'
   if (page === 'item' && list === 'type') return 'ITEM-TYPE'
   if (page === 'lead' && list === 'source') return 'LEAD-SRC'
+  if (page === 'lead' && list === 'rating') return 'LEAD-RATING'
+  if (page === 'lead' && list === 'status') return 'LEAD-STATUS'
   if (page === 'opportunity' && list === 'stage') return 'OPP-STAGE'
   throw new Error(`Unsupported list ${page}.${list}`)
 }
@@ -34,18 +36,6 @@ function parseListIdSequence(id: string, code: string): number | null {
   if (!match) return null
   const sequence = Number.parseInt(match[1], 10)
   return Number.isNaN(sequence) ? null : sequence
-}
-
-function createSeedRows(values: string[], code: string) {
-  return values.map((value, index) => ({
-    id: formatListId(code, index + 1),
-    value,
-    sortOrder: index,
-  }))
-}
-
-function toListValueRows(rows: Array<{ id: string; value: string; sortOrder: number }>): ListValueRow[] {
-  return rows.map((row) => ({ id: row.id, value: row.value, sortOrder: row.sortOrder }))
 }
 
 function getListDefaults(page: ListPageKey, list: string): string[] {
@@ -181,7 +171,7 @@ async function ensureDefaults() {
 
   // Ensure defaults for unified ListOption table
   const codes = [
-    { code: 'INDUSTRY', values: defaults.customer.industry },
+    { code: 'CUST-INDUSTRY', values: defaults.customer.industry },
     { code: 'ITEM-TYPE', values: defaults.item.type },
     { code: 'LEAD-SRC', values: defaults.lead.source },
     { code: 'OPP-STAGE', values: defaults.opportunity.stage },
@@ -204,33 +194,14 @@ async function ensureDefaults() {
   }
 }
 
-async function normalizeLegacyIds() {
-  await prisma.$transaction(async (tx) => {
-    const targets: Array<{ page: ListPageKey; list: string }> = [
-      { page: 'customer', list: 'industry' },
-      { page: 'item', list: 'type' },
-      { page: 'lead', list: 'source' },
-      { page: 'opportunity', list: 'stage' },
-    ]
-
-    for (const target of targets) {
-      const code = getListCode(target.page, target.list)
-      const rows = await readListRows(tx, target.page, target.list)
-      const hasLegacyIds = rows.some((row) => parseListIdSequence(row.id, code) === null)
-      if (!hasLegacyIds) continue
-
-      const values = rows.map((row) => row.value)
-      await replaceSingleList(tx, target.page, target.list, values, rows)
-    }
-  })
-}
-
 function rowsToConfig(rows: ListValueRowsConfig): ListOptionsConfig {
   return mergeListConfig({
     customer: { industry: rows.customer.industry.map((row) => row.value) },
     item: { type: rows.item.type.map((row) => row.value) },
     lead: {
       source: rows.lead.source.map((row) => row.value),
+      rating: rows.lead.rating.map((row) => row.value),
+      status: rows.lead.status.map((row) => row.value),
     },
     opportunity: { stage: rows.opportunity.stage.map((row) => row.value) },
   })
@@ -239,17 +210,19 @@ function rowsToConfig(rows: ListValueRowsConfig): ListOptionsConfig {
 export async function loadListOptionRows(): Promise<ListValueRowsConfig> {
   await ensureDefaults()
 
-  const [customerIndustry, itemType, leadSource, opportunityStage] = await Promise.all([
+  const [customerIndustry, itemType, leadSource, leadRating, leadStatus, opportunityStage] = await Promise.all([
     readListRows(prisma, 'customer', 'industry'),
     readListRows(prisma, 'item', 'type'),
     readListRows(prisma, 'lead', 'source'),
+    readListRows(prisma, 'lead', 'rating'),
+    readListRows(prisma, 'lead', 'status'),
     readListRows(prisma, 'opportunity', 'stage'),
   ])
 
   return {
     customer: { industry: customerIndustry },
     item: { type: itemType },
-    lead: { source: leadSource },
+    lead: { source: leadSource, rating: leadRating, status: leadStatus },
     opportunity: { stage: opportunityStage },
   }
 }

@@ -13,11 +13,13 @@ export type TransactionSummaryField = {
 export default function TransactionFieldSummarySection({
   title,
   count = 0,
+  description,
   fields,
   columns = 2,
 }: {
   title: string
   count?: number
+  description?: string
   fields: TransactionSummaryField[]
   columns?: 1 | 2 | 3 | 4
 }) {
@@ -25,6 +27,11 @@ export default function TransactionFieldSummarySection({
 
   return (
     <RecordDetailSection title={title} count={count}>
+      {description ? (
+        <p className="px-6 pt-6 text-xs" style={{ color: 'var(--text-muted)' }}>
+          {description}
+        </p>
+      ) : null}
       <dl
         className="grid gap-3 px-6 py-6"
         style={{ gridTemplateColumns: `repeat(${normalizedColumns}, minmax(0, 1fr))` }}

@@ -20,7 +20,7 @@ export default function GlobalSearch() {
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /* ── Keyboard shortcut: Ctrl+K / Cmd+K ──────────────────────── */
   useEffect(() => {
@@ -38,10 +38,12 @@ export default function GlobalSearch() {
   /* ── Focus input when opened ────────────────────────────────── */
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 50)
-      setQuery('')
-      setResults([])
-      setActiveIdx(0)
+      setTimeout(() => {
+        inputRef.current?.focus()
+        setQuery('')
+        setResults([])
+        setActiveIdx(0)
+      }, 50)
     }
   }, [open])
 

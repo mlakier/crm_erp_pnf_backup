@@ -1,3 +1,5 @@
 {
-  "BILL-STATUS": "list"
+  "BILL-STATUS": "list",
+  "ENTITY-TYPE": "list",
+  "EMP-LABOR-TYPE": "list"
 }

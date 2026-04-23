@@ -1,0 +1,153 @@
+{
+  "formColumns": 3,
+  "sections": [
+    "Vendor",
+    "Purchase Order Details"
+  ],
+  "sectionRows": {
+    "Vendor": 3,
+    "Purchase Order Details": 3
+  },
+  "fields": {
+    "vendorName": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 0,
+      "column": 1
+    },
+    "vendorNumber": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 1,
+      "column": 1
+    },
+    "vendorEmail": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 0,
+      "column": 2
+    },
+    "vendorPhone": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 1,
+      "column": 2
+    },
+    "vendorTaxId": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 1,
+      "column": 3
+    },
+    "vendorAddress": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 0,
+      "column": 3
+    },
+    "vendorPrimarySubsidiary": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 2,
+      "column": 1
+    },
+    "vendorPrimaryCurrency": {
+      "visible": true,
+      "section": "Vendor",
+      "order": 2,
+      "column": 2
+    },
+    "vendorInactive": {
+      "visible": false,
+      "section": "Vendor",
+      "order": 2,
+      "column": 3
+    },
+    "number": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 0,
+      "column": 1
+    },
+    "createdBy": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 2,
+      "column": 2
+    },
+    "createdFrom": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 0,
+      "column": 3
+    },
+    "approvedBy": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 0,
+      "column": 2
+    },
+    "subsidiaryId": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 1,
+      "column": 1
+    },
+    "vendorId": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 2,
+      "column": 1
+    },
+    "status": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 1,
+      "column": 2
+    },
+    "total": {
+      "visible": true,
+      "section": "Purchase Order Details",
+      "order": 2,
+      "column": 3
+    }
+  },
+  "lineColumns": {
+    "line": {
+      "visible": true,
+      "order": 0
+    },
+    "item-id": {
+      "visible": true,
+      "order": 1
+    },
+    "description": {
+      "visible": true,
+      "order": 2
+    },
+    "quantity": {
+      "visible": true,
+      "order": 3
+    },
+    "received-qty": {
+      "visible": true,
+      "order": 4
+    },
+    "open-qty": {
+      "visible": true,
+      "order": 5
+    },
+    "billed-qty": {
+      "visible": true,
+      "order": 6
+    },
+    "unit-price": {
+      "visible": true,
+      "order": 7
+    },
+    "line-total": {
+      "visible": true,
+      "order": 8
+    }
+  }
+}

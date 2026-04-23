@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json(values)
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch custom field values' }, { status: 500 })
   }
 }
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       })
       return NextResponse.json(created, { status: 201 })
     }
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to save custom field value' }, { status: 500 })
   }
 }

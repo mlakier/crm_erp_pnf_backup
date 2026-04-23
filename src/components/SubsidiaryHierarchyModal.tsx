@@ -10,7 +10,7 @@ type SubsidiaryHierarchyEntity = {
   country: string | null
   entityType: string | null
   taxId: string | null
-  parentEntityId: string | null
+  parentSubsidiaryId: string | null
 }
 
 export default function SubsidiaryHierarchyModal({ entities, logoUrl, title }: { entities: SubsidiaryHierarchyEntity[]; logoUrl?: string; title?: string }) {

@@ -1,21 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const SALES_ORDER_NUMBER_PREFIX = 'SO-'
-const SALES_ORDER_NUMBER_WIDTH = 6
-
-export function formatSalesOrderNumber(sequence: number) {
-  return `${SALES_ORDER_NUMBER_PREFIX}${String(sequence).padStart(SALES_ORDER_NUMBER_WIDTH, '0')}`
+export function formatSalesOrderNumber(sequence: number, config = DEFAULT_ID_SETTINGS.salesOrder) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextSalesOrderNumber() {
-  const latestOrder = await prisma.salesOrder.findFirst({
+  const config = await loadIdSetting('salesOrder')
+  const latestOrders = await prisma.salesOrder.findMany({
+    where: { number: { startsWith: config.prefix } },
     orderBy: { number: 'desc' },
     select: { number: true },
+    take: 200,
   })
-
-  const latestSequence = latestOrder?.number
-    ? Number.parseInt(latestOrder.number.replace(SALES_ORDER_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatSalesOrderNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestOrders.map((order) => order.number), config)
+  return formatSalesOrderNumber(nextSequence, config)
 }

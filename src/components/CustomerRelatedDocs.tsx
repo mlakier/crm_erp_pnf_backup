@@ -4,7 +4,9 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { fmtCurrency } from '@/lib/format'
 
-type Tab = 'opportunities' | 'quotes' | 'sales-orders' | 'invoices'
+type Tab = 'opportunities' | 'quotes' | 'sales-orders' | 'fulfillments' | 'invoices' | 'invoice-receipts'
+
+type TabTone = 'upstream' | 'downstream'
 
 type Opportunity = {
   id: string
@@ -31,6 +33,15 @@ type SalesOrder = {
   createdAt: string
 }
 
+type Fulfillment = {
+  id: string
+  number: string
+  status: string
+  date: string
+  notes: string | null
+  salesOrderNumber: string
+}
+
 type Invoice = {
   id: string
   number: string
@@ -41,21 +52,35 @@ type Invoice = {
   createdAt: string
 }
 
+type InvoiceReceipt = {
+  id: string
+  number: string | null
+  amount: number
+  date: string
+  method: string | null
+  reference: string | null
+  invoiceNumber: string
+}
+
 interface Props {
   opportunities: Opportunity[]
   quotes: Quote[]
   salesOrders: SalesOrder[]
+  fulfillments: Fulfillment[]
   invoices: Invoice[]
+  invoiceReceipts: InvoiceReceipt[]
 }
 
-export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders, invoices }: Props) {
+export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders, fulfillments, invoices, invoiceReceipts }: Props) {
   const [active, setActive] = useState<Tab>('opportunities')
 
-  const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'opportunities', label: 'Opportunities', count: opportunities.length },
-    { key: 'quotes', label: 'Quotes', count: quotes.length },
-    { key: 'sales-orders', label: 'Sales Orders', count: salesOrders.length },
-    { key: 'invoices', label: 'Invoices', count: invoices.length },
+  const tabs: { key: Tab; label: string; count: number; tone: TabTone }[] = [
+    { key: 'opportunities', label: 'Opportunities', count: opportunities.length, tone: 'upstream' },
+    { key: 'quotes', label: 'Quotes', count: quotes.length, tone: 'upstream' },
+    { key: 'sales-orders', label: 'Sales Orders', count: salesOrders.length, tone: 'downstream' },
+    { key: 'fulfillments', label: 'Fulfillments', count: fulfillments.length, tone: 'downstream' },
+    { key: 'invoices', label: 'Invoices', count: invoices.length, tone: 'downstream' },
+    { key: 'invoice-receipts', label: 'Invoice Receipts', count: invoiceReceipts.length, tone: 'downstream' },
   ]
 
   return (
@@ -65,31 +90,47 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
           Related Documents
         </p>
-        <div className="flex">
+        <div className="flex overflow-x-auto overflow-y-hidden">
           {tabs.map((tab) => {
             const isActive = active === tab.key
+            const palette =
+              tab.tone === 'upstream'
+                ? {
+                    activeBorder: '#f59e0b',
+                    activeText: '#fcd34d',
+                    activeBadgeBg: 'rgba(245,158,11,0.16)',
+                    inactiveBadgeBg: 'rgba(245,158,11,0.1)',
+                    inactiveBadgeText: '#d1a24a',
+                    inactiveText: '#d8b86a',
+                  }
+                : {
+                    activeBorder: 'var(--accent-primary-strong)',
+                    activeText: '#93c5fd',
+                    activeBadgeBg: 'rgba(59,130,246,0.18)',
+                    inactiveBadgeBg: 'rgba(59,130,246,0.1)',
+                    inactiveBadgeText: '#7fb0f8',
+                    inactiveText: '#8ab4f8',
+                  }
             return (
               <button
                 key={tab.key}
                 onClick={() => setActive(tab.key)}
-                className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
+                className="flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
                 style={{
-                  borderColor: isActive ? 'var(--accent-primary-strong)' : 'transparent',
-                  color: isActive ? 'white' : 'var(--text-muted)',
+                  borderColor: isActive ? palette.activeBorder : 'transparent',
+                  color: isActive ? palette.activeText : palette.inactiveText,
                 }}
               >
                 {tab.label}
-                {tab.count > 0 && (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs"
-                    style={{
-                      backgroundColor: isActive ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.07)',
-                      color: isActive ? 'var(--accent-primary-strong)' : 'var(--text-muted)',
-                    }}
-                  >
-                    {tab.count}
-                  </span>
-                )}
+                <span
+                  className="rounded-full px-2 py-0.5 text-xs"
+                  style={{
+                    backgroundColor: isActive ? palette.activeBadgeBg : palette.inactiveBadgeBg,
+                    color: isActive ? palette.activeText : palette.inactiveBadgeText,
+                  }}
+                >
+                  {tab.count}
+                </span>
               </button>
             )
           })}
@@ -225,6 +266,74 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
             </table>
           )
         )}
+
+        {active === 'fulfillments' && (
+          fulfillments.length === 0 ? (
+            <Empty message="No fulfillments yet" />
+          ) : (
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <Th>Number</Th>
+                  <Th>Date</Th>
+                  <Th>Status</Th>
+                  <Th>Sales Order</Th>
+                  <Th>Notes</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {fulfillments.map((fulfillment) => (
+                  <tr key={fulfillment.id}>
+                    <Td>
+                      <Link href={`/fulfillments/${fulfillment.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+                        {fulfillment.number}
+                      </Link>
+                    </Td>
+                    <Td>{new Date(fulfillment.date).toLocaleDateString()}</Td>
+                    <Td><StatusBadge status={fulfillment.status} /></Td>
+                    <Td>{fulfillment.salesOrderNumber}</Td>
+                    <Td>{fulfillment.notes ?? '-'}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        )}
+
+        {active === 'invoice-receipts' && (
+          invoiceReceipts.length === 0 ? (
+            <Empty message="No invoice receipts yet" />
+          ) : (
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <Th>Number</Th>
+                  <Th>Date</Th>
+                  <Th>Amount</Th>
+                  <Th>Method</Th>
+                  <Th>Reference</Th>
+                  <Th>Invoice</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoiceReceipts.map((receipt) => (
+                  <tr key={receipt.id}>
+                    <Td>
+                      <Link href="/invoice-receipts" className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+                        {receipt.number ?? receipt.id}
+                      </Link>
+                    </Td>
+                    <Td>{new Date(receipt.date).toLocaleDateString()}</Td>
+                    <Td>{fmtCurrency(receipt.amount)}</Td>
+                    <Td>{receipt.method ?? '-'}</Td>
+                    <Td>{receipt.reference ?? '-'}</Td>
+                    <Td>{receipt.invoiceNumber}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        )}
       </div>
     </div>
   )
@@ -260,8 +369,11 @@ function StatusBadge({ status }: { status: string }) {
     sent:      { bg: 'rgba(34,197,94,0.16)',   color: '#86efac' },
     accepted:  { bg: 'rgba(34,197,94,0.16)',   color: '#86efac' },
     completed: { bg: 'rgba(34,197,94,0.16)',   color: '#86efac' },
+    fulfilled: { bg: 'rgba(34,197,94,0.16)',   color: '#86efac' },
     approved:  { bg: 'rgba(59,130,246,0.18)',  color: 'var(--accent-primary-strong)' },
     confirmed: { bg: 'rgba(59,130,246,0.18)',  color: 'var(--accent-primary-strong)' },
+    booked:    { bg: 'rgba(59,130,246,0.18)',  color: 'var(--accent-primary-strong)' },
+    pending:   { bg: 'rgba(245,158,11,0.16)',  color: '#fcd34d' },
     overdue:   { bg: 'rgba(239,68,68,0.18)',   color: '#fca5a5' },
     cancelled: { bg: 'rgba(239,68,68,0.18)',   color: '#fca5a5' },
     draft:     { bg: 'rgba(255,255,255,0.07)', color: 'var(--text-muted)' },

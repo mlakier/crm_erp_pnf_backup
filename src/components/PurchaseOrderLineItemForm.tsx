@@ -3,7 +3,17 @@
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function PurchaseOrderLineItemForm({ purchaseOrderId, userId }: { purchaseOrderId: string; userId: string }) {
+export default function PurchaseOrderLineItemForm({
+  purchaseOrderId,
+  userId,
+  embedded = false,
+  onSaved,
+}: {
+  purchaseOrderId: string
+  userId: string
+  embedded?: boolean
+  onSaved?: () => void
+}) {
   const [description, setDescription] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [unitPrice, setUnitPrice] = useState('')
@@ -50,6 +60,7 @@ export default function PurchaseOrderLineItemForm({ purchaseOrderId, userId }: {
       setSaving(false)
       window.setTimeout(() => setSuccess(''), 2200)
       router.refresh()
+      onSaved?.()
       if (createdId) focusRow(`line-item-${createdId}`)
     } catch {
       setError('Unable to add line item')
@@ -58,9 +69,14 @@ export default function PurchaseOrderLineItemForm({ purchaseOrderId, userId }: {
   }
 
   return (
-    <section className="rounded-xl border p-5" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
+    <section
+      className={`${embedded ? 'rounded-lg border p-4' : 'rounded-xl border p-5'}`}
+      style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}
+    >
       {success ? <div className="fixed right-4 top-4 z-50 rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-lg">{success}</div> : null}
-      <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Add Line Item</h3>
+      <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+        Add Line Item
+      </h3>
       <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
         <input
           required

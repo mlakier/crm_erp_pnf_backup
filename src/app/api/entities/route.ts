@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { generateNextEntityCode } from '@/lib/entity-code'
+import { generateNextSubsidiaryCode } from '@/lib/subsidiary-code'
 
 export async function GET() {
-  const data = await prisma.entity.findMany({ include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentEntity: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true }, orderBy: { subsidiaryId: 'asc' } })
+  const data = await prisma.subsidiary.findMany({ include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true }, orderBy: { subsidiaryId: 'asc' } })
   return NextResponse.json(data)
 }
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const defaultCurrencyId = String(body?.defaultCurrencyId ?? '').trim() || null
     const functionalCurrencyId = String(body?.functionalCurrencyId ?? '').trim() || null
     const reportingCurrencyId = String(body?.reportingCurrencyId ?? '').trim() || null
-    const parentEntityId = String(body?.parentEntityId ?? '').trim() || null
+    const parentSubsidiaryId = String(body?.parentSubsidiaryId ?? '').trim() || null
     const consolidationMethod = String(body?.consolidationMethod ?? '').trim() || null
     const ownershipPercentRaw = String(body?.ownershipPercent ?? '').trim()
     const ownershipPercent = ownershipPercentRaw ? Number(body?.ownershipPercent) : null
@@ -30,13 +30,13 @@ export async function POST(request: Request) {
     const dueToAccountId = String(body?.dueToAccountId ?? '').trim() || null
     const dueFromAccountId = String(body?.dueFromAccountId ?? '').trim() || null
     const inactive = String(body?.inactive ?? 'false').trim().toLowerCase() === 'true'
-    const code = await generateNextEntityCode()
+    const code = await generateNextSubsidiaryCode()
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
     }
 
-    const created = await prisma.entity.create({
+    const created = await prisma.subsidiary.create({
       data: {
         subsidiaryId: code,
         name,
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
         defaultCurrencyId,
         functionalCurrencyId,
         reportingCurrencyId,
-        parentEntityId,
+        parentSubsidiaryId,
         consolidationMethod,
         ownershipPercent,
         retainedEarningsAccountId,
@@ -59,13 +59,13 @@ export async function POST(request: Request) {
         dueFromAccountId,
         active: !inactive,
       },
-      include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentEntity: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
+      include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
     })
 
     return NextResponse.json(created, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown server error'
-    return NextResponse.json({ error: `Unable to create entity: ${message}` }, { status: 500 })
+    return NextResponse.json({ error: `Unable to create subsidiary: ${message}` }, { status: 500 })
   }
 }
 
@@ -84,7 +84,7 @@ export async function PUT(request: Request) {
     const defaultCurrencyId = body?.defaultCurrencyId !== undefined ? (String(body.defaultCurrencyId).trim() || null) : undefined
     const functionalCurrencyId = body?.functionalCurrencyId !== undefined ? (String(body.functionalCurrencyId).trim() || null) : undefined
     const reportingCurrencyId = body?.reportingCurrencyId !== undefined ? (String(body.reportingCurrencyId).trim() || null) : undefined
-    const parentEntityId = body?.parentEntityId !== undefined ? (String(body.parentEntityId).trim() || null) : undefined
+    const parentSubsidiaryId = body?.parentSubsidiaryId !== undefined ? (String(body.parentSubsidiaryId).trim() || null) : undefined
     const taxId = body?.taxId !== undefined ? (String(body.taxId).trim() || null) : undefined
     const registrationNumber = body?.registrationNumber !== undefined ? (String(body.registrationNumber).trim() || null) : undefined
     const consolidationMethod = body?.consolidationMethod !== undefined ? (String(body.consolidationMethod).trim() || null) : undefined
@@ -103,21 +103,21 @@ export async function PUT(request: Request) {
         ? String(body.active).trim().toLowerCase() === 'true'
         : undefined
 
-    if (parentEntityId !== undefined && parentEntityId === id) {
+    if (parentSubsidiaryId !== undefined && parentSubsidiaryId === id) {
       return NextResponse.json({ error: 'A subsidiary cannot be its own parent.' }, { status: 400 })
     }
 
-    const updated = await prisma.entity.update({
+    const updated = await prisma.subsidiary.update({
       where: { id },
       data: Object.fromEntries(
-        Object.entries({ subsidiaryId: code, name, legalName, entityType, country, address, defaultCurrencyId, functionalCurrencyId, reportingCurrencyId, parentEntityId, taxId, registrationNumber, consolidationMethod, ownershipPercent, retainedEarningsAccountId, ctaAccountId, intercompanyClearingAccountId, dueToAccountId, dueFromAccountId, active }).filter(([, v]) => v !== undefined)
+        Object.entries({ subsidiaryId: code, name, legalName, entityType, country, address, defaultCurrencyId, functionalCurrencyId, reportingCurrencyId, parentSubsidiaryId, taxId, registrationNumber, consolidationMethod, ownershipPercent, retainedEarningsAccountId, ctaAccountId, intercompanyClearingAccountId, dueToAccountId, dueFromAccountId, active }).filter(([, v]) => v !== undefined)
       ),
-      include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentEntity: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
+      include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
     })
     return NextResponse.json(updated)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown server error'
-    return NextResponse.json({ error: `Unable to update entity: ${message}` }, { status: 500 })
+    return NextResponse.json({ error: `Unable to update subsidiary: ${message}` }, { status: 500 })
   }
 }
 
@@ -126,10 +126,10 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-    await prisma.entity.delete({ where: { id } })
+    await prisma.subsidiary.delete({ where: { id } })
     return NextResponse.json({ ok: true })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown server error'
-    return NextResponse.json({ error: `Unable to delete entity: ${message}` }, { status: 500 })
+    return NextResponse.json({ error: `Unable to delete subsidiary: ${message}` }, { status: 500 })
   }
 }

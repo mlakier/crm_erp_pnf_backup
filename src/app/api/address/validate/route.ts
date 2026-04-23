@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
         country: normalizedCountry,
       },
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ valid: false, error: 'Address validation failed' }, { status: 500 })
   }
 }

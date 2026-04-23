@@ -1,3 +1,5 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type RoleFormFieldKey =
   | 'roleId'
   | 'name'
@@ -8,6 +10,8 @@ export type RoleFormFieldMeta = {
   id: RoleFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -30,7 +34,7 @@ export const ROLE_FORM_FIELDS: RoleFormFieldMeta[] = [
   { id: 'roleId', label: 'Role ID', fieldType: 'text', description: 'System-generated role identifier.' },
   { id: 'name', label: 'Name', fieldType: 'text', description: 'Role name shown to admins and users.' },
   { id: 'description', label: 'Description', fieldType: 'text', description: 'Short explanation of the role purpose.' },
-  { id: 'inactive', label: 'Inactive', fieldType: 'boolean', description: 'Marks the role unavailable for new assignments while preserving history.' },
+  { id: 'inactive', label: 'Inactive', fieldType: 'list', sourceType: 'system', sourceKey: 'activeInactive', source: getListSourceText({ sourceType: 'system', sourceKey: 'activeInactive' }), description: 'Marks the role unavailable for new assignments while preserving history.' },
 ]
 
 export const DEFAULT_ROLE_FORM_SECTIONS = [

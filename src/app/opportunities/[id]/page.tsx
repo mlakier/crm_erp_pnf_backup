@@ -33,10 +33,6 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
   if (!opportunity) notFound()
 
-  const daysUntilClose = opportunity.closeDate
-    ? Math.ceil((new Date(opportunity.closeDate).getTime() - Date.now()) / 86400000)
-    : null
-
   return (
     <div className="min-h-full px-8 py-8">
       <div className="max-w-6xl">
@@ -71,18 +67,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <div className="grid gap-4 sm:grid-cols-3 mb-8">
           <StatCard label="Amount" value={fmtCurrency(opportunity.amount)} accent />
           <StatCard label="Close date" value={opportunity.closeDate ? new Date(opportunity.closeDate).toLocaleDateString() : '—'} />
-          <StatCard
-            label={daysUntilClose !== null ? (daysUntilClose >= 0 ? 'Days to close' : 'Days overdue') : 'Days to close'}
-            value={daysUntilClose !== null ? Math.abs(daysUntilClose) : '—'}
-            accent={daysUntilClose !== null && daysUntilClose < 0 ? 'red' : undefined}
-          />
+          <StatCard label="Line Items" value={opportunity.lineItems.length} />
         </div>
 
         {/* Details */}
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Opportunity details</h2>
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Opportunity #" value={opportunity.opportunityNumber} />
+            <Field label="Opportunity Id" value={opportunity.opportunityNumber} />
             <Field label="Stage" value={opportunity.stage} />
             <Field label="Amount" value={fmtCurrency(opportunity.amount)} />
             <Field label="Close date" value={opportunity.closeDate ? new Date(opportunity.closeDate).toLocaleDateString() : null} />

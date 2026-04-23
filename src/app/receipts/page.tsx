@@ -11,9 +11,11 @@ import ReceiptCreateForm from '@/components/ReceiptCreateForm'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { buildReceiptDisplayNumberMap } from '@/lib/receipt-display-number'
+import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 
 const RECEIPT_COLUMNS = [
-  { id: 'receipt-number', label: 'Receipts #' },
+  { id: 'receipt-number', label: 'Receipts Id' },
   { id: 'purchase-order', label: 'Purchase Order' },
   { id: 'quantity', label: 'Quantity' },
   { id: 'date', label: 'Date' },
@@ -32,7 +34,13 @@ export default async function ReceiptsPage({
   const params = await searchParams
   const statusFilter = params.status ?? 'all'
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const sortOptions = prependIdSortOption([
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'date-desc', label: 'Date newest' },
+    { value: 'date-asc', label: 'Date oldest' },
+  ])
 
   const statusValues = await loadListValues('RECEIPT-STATUS')
   const STATUS_OPTIONS = ['all', ...statusValues.map((value) => value.toLowerCase())]
@@ -52,7 +60,9 @@ export default async function ReceiptsPage({
   }
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ createdAt: 'asc' as const }, { id: 'asc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'date-asc'
         ? [{ date: 'asc' as const }]
@@ -167,7 +177,7 @@ export default async function ReceiptsPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search receipt #, PO #, status, notes"
+              placeholder="Search receipts id, purchase order id, status, notes"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
@@ -177,44 +187,24 @@ export default async function ReceiptsPage({
               className="rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             >
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="date-desc">Date newest</option>
-              <option value="date-asc">Date oldest</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
             <ExportButton tableId="receipts-list" fileName="receipts" />
             <ColumnSelector tableId="receipts-list" columns={RECEIPT_COLUMNS} />
           </div>
         </form>
 
-        <div className="overflow-x-auto" data-column-selector-table="receipts-list">
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="receipts-list">
           <table className="min-w-full" id="receipts-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="receipt-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Receipts #
-                </th>
-                <th data-column="purchase-order" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Purchase Order
-                </th>
-                <th data-column="quantity" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Quantity
-                </th>
-                <th data-column="date" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Date
-                </th>
-                <th data-column="status" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Status
-                </th>
-                <th data-column="notes" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Notes
-                </th>
-                <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Created
-                </th>
-                <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
-                  Last Modified
-                </th>
+                {RECEIPT_COLUMNS.map((column) => (
+                  <th key={column.id} data-column={column.id} className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
+                    <RecordListHeaderLabel label={column.label} tooltip={'tooltip' in column ? column.tooltip : undefined} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>

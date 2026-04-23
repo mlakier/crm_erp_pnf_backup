@@ -1,9 +1,9 @@
 'use client'
 
-import { FormEvent, useState, useEffect } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isFieldRequired } from '@/lib/form-requirements'
-import { useListOptions } from '@/lib/list-options-client'
+import type { SelectOption } from '@/lib/list-source'
 
 type ItemOption = { id: string; name: string; listPrice: number; itemId: string | null }
 
@@ -20,10 +20,19 @@ function emptyLine(key: number): LineItemDraft {
   return { key, itemId: '', description: '', quantity: '1', unitPrice: '', notes: '' }
 }
 
+function calculateLinesTotal(lines: LineItemDraft[]): number {
+  return lines.reduce((sum, line) => {
+    const qty = Math.max(1, parseInt(line.quantity, 10) || 1)
+    const price = parseFloat(line.unitPrice.replace(/,/g, '')) || 0
+    return sum + qty * price
+  }, 0)
+}
+
 export default function OpportunityCreateForm({
   userId,
   customers,
   items = [],
+  stageOptions,
   fullPage,
   onSuccess,
   onCancel,
@@ -31,6 +40,7 @@ export default function OpportunityCreateForm({
   userId: string
   customers: Array<{ id: string; name: string }>
   items?: ItemOption[]
+  stageOptions: SelectOption[]
   fullPage?: boolean
   onSuccess?: () => void
   onCancel?: () => void
@@ -46,7 +56,6 @@ export default function OpportunityCreateForm({
   const [saving, setSaving] = useState(false)
   const [runtimeRequirements, setRuntimeRequirements] = useState<Record<string, boolean> | null>(null)
   const router = useRouter()
-  const stageOptions = useListOptions('opportunity', 'stage')
 
   useEffect(() => {
     let mounted = true
@@ -84,45 +93,46 @@ export default function OpportunityCreateForm({
 
   /* -------- Line item helpers -------- */
   const addLine = () => {
-    setLineItems((prev) => [...prev, emptyLine(nextKey)])
+    setLineItems((prev) => {
+      const nextLines = [...prev, emptyLine(nextKey)]
+      setAmount(calculateLinesTotal(nextLines) ? String(calculateLinesTotal(nextLines)) : '')
+      return nextLines
+    })
     setNextKey((k) => k + 1)
   }
 
   const removeLine = (key: number) => {
-    setLineItems((prev) => prev.filter((l) => l.key !== key))
+    setLineItems((prev) => {
+      const nextLines = prev.filter((line) => line.key !== key)
+      setAmount(calculateLinesTotal(nextLines) ? String(calculateLinesTotal(nextLines)) : '')
+      return nextLines
+    })
   }
 
   const updateLine = (key: number, field: keyof LineItemDraft, value: string) => {
     setLineItems((prev) =>
-      prev.map((l) => {
-        if (l.key !== key) return l
-        const updated = { ...l, [field]: value }
+      {
+        const nextLines = prev.map((l) => {
+          if (l.key !== key) return l
+          const updated = { ...l, [field]: value }
         // Auto-fill from item catalog
-        if (field === 'itemId' && value) {
-          const item = items.find((i) => i.id === value)
-          if (item) {
-            if (!l.description) updated.description = item.name
-            updated.unitPrice = item.listPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          if (field === 'itemId' && value) {
+            const item = items.find((i) => i.id === value)
+            if (item) {
+              if (!l.description) updated.description = item.name
+              updated.unitPrice = item.listPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            }
           }
-        }
-        return updated
-      }),
+          return updated
+        })
+        setAmount(calculateLinesTotal(nextLines) ? String(calculateLinesTotal(nextLines)) : '')
+        return nextLines
+      },
     )
   }
 
   // Recalc amount from line items whenever they change
-  const linesTotal = lineItems.reduce((sum, l) => {
-    const qty = Math.max(1, parseInt(l.quantity, 10) || 1)
-    const price = parseFloat(l.unitPrice.replace(/,/g, '')) || 0
-    return sum + qty * price
-  }, 0)
-
-  // Keep header amount in sync when user has line items
-  useEffect(() => {
-    if (lineItems.length > 0) {
-      setAmount(linesTotal ? String(linesTotal) : '')
-    }
-  }, [linesTotal, lineItems.length])
+  const linesTotal = calculateLinesTotal(lineItems)
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -179,7 +189,7 @@ export default function OpportunityCreateForm({
       setSaving(false)
       onSuccess?.()
       router.refresh()
-    } catch (err) {
+    } catch {
       setError('Unable to create opportunity')
       setSaving(false)
     }
@@ -228,7 +238,7 @@ export default function OpportunityCreateForm({
               style={{ borderColor: 'var(--border-muted)' }}
             >
               {stageOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </div>

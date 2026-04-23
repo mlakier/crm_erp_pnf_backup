@@ -168,7 +168,7 @@ export default function PtpWorkflowConfig() {
       approvals: config.approvals.map((a) => {
         if (a.id !== approvalId) return a;
         const maxLevel = a.tiers.length > 0 ? Math.max(...a.tiers.map((t) => t.level)) : 0;
-        return { ...a, tiers: [...a.tiers, { level: maxLevel + 1, value: 0, approverRole: 'manager' }] };
+        return { ...a, tiers: [...a.tiers, { level: maxLevel + 1, operator: '>=', value: 0, approverType: 'role', approverValue: 'manager' }] };
       }),
     };
     setConfig(next);
@@ -284,8 +284,8 @@ return (
                   <div>
                     <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>{'Auto-Created ' + (config.steps.find(s => s.id === trigger.toStep)?.label || 'To') + ' Status'}</label>
                     <select
-                      value={(trigger as any).resultStatus || ''}
-                      onChange={(e) => updateTrigger(trigger.id, { resultStatus: e.target.value } as any)}
+                      value={trigger.resultStatus || ''}
+                      onChange={(e) => updateTrigger(trigger.id, { resultStatus: e.target.value })}
                       className="w-full rounded-md border bg-transparent px-2 py-1.5 text-sm text-white"
                       style={{ borderColor: 'var(--border-muted)' }}
                     >

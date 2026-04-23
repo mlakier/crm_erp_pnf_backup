@@ -1,26 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const PR_NUMBER_PREFIX = 'PR-'
-const PR_NUMBER_WIDTH = 6
-
-export function formatRequisitionNumber(sequence: number) {
-  return `${PR_NUMBER_PREFIX}${String(sequence).padStart(PR_NUMBER_WIDTH, '0')}`
+export function formatRequisitionNumber(sequence: number, config = DEFAULT_ID_SETTINGS.purchaseRequisition) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextRequisitionNumber() {
+  const config = await loadIdSetting('purchaseRequisition')
   const latest = await prisma.requisition.findMany({
+    where: { number: { startsWith: config.prefix } },
     orderBy: { number: 'desc' },
     select: { number: true },
-    take: 50,
+    take: 200,
   })
-
-  for (const req of latest) {
-    const match = req.number.match(/(\d+)$/)
-    if (match) {
-      const parsed = Number.parseInt(match[1], 10)
-      return formatRequisitionNumber(Number.isNaN(parsed) ? 1 : parsed + 1)
-    }
-  }
-
-  return formatRequisitionNumber(1)
+  const nextSequence = getNextSequenceFromValues(latest.map((req) => req.number), config)
+  return formatRequisitionNumber(nextSequence, config)
 }

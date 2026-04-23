@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isFieldRequired } from '@/lib/form-requirements'
+import type { SelectOption } from '@/lib/list-source'
 import {
   defaultChartOfAccountsFormCustomization,
   CHART_OF_ACCOUNTS_FORM_FIELDS,
   type ChartOfAccountsFormCustomizationConfig,
   type ChartOfAccountsFormFieldKey,
 } from '@/lib/chart-of-accounts-form-customization'
+import MultiSelectDropdown from '@/components/MultiSelectDropdown'
 
 type Subsidiary = {
   id: string
@@ -20,41 +22,77 @@ type ChartOfAccountsFormCustomizationResponse = {
   config?: ChartOfAccountsFormCustomizationConfig
 }
 
-const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Revenue', 'Expense', 'Other']
+export type ChartOfAccountCreateInitialValues = {
+  accountNumber?: string
+  name?: string
+  description?: string | null
+  accountType?: string
+  inventory?: boolean
+  revalueOpenBalance?: boolean
+  eliminateIntercoTransactions?: boolean
+  summary?: boolean
+  normalBalance?: string | null
+  financialStatementSection?: string | null
+  financialStatementGroup?: string | null
+  isPosting?: boolean
+  isControlAccount?: boolean
+  allowsManualPosting?: boolean
+  requiresSubledgerType?: string | null
+  cashFlowCategory?: string | null
+  parentAccountId?: string | null
+  closeToAccountId?: string | null
+  scopeMode?: 'selected' | 'parent'
+  selectedSubsidiaryIds?: string[]
+  parentSubsidiaryId?: string | null
+  includeChildren?: boolean
+}
 
 export default function ChartOfAccountCreateForm({
+  formId,
+  showFooterActions = true,
   subsidiaries,
   accountOptions,
+  accountTypeOptions,
+  normalBalanceOptions,
+  nextAccountId,
+  redirectBasePath,
+  initialValues,
   onSuccess,
   onCancel,
 }: {
+  formId?: string
+  showFooterActions?: boolean
   subsidiaries: Subsidiary[]
-  accountOptions: Array<{ id: string; accountId: string; name: string }>
+  accountOptions: Array<{ id: string; accountId: string; accountNumber: string; name: string }>
+  accountTypeOptions: SelectOption[]
+  normalBalanceOptions: SelectOption[]
+  nextAccountId?: string
+  redirectBasePath?: string
+  initialValues?: ChartOfAccountCreateInitialValues
   onSuccess?: () => void
   onCancel?: () => void
 }) {
-  const [accountId, setAccountId] = useState('')
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [accountType, setAccountType] = useState(ACCOUNT_TYPES[0])
-  const [inventory, setInventory] = useState(false)
-  const [revalueOpenBalance, setRevalueOpenBalance] = useState(false)
-  const [eliminateIntercoTransactions, setEliminateIntercoTransactions] = useState(false)
-  const [summary, setSummary] = useState(false)
-  const [normalBalance, setNormalBalance] = useState('')
-  const [financialStatementSection, setFinancialStatementSection] = useState('')
-  const [financialStatementGroup, setFinancialStatementGroup] = useState('')
-  const [isPosting, setIsPosting] = useState(true)
-  const [isControlAccount, setIsControlAccount] = useState(false)
-  const [allowsManualPosting, setAllowsManualPosting] = useState(true)
-  const [requiresSubledgerType, setRequiresSubledgerType] = useState('')
-  const [cashFlowCategory, setCashFlowCategory] = useState('')
-  const [parentAccountId, setParentAccountId] = useState('')
-  const [closeToAccountId, setCloseToAccountId] = useState('')
-  const [scopeMode, setScopeMode] = useState<'selected' | 'parent'>('selected')
-  const [selectedSubsidiaryIds, setSelectedSubsidiaryIds] = useState<string[]>([])
-  const [parentSubsidiaryId, setParentSubsidiaryId] = useState(subsidiaries[0]?.id ?? '')
-  const [includeChildren, setIncludeChildren] = useState(true)
+  const [accountId, setAccountId] = useState(nextAccountId ?? '')
+  const [accountNumber, setAccountNumber] = useState(initialValues?.accountNumber ?? '')
+  const [name, setName] = useState(initialValues?.name ?? '')
+  const [description, setDescription] = useState(initialValues?.description ?? '')
+  const [accountType, setAccountType] = useState(initialValues?.accountType ?? accountTypeOptions[0]?.value ?? '')
+  const [inventory, setInventory] = useState(initialValues?.inventory ?? false)
+  const [revalueOpenBalance, setRevalueOpenBalance] = useState(initialValues?.revalueOpenBalance ?? false)
+  const [eliminateIntercoTransactions, setEliminateIntercoTransactions] = useState(initialValues?.eliminateIntercoTransactions ?? false)
+  const [summary, setSummary] = useState(initialValues?.summary ?? false)
+  const [normalBalance, setNormalBalance] = useState(initialValues?.normalBalance ?? '')
+  const [financialStatementSection, setFinancialStatementSection] = useState(initialValues?.financialStatementSection ?? '')
+  const [financialStatementGroup, setFinancialStatementGroup] = useState(initialValues?.financialStatementGroup ?? '')
+  const [isPosting, setIsPosting] = useState(initialValues?.isPosting ?? true)
+  const [isControlAccount, setIsControlAccount] = useState(initialValues?.isControlAccount ?? false)
+  const [allowsManualPosting, setAllowsManualPosting] = useState(initialValues?.allowsManualPosting ?? true)
+  const [requiresSubledgerType, setRequiresSubledgerType] = useState(initialValues?.requiresSubledgerType ?? '')
+  const [cashFlowCategory, setCashFlowCategory] = useState(initialValues?.cashFlowCategory ?? '')
+  const [parentAccountId, setParentAccountId] = useState(initialValues?.parentAccountId ?? '')
+  const [closeToAccountId, setCloseToAccountId] = useState(initialValues?.closeToAccountId ?? '')
+  const [selectedSubsidiaryIds, setSelectedSubsidiaryIds] = useState<string[]>(initialValues?.selectedSubsidiaryIds ?? [])
+  const [includeChildren, setIncludeChildren] = useState(initialValues?.includeChildren ?? true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [runtimeRequirements, setRuntimeRequirements] = useState<Record<string, boolean> | null>(null)
@@ -135,6 +173,16 @@ export default function ChartOfAccountCreateForm({
   }, [layoutConfig])
 
   const formColumns = Math.min(4, Math.max(1, layoutConfig.formColumns || 2))
+  const fieldMetaById = useMemo(
+    () => Object.fromEntries(CHART_OF_ACCOUNTS_FORM_FIELDS.map((field) => [field.id, field])),
+    []
+  ) as Record<ChartOfAccountsFormFieldKey, (typeof CHART_OF_ACCOUNTS_FORM_FIELDS)[number]>
+  const sectionDescriptions: Record<string, string> = {
+    Core: 'Identity and primary classification for the GL account.',
+    Reporting: 'Statement mapping and reporting defaults used for financial presentation.',
+    Structure: 'Rollup and relationship fields that shape how the account behaves in hierarchies and close logic.',
+    Controls: 'Posting, control, inventory, and elimination behavior for operational accounting.',
+  }
 
   function getSectionGridStyle(): React.CSSProperties {
     return { gridTemplateColumns: `repeat(${formColumns}, minmax(0, 1fr))` }
@@ -148,9 +196,13 @@ export default function ChartOfAccountCreateForm({
     }
   }
 
-  function toggleSubsidiary(id: string) {
-    setSelectedSubsidiaryIds((prev) =>
-      prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]
+  function fieldLabel(fieldId: ChartOfAccountsFormFieldKey, text: string) {
+    const meta = fieldMetaById[fieldId]
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span>{requiredLabel(text, req(fieldId))}</span>
+        {meta.description ? <FieldTooltip content={buildTooltipContent(fieldId, meta)} /> : null}
+      </span>
     )
   }
 
@@ -159,31 +211,38 @@ export default function ChartOfAccountCreateForm({
       case 'accountId':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Account Id', req('accountId'))}</span>
-            <input value={accountId} onChange={(event) => setAccountId(event.target.value)} required={req('accountId')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} placeholder="1000" />
+            <span>{fieldLabel('accountId', 'Account Id')}</span>
+            <input value={accountId} onChange={(event) => setAccountId(event.target.value)} required={req('accountId')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} placeholder="GL-00001" />
+          </label>
+        )
+      case 'accountNumber':
+        return (
+          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span>{fieldLabel('accountNumber', 'Account Number')}</span>
+            <input value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} required={req('accountNumber')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} placeholder="1000" />
           </label>
         )
       case 'name':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Name', req('name'))}</span>
+            <span>{fieldLabel('name', 'Name')}</span>
             <input value={name} onChange={(event) => setName(event.target.value)} required={req('name')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} placeholder="Cash" />
           </label>
         )
       case 'description':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Description', req('description'))}</span>
+            <span>{fieldLabel('description', 'Description')}</span>
             <textarea value={description} onChange={(event) => setDescription(event.target.value)} required={req('description')} rows={3} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'accountType':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Account Type', req('accountType'))}</span>
+            <span>{fieldLabel('accountType', 'Account Type')}</span>
             <select value={accountType} onChange={(event) => setAccountType(event.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              {ACCOUNT_TYPES.map((type) => (
-                <option key={type} value={type}>{type}</option>
+              {accountTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </label>
@@ -191,48 +250,68 @@ export default function ChartOfAccountCreateForm({
       case 'normalBalance':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Normal Balance', req('normalBalance'))}</span>
+            <span>{fieldLabel('normalBalance', 'Normal Balance')}</span>
             <select value={normalBalance} onChange={(event) => setNormalBalance(event.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
-              <option value="debit">Debit</option>
-              <option value="credit">Credit</option>
+              {normalBalanceOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
         )
       case 'financialStatementSection':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('FS Section', req('financialStatementSection'))}</span>
+            <span>{fieldLabel('financialStatementSection', 'FS Section')}</span>
             <input value={financialStatementSection} onChange={(event) => setFinancialStatementSection(event.target.value)} required={req('financialStatementSection')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'financialStatementGroup':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('FS Group', req('financialStatementGroup'))}</span>
+            <span>{fieldLabel('financialStatementGroup', 'FS Group')}</span>
             <input value={financialStatementGroup} onChange={(event) => setFinancialStatementGroup(event.target.value)} required={req('financialStatementGroup')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'parentAccountId':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Parent Account', req('parentAccountId'))}</span>
+            <span>{fieldLabel('parentAccountId', 'Parent Account')}</span>
             <select value={parentAccountId} onChange={(event) => setParentAccountId(event.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {accountOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.accountId} - {option.name}</option>
+                <option key={option.id} value={option.id}>{option.accountId} - {option.accountNumber} - {option.name}</option>
               ))}
             </select>
           </label>
         )
+      case 'subsidiaryIds':
+        return (
+          <div key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span>{fieldLabel('subsidiaryIds', 'Subsidiaries')}</span>
+            <div className="mt-1">
+              <MultiSelectDropdown
+                value={selectedSubsidiaryIds}
+                options={sortedSubsidiaries.map((subsidiary) => ({
+                  value: subsidiary.id,
+                  label: `${subsidiary.subsidiaryId} - ${subsidiary.name}`,
+                }))}
+                placeholder="Select Subsidiaries"
+                onChange={setSelectedSubsidiaryIds}
+              />
+            </div>
+          </div>
+        )
+      case 'includeChildren':
+        return <CheckboxField key={fieldId} label={fieldLabel('includeChildren', 'Include Children')} checked={includeChildren} onChange={setIncludeChildren} />
       case 'closeToAccountId':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Close To Account', req('closeToAccountId'))}</span>
+            <span>{fieldLabel('closeToAccountId', 'Close To Account')}</span>
             <select value={closeToAccountId} onChange={(event) => setCloseToAccountId(event.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {accountOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.accountId} - {option.name}</option>
+                <option key={option.id} value={option.id}>{option.accountId} - {option.accountNumber} - {option.name}</option>
               ))}
             </select>
           </label>
@@ -240,31 +319,31 @@ export default function ChartOfAccountCreateForm({
       case 'requiresSubledgerType':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Requires Subledger Type', req('requiresSubledgerType'))}</span>
+            <span>{fieldLabel('requiresSubledgerType', 'Requires Subledger Type')}</span>
             <input value={requiresSubledgerType} onChange={(event) => setRequiresSubledgerType(event.target.value)} required={req('requiresSubledgerType')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'cashFlowCategory':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Cash Flow Category', req('cashFlowCategory'))}</span>
+            <span>{fieldLabel('cashFlowCategory', 'Cash Flow Category')}</span>
             <input value={cashFlowCategory} onChange={(event) => setCashFlowCategory(event.target.value)} required={req('cashFlowCategory')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'isPosting':
-        return <CheckboxField key={fieldId} label={requiredLabel('Posting Account', req('isPosting'))} checked={isPosting} onChange={setIsPosting} />
+        return <CheckboxField key={fieldId} label={fieldLabel('isPosting', 'Posting Account')} checked={isPosting} onChange={setIsPosting} />
       case 'isControlAccount':
-        return <CheckboxField key={fieldId} label={requiredLabel('Control Account', req('isControlAccount'))} checked={isControlAccount} onChange={setIsControlAccount} />
+        return <CheckboxField key={fieldId} label={fieldLabel('isControlAccount', 'Control Account')} checked={isControlAccount} onChange={setIsControlAccount} />
       case 'allowsManualPosting':
-        return <CheckboxField key={fieldId} label={requiredLabel('Allow Manual Posting', req('allowsManualPosting'))} checked={allowsManualPosting} onChange={setAllowsManualPosting} />
+        return <CheckboxField key={fieldId} label={fieldLabel('allowsManualPosting', 'Allow Manual Posting')} checked={allowsManualPosting} onChange={setAllowsManualPosting} />
       case 'inventory':
-        return <CheckboxField key={fieldId} label={requiredLabel('Inventory', req('inventory'))} checked={inventory} onChange={setInventory} />
+        return <CheckboxField key={fieldId} label={fieldLabel('inventory', 'Inventory')} checked={inventory} onChange={setInventory} />
       case 'revalueOpenBalance':
-        return <CheckboxField key={fieldId} label={requiredLabel('Revalue Open Balance', req('revalueOpenBalance'))} checked={revalueOpenBalance} onChange={setRevalueOpenBalance} />
+        return <CheckboxField key={fieldId} label={fieldLabel('revalueOpenBalance', 'Revalue Open Balance')} checked={revalueOpenBalance} onChange={setRevalueOpenBalance} />
       case 'eliminateIntercoTransactions':
-        return <CheckboxField key={fieldId} label={requiredLabel('Eliminate Interco Transactions', req('eliminateIntercoTransactions'))} checked={eliminateIntercoTransactions} onChange={setEliminateIntercoTransactions} />
+        return <CheckboxField key={fieldId} label={fieldLabel('eliminateIntercoTransactions', 'Eliminate Interco Transactions')} checked={eliminateIntercoTransactions} onChange={setEliminateIntercoTransactions} />
       case 'summary':
-        return <CheckboxField key={fieldId} label={requiredLabel('Summary', req('summary'))} checked={summary} onChange={setSummary} />
+        return <CheckboxField key={fieldId} label={fieldLabel('summary', 'Summary')} checked={summary} onChange={setSummary} />
       default:
         return null
     }
@@ -275,14 +354,8 @@ export default function ChartOfAccountCreateForm({
     setSaving(true)
     setError('')
 
-    if (scopeMode === 'selected' && selectedSubsidiaryIds.length === 0) {
-      setError('Select at least one subsidiary, or switch to Parent mode.')
-      setSaving(false)
-      return
-    }
-
-    if (scopeMode === 'parent' && !parentSubsidiaryId) {
-      setError('Select a parent subsidiary.')
+    if (selectedSubsidiaryIds.length === 0) {
+      setError('Select at least one subsidiary.')
       setSaving(false)
       return
     }
@@ -290,12 +363,15 @@ export default function ChartOfAccountCreateForm({
     const missing: string[] = []
     const requiredFields = [
       ['accountId', accountId],
+      ['accountNumber', accountNumber],
       ['name', name],
       ['description', description],
       ['accountType', accountType],
       ['normalBalance', normalBalance],
       ['financialStatementSection', financialStatementSection],
       ['financialStatementGroup', financialStatementGroup],
+      ['subsidiaryIds', selectedSubsidiaryIds.join(',')],
+      ['includeChildren', includeChildren ? 'true' : 'false'],
       ['parentAccountId', parentAccountId],
       ['closeToAccountId', closeToAccountId],
       ['requiresSubledgerType', requiresSubledgerType],
@@ -320,6 +396,7 @@ export default function ChartOfAccountCreateForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountId,
+          accountNumber,
           name,
           description,
           accountType,
@@ -337,10 +414,10 @@ export default function ChartOfAccountCreateForm({
           cashFlowCategory,
           parentAccountId,
           closeToAccountId,
-          scopeMode,
-          subsidiaryIds: scopeMode === 'selected' ? selectedSubsidiaryIds : [],
-          parentSubsidiaryId: scopeMode === 'parent' ? parentSubsidiaryId : null,
-          includeChildren: scopeMode === 'parent' ? includeChildren : false,
+          scopeMode: 'selected',
+          subsidiaryIds: selectedSubsidiaryIds,
+          parentSubsidiaryId: null,
+          includeChildren,
         }),
       })
 
@@ -350,11 +427,13 @@ export default function ChartOfAccountCreateForm({
         setSaving(false)
         return
       }
+      const createdId = String(body?.id ?? '')
 
-      setAccountId('')
+      setAccountId(nextAccountId ?? '')
+      setAccountNumber('')
       setName('')
       setDescription('')
-      setAccountType(ACCOUNT_TYPES[0])
+      setAccountType(accountTypeOptions[0]?.value ?? '')
       setInventory(false)
       setRevalueOpenBalance(false)
       setEliminateIntercoTransactions(false)
@@ -369,11 +448,14 @@ export default function ChartOfAccountCreateForm({
       setCashFlowCategory('')
       setParentAccountId('')
       setCloseToAccountId('')
-      setScopeMode('selected')
       setSelectedSubsidiaryIds([])
-      setParentSubsidiaryId(subsidiaries[0]?.id ?? '')
       setIncludeChildren(true)
       setSaving(false)
+      if (redirectBasePath && createdId) {
+        router.push(`${redirectBasePath}/${createdId}`)
+        router.refresh()
+        return
+      }
       router.refresh()
       onSuccess?.()
     } catch {
@@ -383,80 +465,62 @@ export default function ChartOfAccountCreateForm({
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
-      {groupedVisibleFields.map(({ section, fields }) => (
-        <section key={section} className="rounded-lg border p-4" style={{ borderColor: 'var(--border-muted)' }}>
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-white">{section}</h3>
-          </div>
-          <div className="grid gap-4" style={getSectionGridStyle()}>
-            {fields.map((field) => (
-              <div key={field.id} style={getFieldPlacementStyle(field.id)}>
-                {renderField(field.id)}
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+    <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Account details</h2>
+      </div>
 
-      <div className="rounded-xl border p-4" style={{ borderColor: 'var(--border-muted)' }}>
-        <p className="text-sm font-semibold text-white">Subsidiary Scope</p>
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          <label className="inline-flex items-center gap-2">
-            <input type="radio" name="scopeMode" checked={scopeMode === 'selected'} onChange={() => setScopeMode('selected')} />
-            Select Multiple Subsidiaries
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input type="radio" name="scopeMode" checked={scopeMode === 'parent'} onChange={() => setScopeMode('parent')} />
-            Select Parent Subsidiary
-          </label>
+      <form id={formId} onSubmit={handleSubmit}>
+        <div className="space-y-6">
+          {groupedVisibleFields.map(({ section, fields }, index) => (
+            <section
+              key={section}
+              className={index > 0 ? 'border-t pt-6' : ''}
+              style={index > 0 ? { borderColor: 'var(--border-muted)' } : undefined}
+            >
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-white">{section}</h3>
+                {sectionDescriptions[section] ? (
+                  <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{sectionDescriptions[section]}</p>
+                ) : null}
+              </div>
+              <div className="grid gap-3" style={getSectionGridStyle()}>
+                {fields.map((field) => (
+                  <div key={field.id} style={getFieldPlacementStyle(field.id)}>
+                    {renderField(field.id)}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+
         </div>
 
-        {scopeMode === 'selected' ? (
-          <div className="mt-3 max-h-44 overflow-y-auto rounded-md border p-3" style={{ borderColor: 'var(--border-muted)' }}>
-            {sortedSubsidiaries.map((subsidiary) => (
-              <label key={subsidiary.id} className="mb-2 flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                <input type="checkbox" checked={selectedSubsidiaryIds.includes(subsidiary.id)} onChange={() => toggleSubsidiary(subsidiary.id)} />
-                <span>{subsidiary.subsidiaryId} - {subsidiary.name}</span>
-              </label>
-            ))}
+        {error ? <p className="mt-4 text-xs" style={{ color: 'var(--danger)' }}>{error}</p> : null}
+        {showFooterActions ? (
+          <div className="mt-5 flex items-center justify-end gap-2">
+            {onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="rounded-md border px-3 py-1.5 text-xs font-medium"
+                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+              >
+                Cancel
+              </button>
+            ) : null}
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed"
+              style={{ backgroundColor: saving ? '#64748b' : 'var(--accent-primary-strong)' }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
           </div>
-        ) : (
-          <div className="mt-3 space-y-3">
-            <select value={parentSubsidiaryId} onChange={(event) => setParentSubsidiaryId(event.target.value)} className="block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              {sortedSubsidiaries.map((subsidiary) => (
-                <option key={subsidiary.id} value={subsidiary.id}>
-                  {subsidiary.subsidiaryId} - {subsidiary.name}
-                </option>
-              ))}
-            </select>
-            <CheckboxField label="Include Children" checked={includeChildren} onChange={setIncludeChildren} />
-          </div>
-        )}
-      </div>
-
-      {error ? <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p> : null}
-      <div className="flex items-center justify-end gap-3">
-        {onCancel ? (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border px-4 py-2 text-sm font-medium"
-            style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-          >
-            Cancel
-          </button>
         ) : null}
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed"
-          style={{ backgroundColor: saving ? '#64748b' : 'var(--accent-primary-strong)' }}
-        >
-          {saving ? 'Saving...' : 'Create Account'}
-        </button>
-      </div>
-    </form>
+      </form>
+    </div>
   )
 }
 
@@ -474,5 +538,45 @@ function CheckboxField({
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
+  )
+}
+
+function buildTooltipContent(
+  fieldId: ChartOfAccountsFormFieldKey,
+  field: (typeof CHART_OF_ACCOUNTS_FORM_FIELDS)[number]
+) {
+  const fieldType = mapFieldTypeLabel(field.fieldType)
+  const sourceLine = field.fieldType === 'list' && field.source ? `\nField Source: ${field.source}` : ''
+  return `${field.description}\n\nField ID: ${fieldId}\nField Type: ${fieldType}${sourceLine}`
+}
+
+function mapFieldTypeLabel(fieldType: string) {
+  if (fieldType === 'boolean') return 'checkbox'
+  return fieldType
+}
+
+function FieldTooltip({ content }: { content: string }) {
+  const lines = content.split('\n')
+  return (
+    <span className="group relative inline-flex">
+      <span
+        className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border text-[10px] font-semibold"
+        style={{ borderColor: 'var(--border-muted)', color: 'var(--text-muted)' }}
+        aria-label={content}
+      >
+        ?
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-[60] mt-2 hidden w-72 rounded-lg border px-3 py-2 text-left text-xs leading-5 shadow-xl group-hover:block"
+        style={{ backgroundColor: 'var(--card-elevated)', borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+      >
+        {lines.map((line, index) => (
+          <span key={`${line}-${index}`} className="block whitespace-pre-wrap">
+            {line || '\u00A0'}
+          </span>
+        ))}
+      </span>
+    </span>
   )
 }

@@ -9,9 +9,11 @@ import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
+import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 
 const QUOTE_COLUMNS = [
-  { id: 'quote-number', label: 'Quote #' },
+  { id: 'quote-number', label: 'Quote Id' },
   { id: 'customer', label: 'Customer' },
   { id: 'opportunity', label: 'Opportunity' },
   { id: 'sales-order', label: 'Sales Order' },
@@ -30,7 +32,13 @@ export default async function QuotesPage({
   const params = await searchParams
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const sortOptions = prependIdSortOption([
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'total-desc', label: 'Total high-low' },
+    { value: 'total-asc', label: 'Total low-high' },
+  ])
 
   const where = {
     ...(query
@@ -47,7 +55,9 @@ export default async function QuotesPage({
   }
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ number: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'total-desc'
         ? [{ total: 'desc' as const }]
@@ -129,7 +139,7 @@ export default async function QuotesPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search quote #, customer, opportunity, status"
+              placeholder="Search quote id, customer, opportunity, status"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
@@ -141,10 +151,9 @@ export default async function QuotesPage({
               <option value="expired">Expired</option>
             </select>
             <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="total-desc">Total high-low</option>
-              <option value="total-asc">Total low-high</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
             <input type="hidden" name="page" value="1" />
             <ExportButton tableId="estimates-list" fileName="estimates" />
@@ -152,19 +161,15 @@ export default async function QuotesPage({
           </div>
         </form>
 
-        <div className="overflow-x-auto" data-column-selector-table="estimates-list">
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="estimates-list">
           <table className="min-w-full" id="estimates-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="quote-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Quote #</th>
-                <th data-column="customer" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Customer</th>
-                <th data-column="opportunity" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Opportunity</th>
-                <th data-column="sales-order" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Sales Order</th>
-                <th data-column="status" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Status</th>
-                <th data-column="total" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Total</th>
-                <th data-column="valid-until" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Valid Until</th>
-                <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
-                <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
+                {QUOTE_COLUMNS.map((column) => (
+                  <th key={column.id} data-column={column.id} className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
+                    <RecordListHeaderLabel label={column.label} tooltip={'tooltip' in column ? column.tooltip : undefined} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>

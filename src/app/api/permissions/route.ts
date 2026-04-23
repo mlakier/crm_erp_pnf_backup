@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-const db = prisma as any
-
 export async function GET(req: NextRequest) {
   const roleId = req.nextUrl.searchParams.get('roleId')
   if (roleId) {
-    const permissions = await db.permission.findMany({ where: { roleId } })
+    const permissions = await prisma.permission.findMany({ where: { roleId } })
     return NextResponse.json(permissions)
   }
-  const permissions = await db.permission.findMany({ include: { role: true } })
+  const permissions = await prisma.permission.findMany({ include: { role: true } })
   return NextResponse.json(permissions)
 }
 
@@ -23,7 +21,7 @@ export async function PUT(req: NextRequest) {
 
   const results = await Promise.all(
     permissions.map((p) =>
-      db.permission.upsert({
+      prisma.permission.upsert({
         where: { roleId_page: { roleId, page: p.page } },
         update: { canView: p.canView, canCreate: p.canCreate, canEdit: p.canEdit, canDelete: p.canDelete, blockedStates: p.blockedStates ?? null },
         create: { roleId, page: p.page, canView: p.canView, canCreate: p.canCreate, canEdit: p.canEdit, canDelete: p.canDelete, blockedStates: p.blockedStates ?? null },

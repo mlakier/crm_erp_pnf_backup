@@ -1,10 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const db = prisma as any
+export function formatBillPaymentNumber(sequence: number, config = DEFAULT_ID_SETTINGS.billPayment) {
+  return formatIdentifier(sequence, config)
+}
 
 export async function generateBillPaymentNumber(): Promise<string> {
-  const all = await db.billPayment.findMany({ select: { number: true } })
-  const nums = all.map((b: any) => parseInt(b.number.replace('BP-', ''), 10)).filter((n: number) => !isNaN(n))
-  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
-  return 'BP-' + String(next).padStart(6, '0')
+  const config = await loadIdSetting('billPayment')
+  const all = await prisma.billPayment.findMany({
+    where: { number: { startsWith: config.prefix } },
+    select: { number: true },
+    orderBy: { number: 'desc' },
+    take: 200,
+  })
+  const nextSequence = getNextSequenceFromValues(all.map((record) => record.number), config)
+  return formatBillPaymentNumber(nextSequence, config)
 }

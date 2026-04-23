@@ -1,21 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const QUOTE_NUMBER_PREFIX = 'QUO-'
-const QUOTE_NUMBER_WIDTH = 6
-
-export function formatQuoteNumber(sequence: number) {
-  return `${QUOTE_NUMBER_PREFIX}${String(sequence).padStart(QUOTE_NUMBER_WIDTH, '0')}`
+export function formatQuoteNumber(sequence: number, config = DEFAULT_ID_SETTINGS.quote) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextQuoteNumber() {
-  const latestQuote = await prisma.quote.findFirst({
+  const config = await loadIdSetting('quote')
+  const latestQuotes = await prisma.quote.findMany({
+    where: { number: { startsWith: config.prefix } },
     orderBy: { number: 'desc' },
     select: { number: true },
+    take: 200,
   })
-
-  const latestSequence = latestQuote?.number
-    ? Number.parseInt(latestQuote.number.replace(QUOTE_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatQuoteNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestQuotes.map((quote) => quote.number), config)
+  return formatQuoteNumber(nextSequence, config)
 }

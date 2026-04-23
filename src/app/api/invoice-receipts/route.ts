@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { generateInvoiceReceiptNumber } from '@/lib/invoice-receipt-number'
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
@@ -15,7 +16,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { invoiceId, amount, date, method, reference } = body
   if (!invoiceId || !amount || !date || !method) return NextResponse.json({ error: 'invoiceId, amount, date, method required' }, { status: 400 })
-  const row = await prisma.cashReceipt.create({ data: { invoiceId, amount: parseFloat(amount), date: new Date(date), method, reference: reference || null } })
+  const number = await generateInvoiceReceiptNumber()
+  const row = await prisma.cashReceipt.create({ data: { number, invoiceId, amount: parseFloat(amount), date: new Date(date), method, reference: reference || null } })
   return NextResponse.json(row, { status: 201 })
 }
 

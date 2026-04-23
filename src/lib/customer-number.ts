@@ -1,30 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const CUSTOMER_NUMBER_PREFIX = 'CUST-'
-const CUSTOMER_NUMBER_WIDTH = 6
-
-export function formatCustomerNumber(sequence: number) {
-  return `${CUSTOMER_NUMBER_PREFIX}${String(sequence).padStart(CUSTOMER_NUMBER_WIDTH, '0')}`
+export function formatCustomerNumber(sequence: number, config = DEFAULT_ID_SETTINGS.customer) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextCustomerNumber() {
-  const latestCustomer = await prisma.customer.findFirst({
-    where: {
-      customerId: {
-        not: null,
-      },
-    },
-    orderBy: {
-      customerId: 'desc',
-    },
-    select: {
-      customerId: true,
-    },
+  const config = await loadIdSetting('customer')
+  const latestCustomers = await prisma.customer.findMany({
+    where: { customerId: { startsWith: config.prefix } },
+    orderBy: { customerId: 'desc' },
+    select: { customerId: true },
+    take: 200,
   })
-
-  const latestSequence = latestCustomer?.customerId
-    ? Number.parseInt(latestCustomer.customerId.replace(CUSTOMER_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatCustomerNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestCustomers.map((customer) => customer.customerId), config)
+  return formatCustomerNumber(nextSequence, config)
 }

@@ -5,9 +5,14 @@ import { generateNextContactNumber } from '@/lib/contact-number'
 import { normalizePhone } from '@/lib/format'
 import { isFieldRequiredServer } from '@/lib/form-requirements-store'
 
+function normalizeBoolean(value: unknown, fallback = false) {
+  if (value === undefined || value === null || value === '') return fallback
+  return String(value).trim().toLowerCase() === 'true'
+}
+
 export async function GET() {
   try {
-    const contacts = await prisma.contact.findMany({ include: { customer: true } })
+    const contacts = await prisma.contact.findMany({ include: { customer: true, vendor: true } })
     return NextResponse.json(contacts)
   } catch {
     return NextResponse.json({ error: 'Failed to fetch contacts' }, { status: 500 })
@@ -17,8 +22,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { firstName, lastName, email, phone, address, position, customerId, userId } = body
-    const inactive = String(body?.inactive ?? 'false').trim().toLowerCase() === 'true'
+    const { firstName, lastName, email, phone, address, position, customerId, vendorId, userId } = body
+    const inactive = normalizeBoolean(body?.inactive)
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
@@ -32,9 +37,14 @@ export async function POST(request: NextRequest) {
     if ((await isFieldRequiredServer('contactCreate', 'address')) && !address) missing.push('address')
     if ((await isFieldRequiredServer('contactCreate', 'position')) && !position) missing.push('position')
     if ((await isFieldRequiredServer('contactCreate', 'customerId')) && !customerId) missing.push('customerId')
+    if ((await isFieldRequiredServer('contactCreate', 'vendorId')) && !vendorId) missing.push('vendorId')
 
     if (missing.length > 0) {
       return NextResponse.json({ error: `Missing required fields: ${missing.join(', ')}` }, { status: 400 })
+    }
+
+    if ((customerId && vendorId) || (!customerId && !vendorId)) {
+      return NextResponse.json({ error: 'Contact must be linked to either a customer or a vendor' }, { status: 400 })
     }
 
     const contactNumber = await generateNextContactNumber()
@@ -48,8 +58,13 @@ export async function POST(request: NextRequest) {
         phone: normalizePhone(phone),
         address: address || null,
         position,
+        isPrimaryForCustomer: normalizeBoolean(body?.isPrimaryForCustomer),
+        receivesQuotesSalesOrders: normalizeBoolean(body?.receivesQuotesSalesOrders),
+        receivesInvoices: normalizeBoolean(body?.receivesInvoices),
+        receivesInvoiceCc: normalizeBoolean(body?.receivesInvoiceCc),
         active: !inactive,
-        customerId,
+        customerId: customerId || null,
+        vendorId: vendorId || null,
         userId,
       },
     })
@@ -75,16 +90,38 @@ export async function PUT(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Missing contact id' }, { status: 400 })
 
     const body = await request.json()
-    const { firstName, lastName, email, phone, address, position, customerId } = body
+    const { firstName, lastName, email, phone, address, position, customerId, vendorId } = body
     const inactive = body?.inactive !== undefined
-      ? String(body.inactive).trim().toLowerCase() === 'true'
+      ? normalizeBoolean(body.inactive)
       : undefined
     const active = inactive !== undefined
       ? !inactive
       : body?.active !== undefined
-        ? String(body.active).trim().toLowerCase() === 'true'
+        ? normalizeBoolean(body.active)
         : undefined
     if (!firstName || !lastName) return NextResponse.json({ error: 'First and last name are required' }, { status: 400 })
+
+    const existing = await prisma.contact.findUnique({
+      where: { id },
+      select: { customerId: true, vendorId: true, userId: true, contactNumber: true, firstName: true, lastName: true },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
+    }
+
+    const normalizedCustomerId =
+      body.customerId !== undefined
+        ? customerId || null
+        : existing.customerId
+    const normalizedVendorId =
+      body.vendorId !== undefined
+        ? vendorId || null
+        : existing.vendorId
+
+    if ((normalizedCustomerId && normalizedVendorId) || (!normalizedCustomerId && !normalizedVendorId)) {
+      return NextResponse.json({ error: 'Contact must be linked to either a customer or a vendor' }, { status: 400 })
+    }
 
     const contact = await prisma.contact.update({
       where: { id },
@@ -95,7 +132,12 @@ export async function PUT(request: NextRequest) {
         phone: normalizePhone(phone),
         address: address || null,
         position: position || null,
-        ...(customerId ? { customerId } : {}),
+        customerId: normalizedCustomerId,
+        vendorId: normalizedVendorId,
+        ...(body.isPrimaryForCustomer !== undefined ? { isPrimaryForCustomer: normalizeBoolean(body.isPrimaryForCustomer) } : {}),
+        ...(body.receivesQuotesSalesOrders !== undefined ? { receivesQuotesSalesOrders: normalizeBoolean(body.receivesQuotesSalesOrders) } : {}),
+        ...(body.receivesInvoices !== undefined ? { receivesInvoices: normalizeBoolean(body.receivesInvoices) } : {}),
+        ...(body.receivesInvoiceCc !== undefined ? { receivesInvoiceCc: normalizeBoolean(body.receivesInvoiceCc) } : {}),
         ...(active !== undefined ? { active } : {}),
       },
     })
@@ -105,7 +147,7 @@ export async function PUT(request: NextRequest) {
       entityId: contact.id,
       action: 'update',
       summary: `Updated contact ${contact.contactNumber ?? `${contact.firstName} ${contact.lastName}`} ${contact.firstName} ${contact.lastName}`,
-      userId: contact.userId,
+      userId: existing.userId,
     })
 
     return NextResponse.json(contact)

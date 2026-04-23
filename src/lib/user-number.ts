@@ -1,30 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const USER_NUMBER_PREFIX = 'USER-'
-const USER_NUMBER_WIDTH = 6
-
-export function formatUserNumber(sequence: number) {
-  return `${USER_NUMBER_PREFIX}${String(sequence).padStart(USER_NUMBER_WIDTH, '0')}`
+export function formatUserNumber(sequence: number, config = DEFAULT_ID_SETTINGS.user) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextUserNumber() {
-  const latestUser = await prisma.user.findFirst({
-    where: {
-      userId: {
-        not: null,
-      },
-    },
-    orderBy: {
-      userId: 'desc',
-    },
-    select: {
-      userId: true,
-    },
+  const config = await loadIdSetting('user')
+  const latestUsers = await prisma.user.findMany({
+    where: { userId: { startsWith: config.prefix } },
+    orderBy: { userId: 'desc' },
+    select: { userId: true },
+    take: 200,
   })
-
-  const latestSequence = latestUser?.userId
-    ? Number.parseInt(latestUser.userId.replace(USER_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatUserNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestUsers.map((user) => user.userId), config)
+  return formatUserNumber(nextSequence, config)
 }

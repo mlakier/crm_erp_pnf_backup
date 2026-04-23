@@ -28,11 +28,15 @@ type ColumnRow = {
 
 const COLUMN_ROWS: ColumnRow[] = [
   { key: 'department-id', label: 'Department Id', source: 'System field' },
+  { key: 'department-number', label: 'Department Number', source: 'Department form layout', tableVisibilityKey: 'departmentNumber' },
   { key: 'name', label: 'Name', source: 'System field', tableVisibilityKey: 'name' },
   { key: 'description', label: 'Description', source: 'Department form layout', tableVisibilityKey: 'description' },
   { key: 'division', label: 'Division', source: 'Department form layout', tableVisibilityKey: 'division' },
-  { key: 'subsidiary', label: 'Subsidiary', source: 'Department form layout', tableVisibilityKey: 'subsidiary' },
+  { key: 'subsidiaries', label: 'Subsidiaries', source: 'Department form layout', tableVisibilityKey: 'subsidiaries' },
+  { key: 'include-children', label: 'Include Children', source: 'Department form layout', tableVisibilityKey: 'includeChildren' },
+  { key: 'planning-category', label: 'Planning Category', source: 'Department form layout', tableVisibilityKey: 'planningCategory' },
   { key: 'manager', label: 'Manager', source: 'Department form layout', tableVisibilityKey: 'manager' },
+  { key: 'approver', label: 'Approver', source: 'Department form layout', tableVisibilityKey: 'approver' },
   { key: 'status', label: 'Inactive', source: 'Department form layout', tableVisibilityKey: 'status' },
   { key: 'created', label: 'Created', source: 'System field' },
   { key: 'last-modified', label: 'Last Modified', source: 'System field' },

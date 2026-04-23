@@ -11,10 +11,12 @@ import LeadCreateForm from '@/components/LeadCreateForm'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
-import { loadListValues } from '@/lib/load-list-values'
+import { loadListOptionsForSource } from '@/lib/list-source'
+import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 
 const LEAD_COLUMNS = [
-  { id: 'lead-number', label: 'Lead #' },
+  { id: 'lead-number', label: 'Lead Id' },
   { id: 'name', label: 'Name' },
   { id: 'company', label: 'Company' },
   { id: 'status', label: 'Status' },
@@ -39,7 +41,13 @@ export default async function LeadsPage({
   const params = await searchParams
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const sortOptions = prependIdSortOption([
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'name', label: 'Name A-Z' },
+    { value: 'company', label: 'Company A-Z' },
+  ])
 
   const where = {
     ...(query
@@ -58,7 +66,9 @@ export default async function LeadsPage({
   }
 
   const orderBy =
-    sort === 'oldest'
+    sort === 'id'
+      ? [{ leadNumber: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'name'
         ? [{ firstName: 'asc' as const }, { lastName: 'asc' as const }, { createdAt: 'desc' as const }]
@@ -66,21 +76,23 @@ export default async function LeadsPage({
           ? [{ company: 'asc' as const }, { createdAt: 'desc' as const }]
           : [{ createdAt: 'desc' as const }]
 
-  const [totalLeads, adminUser, entities, currencies, companySettings, cabinetFiles, leadStatusValues] = await Promise.all([
+  const [totalLeads, adminUser, entities, currencies, companySettings, cabinetFiles, leadSourceOptions, leadRatingOptions, leadStatusOptions] = await Promise.all([
     prisma.lead.count({ where }),
     prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
-    prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, select: { id: true, currencyId: true, name: true } }),
+    prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.currency.findMany({ orderBy: { code: 'asc' }, select: { id: true, currencyId: true, code: true, name: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
-    loadListValues('LEAD-STATUS'),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-LEAD-SRC' }),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-LEAD-RAT' }),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-LEAD-STATUS' }),
   ])
 
   const pagination = getPagination(totalLeads, params.page)
 
   const leads = await prisma.lead.findMany({
     where,
-    include: { entity: true, currency: true, opportunity: true },
+    include: { subsidiary: true, currency: true, opportunity: true },
     orderBy,
     skip: pagination.skip,
     take: pagination.pageSize,
@@ -118,7 +130,14 @@ export default async function LeadsPage({
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{totalLeads} total</p>
         </div>
                   <CreateModalButton buttonLabel="New Lead" title="New Lead">
-          <LeadCreateForm userId={adminUser.id} entities={entities} currencies={currencies} />
+          <LeadCreateForm
+            userId={adminUser?.id ?? ''}
+            entities={entities}
+            currencies={currencies}
+            leadSourceOptions={leadSourceOptions}
+            leadRatingOptions={leadRatingOptions}
+            leadStatusOptions={leadStatusOptions}
+          />
           </CreateModalButton>
       </div>
 
@@ -130,41 +149,35 @@ export default async function LeadsPage({
               type="text"
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search lead #, name, company, email, source"
+              placeholder="Search lead id, name, company, email, source"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <select name="status" defaultValue={statusFilter} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="all">All statuses</option>
-              {leadStatusValues.map((s) => (
-                <option key={s} value={s.toLowerCase()}>{s}</option>
+              {leadStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
             <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="name">Name A-Z</option>
-              <option value="company">Company A-Z</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
             <ExportButton tableId="leads-list" fileName="leads" />
             <ColumnSelector tableId="leads-list" columns={LEAD_COLUMNS} />
           </div>
         </form>
 
-        <div className="overflow-x-auto" data-column-selector-table="leads-list">
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="leads-list">
           <table className="min-w-full" id="leads-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="lead-number" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Lead #</th>
-                <th data-column="name" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Name</th>
-                <th data-column="company" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Company</th>
-                <th data-column="status" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Status</th>
-                <th data-column="source" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Source</th>
-                <th data-column="subsidiary" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Subsidiary</th>
-                <th data-column="currency" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Currency</th>
-                <th data-column="created" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
-                <th data-column="last-modified" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Last Modified</th>
-                <th data-column="actions" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
+                {LEAD_COLUMNS.map((column) => (
+                  <th key={column.id} data-column={column.id} className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
+                    <RecordListHeaderLabel label={column.label} tooltip={'tooltip' in column ? column.tooltip : undefined} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -184,8 +197,8 @@ export default async function LeadsPage({
                     <td data-column="company" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.company ?? '—'}</td>
                     <td data-column="status" className="px-4 py-2 text-sm capitalize" style={{ color: 'var(--text-secondary)' }}>{lead.status}</td>
                     <td data-column="source" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.source ?? '—'}</td>
-                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.entity?.subsidiaryId ?? '—'}</td>
-                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.currency?.currencyId ?? '—'}</td>
+                    <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.subsidiary?.subsidiaryId ?? '—'}</td>
+                    <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.currency?.code ?? '—'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(lead.createdAt).toLocaleDateString()}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(lead.updatedAt).toLocaleDateString()}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
@@ -199,6 +212,9 @@ export default async function LeadsPage({
                           leadId={lead.id}
                           entities={entities}
                           currencies={currencies}
+                          leadSourceOptions={leadSourceOptions}
+                          leadRatingOptions={leadRatingOptions}
+                          leadStatusOptions={leadStatusOptions}
                           values={{
                             firstName: lead.firstName ?? '',
                             lastName: lead.lastName ?? '',
@@ -212,7 +228,7 @@ export default async function LeadsPage({
                             source: lead.source ?? '',
                             rating: lead.rating ?? '',
                             expectedValue: lead.expectedValue?.toString() ?? '',
-                            entityId: lead.entityId ?? '',
+                            entityId: lead.subsidiaryId ?? '',
                             currencyId: lead.currencyId ?? '',
                             lastContactedAt: lead.lastContactedAt ? new Date(lead.lastContactedAt).toISOString().split('T')[0] : '',
                             qualifiedAt: lead.qualifiedAt ? new Date(lead.qualifiedAt).toISOString().split('T')[0] : '',

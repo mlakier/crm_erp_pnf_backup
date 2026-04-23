@@ -14,14 +14,50 @@ type CurrencyFormCustomizationResponse = {
   config?: CurrencyFormCustomizationConfig
 }
 
-export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?: () => void; onCancel?: () => void }) {
+type SelectOption = {
+  value: string
+  label: string
+}
+
+export type CurrencyCreateInitialValues = {
+  currencyId?: string
+  code?: string
+  name?: string
+  symbol?: string | null
+  decimals?: string
+  isBase?: boolean
+  inactive?: boolean
+}
+
+export default function CurrencyCreateForm({
+  baseOptions,
+  inactiveOptions,
+  formId,
+  showFooterActions = true,
+  redirectBasePath,
+  initialCurrencyId,
+  initialValues,
+  onSuccess,
+  onCancel,
+}: {
+  baseOptions: SelectOption[]
+  inactiveOptions: SelectOption[]
+  formId?: string
+  showFooterActions?: boolean
+  redirectBasePath?: string
+  initialCurrencyId?: string
+  initialValues?: CurrencyCreateInitialValues
+  onSuccess?: () => void
+  onCancel?: () => void
+}) {
   const router = useRouter()
-  const [currencyId, setCurrencyId] = useState('')
-  const [name, setName] = useState('')
-  const [symbol, setSymbol] = useState('')
-  const [decimals, setDecimals] = useState('2')
-  const [isBase, setIsBase] = useState(false)
-  const [inactive, setInactive] = useState(false)
+  const [currencyId] = useState(initialValues?.currencyId ?? initialCurrencyId ?? '')
+  const [code, setCode] = useState(initialValues?.code ?? '')
+  const [name, setName] = useState(initialValues?.name ?? '')
+  const [symbol, setSymbol] = useState(initialValues?.symbol ?? '')
+  const [decimals, setDecimals] = useState(initialValues?.decimals ?? '2')
+  const [isBase, setIsBase] = useState(initialValues?.isBase ?? false)
+  const [inactive, setInactive] = useState(initialValues?.inactive ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [runtimeRequirements, setRuntimeRequirements] = useState<Record<string, boolean> | null>(null)
@@ -96,6 +132,10 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
   }, [layoutConfig])
 
   const formColumns = Math.min(4, Math.max(1, layoutConfig.formColumns || 2))
+  const sectionDescriptions: Record<string, string> = {
+    Core: 'Primary identity and presentation fields for the currency.',
+    Settings: 'Rounding, status, and base-currency behavior.',
+  }
 
   function getSectionGridStyle(): React.CSSProperties {
     return { gridTemplateColumns: `repeat(${formColumns}, minmax(0, 1fr))` }
@@ -113,46 +153,62 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
     switch (fieldId) {
       case 'currencyId':
         return (
-          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Currency Id', req('currencyId'))}</span>
-            <input value={currencyId} onChange={(e) => setCurrencyId(e.target.value.toUpperCase())} required={req('currencyId')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          <label key={fieldId} className="block">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{requiredLabel('Currency Id', req('currencyId'))}</span>
+            <input value={currencyId || 'Generated automatically'} readOnly disabled className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white opacity-80" style={{ borderColor: 'var(--border-muted)' }} />
+          </label>
+        )
+      case 'code':
+        return (
+          <label key={fieldId} className="block">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{requiredLabel('Code', req('code'))}</span>
+            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required={req('code')} maxLength={12} className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'name':
         return (
-          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Name', req('name'))}</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} required={req('name')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          <label key={fieldId} className="block">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{requiredLabel('Name', req('name'))}</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} required={req('name')} className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'symbol':
         return (
-          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Symbol', req('symbol'))}</span>
-            <input value={symbol} onChange={(e) => setSymbol(e.target.value)} required={req('symbol')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          <label key={fieldId} className="block">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{requiredLabel('Symbol', req('symbol'))}</span>
+            <input value={symbol} onChange={(e) => setSymbol(e.target.value)} required={req('symbol')} className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'decimals':
         return (
-          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Decimal Places', req('decimals'))}</span>
-            <input type="number" min={0} value={decimals} onChange={(e) => setDecimals(e.target.value)} required={req('decimals')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }} />
+          <label key={fieldId} className="block">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{requiredLabel('Decimal Places', req('decimals'))}</span>
+            <input type="number" min={0} value={decimals} onChange={(e) => setDecimals(e.target.value)} required={req('decimals')} className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'isBase':
         return (
-          <label key={fieldId} className="flex items-center gap-2 pt-7 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <input type="checkbox" checked={isBase} onChange={(e) => setIsBase(e.target.checked)} className="h-4 w-4 rounded" />
-            <span>{requiredLabel('Base Currency', req('isBase'))}</span>
+          <label key={fieldId} className="block">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{requiredLabel('Base Currency', req('isBase'))}</span>
+            <select value={isBase ? 'true' : 'false'} onChange={(e) => setIsBase(e.target.value === 'true')} className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
+              {baseOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
         )
       case 'inactive':
         return (
-          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Inactive', req('inactive'))}</span>
-            <select value={inactive ? 'true' : 'false'} onChange={(e) => setInactive(e.target.value === 'true')} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="false">No</option>
-              <option value="true">Yes</option>
+          <label key={fieldId} className="block">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{requiredLabel('Inactive', req('inactive'))}</span>
+            <select value={inactive ? 'true' : 'false'} onChange={(e) => setInactive(e.target.value === 'true')} className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
+              {inactiveOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
         )
@@ -169,6 +225,7 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
       const missing: string[] = []
       const requiredFields = [
         ['currencyId', currencyId],
+        ['code', code],
         ['name', name],
         ['symbol', symbol],
         ['decimals', decimals],
@@ -189,6 +246,7 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           currencyId,
+          code,
           name,
           symbol,
           decimals: Number(decimals),
@@ -198,8 +256,14 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json?.error ?? 'Create failed')
-      router.refresh()
+      const createdId = String(json?.id ?? '')
+      if (redirectBasePath && createdId) {
+        router.push(`${redirectBasePath}/${createdId}`)
+        router.refresh()
+        return
+      }
       onSuccess?.()
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create failed')
     } finally {
@@ -208,27 +272,44 @@ export default function CurrencyCreateForm({ onSuccess, onCancel }: { onSuccess?
   }
 
   return (
-    <form className="space-y-5" onSubmit={submitForm}>
-      {groupedVisibleFields.map(({ section, fields }) => (
-        <section key={section} className="rounded-lg border p-4" style={{ borderColor: 'var(--border-muted)' }}>
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-white">{section}</h3>
-          </div>
-          <div className="grid gap-4" style={getSectionGridStyle()}>
-            {fields.map((field) => (
-              <div key={field.id} style={getFieldPlacementStyle(field.id)}>
-                {renderField(field.id)}
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
-
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <div className="flex items-center justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Cancel</button>
-        <button type="submit" disabled={saving} className="rounded-md px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: 'var(--accent-primary-strong)' }}>{saving ? 'Saving...' : 'Create Currency'}</button>
+    <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Currency details</h2>
       </div>
-    </form>
+
+      <form id={formId} onSubmit={submitForm}>
+        <div className="space-y-6">
+          {groupedVisibleFields.map(({ section, fields }, index) => (
+            <section
+              key={section}
+              className={index > 0 ? 'border-t pt-6' : ''}
+              style={index > 0 ? { borderColor: 'var(--border-muted)' } : undefined}
+            >
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-white">{section}</h3>
+                {sectionDescriptions[section] ? (
+                  <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{sectionDescriptions[section]}</p>
+                ) : null}
+              </div>
+              <div className="grid gap-3" style={getSectionGridStyle()}>
+                {fields.map((field) => (
+                  <div key={field.id} style={getFieldPlacementStyle(field.id)}>
+                    {renderField(field.id)}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        {error ? <p className="mt-4 text-xs" style={{ color: 'var(--danger)' }}>{error}</p> : null}
+        {showFooterActions ? (
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button type="button" onClick={onCancel} className="rounded-md border px-3 py-1.5 text-xs font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>Cancel</button>
+            <button type="submit" disabled={saving} className="rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60" style={{ backgroundColor: 'var(--accent-primary-strong)' }}>{saving ? 'Saving...' : 'Save'}</button>
+          </div>
+        ) : null}
+      </form>
+    </div>
   )
 }

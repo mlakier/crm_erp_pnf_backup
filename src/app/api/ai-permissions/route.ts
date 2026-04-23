@@ -46,8 +46,9 @@ export async function POST(request: Request) {
   }
 
   const pagesDescription = ALL_PAGES.map(p => {
-    const statuses = p.statusKey && statusOptions?.[p.statusKey]
-      ? ` (statuses: ${statusOptions[p.statusKey].join(', ')})`
+    const statusKey = 'statusKey' in p ? p.statusKey : undefined
+    const statuses = statusKey && statusOptions?.[statusKey]
+      ? ` (statuses: ${statusOptions[statusKey].join(', ')})`
       : ''
     return `  - "${p.key}" (${p.label}, group: ${p.group})${statuses}`
   }).join('\n')
@@ -90,7 +91,7 @@ Respond with ONLY valid JSON, no markdown, no explanation. Format:
     })
 
     const text = message.content[0].type === 'text' ? message.content[0].text : ''
-    const parsed = JSON.parse(text)
+    const parsed = JSON.parse(text) as { permissions?: unknown }
 
     if (!parsed.permissions || !Array.isArray(parsed.permissions)) {
       return NextResponse.json({ error: 'Invalid AI response format' }, { status: 500 })
@@ -98,20 +99,28 @@ Respond with ONLY valid JSON, no markdown, no explanation. Format:
 
     // Validate and sanitize: only allow known page keys
     const validKeys = new Set(ALL_PAGES.map(p => p.key))
+    type PermissionSuggestion = {
+      page?: unknown
+      canView?: unknown
+      canCreate?: unknown
+      canEdit?: unknown
+      canDelete?: unknown
+      blockedStates?: unknown
+    }
     const sanitized = parsed.permissions
-      .filter((p: any) => validKeys.has(p.page))
-      .map((p: any) => ({
+      .filter((p): p is PermissionSuggestion => Boolean(p) && typeof p === 'object' && validKeys.has((p as PermissionSuggestion).page as typeof ALL_PAGES[number]['key']))
+      .map((p) => ({
         page: p.page,
         canView: Boolean(p.canView),
         canCreate: Boolean(p.canCreate),
         canEdit: Boolean(p.canEdit),
         canDelete: Boolean(p.canDelete),
-        blockedStates: Array.isArray(p.blockedStates) ? p.blockedStates.filter((s: any) => typeof s === 'string') : [],
+        blockedStates: Array.isArray(p.blockedStates) ? p.blockedStates.filter((s): s is string => typeof s === 'string') : [],
       }))
 
     return NextResponse.json({ permissions: sanitized })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('AI permissions error:', err)
-    return NextResponse.json({ error: err.message || 'AI request failed' }, { status: 500 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'AI request failed' }, { status: 500 })
   }
 }

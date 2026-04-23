@@ -5,22 +5,26 @@ import { createPortal } from 'react-dom'
 import { usePathname, useRouter } from 'next/navigation'
 import { isValidEmail } from '@/lib/validation'
 import AddressModal, { parseAddress } from '@/components/AddressModal'
+import MultiSelectDropdown from '@/components/MultiSelectDropdown'
 
 export interface EditField {
   name: string
   label: string
   value: string
   type?: 'text' | 'number' | 'date' | 'email' | 'select' | 'checkbox' | 'address'
+  multiple?: boolean
   options?: Array<{ value: string; label: string }>
   placeholder?: string
 }
 
 export default function EditButton({
   resource,
+  endpoint,
   id,
   fields,
 }: {
-  resource: string
+  resource?: string
+  endpoint?: string
   id: string
   fields: EditField[]
 }) {
@@ -38,19 +42,20 @@ export default function EditButton({
 
   const masterDataDetailRoutes: Record<string, string> = {
     'chart-of-accounts': '/chart-of-accounts',
-    entities: '/subsidiaries',
+    subsidiaries: '/subsidiaries',
     items: '/items',
     customers: '/customers',
     vendors: '/vendors',
     employees: '/employees',
     departments: '/departments',
     currencies: '/currencies',
+    locations: '/locations',
     roles: '/roles',
     contacts: '/contacts',
     users: '/users',
   }
 
-  const detailBasePath = masterDataDetailRoutes[resource]
+  const detailBasePath = resource ? masterDataDetailRoutes[resource] : undefined
   const useFullPageDetail = Boolean(detailBasePath && pathname === detailBasePath)
 
   useEffect(() => { setMounted(true) }, [])
@@ -76,7 +81,14 @@ export default function EditButton({
     const timeout = setTimeout(() => controller.abort(), 15000)
 
     try {
-      const res = await fetch(`/api/${resource}?id=${encodeURIComponent(id)}`, {
+      const updateEndpoint = endpoint ?? (resource ? `/api/${resource}` : null)
+      if (!updateEndpoint) {
+        setError('Unable to save changes')
+        setSaving(false)
+        return
+      }
+
+      const res = await fetch(`${updateEndpoint}?id=${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
@@ -172,27 +184,46 @@ export default function EditButton({
                       </p>
                     </div>
                   ) : f.type === 'select' ? (
-                    <select
-                      value={values[f.name]}
-                      onChange={(e) =>
-                        setValues((prev) => ({ ...prev, [f.name]: e.target.value }))
-                      }
-                      className="mt-1 block w-full rounded-md border bg-transparent px-3 py-1.5 text-sm text-white shadow-sm focus:outline-none"
-                      style={{ borderColor: 'var(--border-muted)' }}
-                    >
-                      <option value="" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
-                        {f.placeholder ?? 'Select option'}
-                      </option>
-                      {(f.options ?? []).map((option) => (
-                        <option
-                          key={`${f.name}-${option.value}`}
-                          value={option.value}
-                          style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}
-                        >
-                          {option.label}
+                    f.multiple ? (
+                      <div className="mt-1">
+                        <MultiSelectDropdown
+                          value={splitMultiValue(values[f.name] ?? '')}
+                          options={f.options ?? []}
+                          placeholder={f.placeholder ?? 'Select options'}
+                          onChange={(next) =>
+                            setValues((prev) => ({
+                              ...prev,
+                              [f.name]: next.join(','),
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <select
+                        value={values[f.name]}
+                        onChange={(e) =>
+                          setValues((prev) => ({
+                            ...prev,
+                            [f.name]: e.target.value,
+                          }))
+                        }
+                        className="mt-1 block w-full rounded-md border bg-transparent px-3 py-1.5 text-sm text-white shadow-sm focus:outline-none"
+                        style={{ borderColor: 'var(--border-muted)' }}
+                      >
+                        <option value="" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
+                          {f.placeholder ?? 'Select option'}
                         </option>
-                      ))}
-                    </select>
+                        {(f.options ?? []).map((option) => (
+                          <option
+                            key={`${f.name}-${option.value}`}
+                            value={option.value}
+                            style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}
+                          >
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    )
                   ) : (
                     <input
                       type={f.type ?? 'text'}
@@ -254,4 +285,11 @@ export default function EditButton({
       )}
     </>
   )
+}
+
+function splitMultiValue(value: string) {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
 }

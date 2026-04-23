@@ -1,30 +1,31 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const PURCHASE_ORDER_NUMBER_PREFIX = 'PO-'
-const PURCHASE_ORDER_NUMBER_WIDTH = 6
-
-export function formatPurchaseOrderNumber(sequence: number) {
-  return `${PURCHASE_ORDER_NUMBER_PREFIX}${String(sequence).padStart(PURCHASE_ORDER_NUMBER_WIDTH, '0')}`
+export function formatPurchaseOrderNumber(sequence: number, config = DEFAULT_ID_SETTINGS.purchaseOrder) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextPurchaseOrderNumber() {
+  const config = await loadIdSetting('purchaseOrder')
   const latestOrders = await prisma.purchaseOrder.findMany({
+    where: {
+      number: {
+        startsWith: config.prefix,
+      },
+    },
     orderBy: {
       number: 'desc',
     },
     select: {
       number: true,
     },
-    take: 50,
+    take: 200,
   })
 
-  for (const order of latestOrders) {
-    const match = order.number.match(/(\d+)$/)
-    if (match) {
-      const parsed = Number.parseInt(match[1], 10)
-      return formatPurchaseOrderNumber(Number.isNaN(parsed) ? 1 : parsed + 1)
-    }
-  }
-
-  return formatPurchaseOrderNumber(1)
+  const nextSequence = getNextSequenceFromValues(
+    latestOrders.map((order) => order.number),
+    config,
+  )
+  return formatPurchaseOrderNumber(nextSequence, config)
 }

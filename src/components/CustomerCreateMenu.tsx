@@ -5,6 +5,7 @@ import CustomerDetailContactForm from '@/components/CustomerDetailContactForm'
 import CustomerDetailOpportunityForm from '@/components/CustomerDetailOpportunityForm'
 import QuoteCreateFromOpportunityForm from '@/components/QuoteCreateFromOpportunityForm'
 import InvoiceCreateFromSalesOrderForm from '@/components/InvoiceCreateFromSalesOrderForm'
+import type { SelectOption } from '@/lib/list-source'
 
 type Option = {
   id: string
@@ -18,11 +19,13 @@ export default function CustomerCreateMenu({
   userId,
   opportunities,
   salesOrders,
+  opportunityStageOptions,
 }: {
   customerId: string
   userId: string
   opportunities: Option[]
   salesOrders: Option[]
+  opportunityStageOptions: SelectOption[]
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [active, setActive] = useState<CreateKind>(null)
@@ -146,7 +149,7 @@ export default function CustomerCreateMenu({
               <CustomerDetailContactForm customerId={customerId} userId={userId} onSuccess={closeModal} onCancel={closeModal} />
             ) : null}
             {active === 'opportunity' ? (
-              <CustomerDetailOpportunityForm customerId={customerId} userId={userId} onSuccess={closeModal} onCancel={closeModal} />
+              <CustomerDetailOpportunityForm customerId={customerId} userId={userId} stageOptions={opportunityStageOptions} onSuccess={closeModal} onCancel={closeModal} />
             ) : null}
             {active === 'estimate' ? (
               <QuoteCreateFromOpportunityForm opportunities={opportunities} onSuccess={closeModal} onCancel={closeModal} />

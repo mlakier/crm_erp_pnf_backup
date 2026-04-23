@@ -20,7 +20,7 @@ export default function RecordDetailPageShell({
   badge,
   actions,
   children,
-  widthClassName = 'max-w-5xl',
+  widthClassName = 'w-full max-w-none',
 }: RecordDetailPageShellProps) {
   return (
     <div className="min-h-full px-8 py-8">

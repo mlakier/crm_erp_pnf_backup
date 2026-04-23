@@ -3,8 +3,12 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import DeleteButton from '@/components/DeleteButton'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
+import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
+import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
+import MasterDataSystemInfoSection from '@/components/MasterDataSystemInfoSection'
 import CurrencyDetailCustomizeMode from '@/components/CurrencyDetailCustomizeMode'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
+import SystemNotesSection from '@/components/SystemNotesSection'
 import {
   RecordDetailCell,
   RecordDetailEmptyState,
@@ -12,9 +16,13 @@ import {
   RecordDetailSection,
   RecordDetailStatCard,
 } from '@/components/RecordDetailPanels'
+import { buildFieldMetaById, getFieldSourceText, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { buildConfiguredInlineSections, buildCustomizePreviewFields } from '@/lib/detail-page-helpers'
 import { loadCurrencyFormCustomization } from '@/lib/currency-form-customization-store'
 import { CURRENCY_FORM_FIELDS, type CurrencyFormFieldKey } from '@/lib/currency-form-customization'
 import { loadFormRequirements } from '@/lib/form-requirements-store'
+import { loadMasterDataSystemInfo } from '@/lib/master-data-system-info'
+import { loadMasterDataSystemNotes } from '@/lib/master-data-system-notes'
 
 export default async function CurrencyDetailPage({
   params,
@@ -27,19 +35,33 @@ export default async function CurrencyDetailPage({
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
+  const fieldMetaById = buildFieldMetaById(CURRENCY_FORM_FIELDS)
 
-  const [currency, currencyFormCustomization, formRequirements] = await Promise.all([
+  const [currency, fieldOptions, currencyFormCustomization, formRequirements] = await Promise.all([
     prisma.currency.findUnique({
       where: { id },
       include: {
-        entities: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
+        defaultCurrencySubsidiaries: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
         customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerId: true } },
         vendors: { orderBy: { name: 'asc' }, select: { id: true, name: true, vendorNumber: true } },
       },
     }),
+    loadFieldOptionsMap(
+      {
+        ...fieldMetaById,
+        isBase: {
+          ...fieldMetaById.isBase,
+          sourceType: 'system',
+          sourceKey: 'boolean',
+        },
+      },
+      ['isBase', 'inactive']
+    ),
     loadCurrencyFormCustomization(),
     loadFormRequirements(),
   ])
+  const baseOptions = fieldOptions.isBase ?? []
+  const inactiveOptions = fieldOptions.inactive ?? []
 
   if (!currency) notFound()
 
@@ -49,54 +71,28 @@ export default async function CurrencyDetailPage({
     Settings: 'Rounding, status, and base-currency behavior.',
   }
   const fieldDefinitions: Record<CurrencyFormFieldKey, InlineRecordSection['fields'][number]> = {
-    currencyId: { name: 'currencyId', label: 'Currency Id', value: currency.currencyId, helpText: 'Unique ISO or internal code for the currency.' },
+    currencyId: { name: 'currencyId', label: 'Currency Id', value: currency.currencyId, helpText: 'System-generated currency master record identifier.' },
+    code: { name: 'code', label: 'Code', value: currency.code, helpText: 'ISO currency code or operating currency code, such as USD, CAD, or AUD.' },
     name: { name: 'name', label: 'Name', value: currency.name, helpText: 'Display name for the currency.' },
     symbol: { name: 'symbol', label: 'Symbol', value: currency.symbol ?? '', helpText: 'Printed symbol used on forms and reports.' },
     decimals: { name: 'decimals', label: 'Decimal Places', value: String(currency.decimals), type: 'number', helpText: 'Number of decimal places used for this currency.' },
-    isBase: { name: 'isBase', label: 'Base Currency', value: String(currency.isBase), type: 'select', options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }], helpText: 'Marks whether this is the primary company currency.', sourceText: 'System base currency flag' },
-    inactive: { name: 'inactive', label: 'Inactive', value: String(!currency.active), type: 'select', options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }], helpText: 'Marks the currency unavailable for new records while preserving history.', sourceText: 'System status values' },
+    isBase: { name: 'isBase', label: 'Base Currency', value: String(currency.isBase), type: 'select', options: baseOptions, helpText: 'Marks whether this is the primary company currency.', sourceText: 'System values' },
+    inactive: { name: 'inactive', label: 'Inactive', value: String(!currency.active), type: 'select', options: inactiveOptions, helpText: 'Marks the currency unavailable for new records while preserving history.', sourceText: getFieldSourceText(fieldMetaById, 'inactive') },
   }
-  const customizeFields = CURRENCY_FORM_FIELDS.map((field) => ({
-    id: field.id,
-    label: fieldDefinitions[field.id].label,
-    fieldType: field.fieldType,
-    source: field.source,
-    description: field.description,
-    previewValue:
-      fieldDefinitions[field.id].options?.find((option) => option.value === fieldDefinitions[field.id].value)?.label
-      ?? fieldDefinitions[field.id].value
-      ?? '',
-  }))
-  const detailSections: InlineRecordSection[] = currencyFormCustomization.sections
-    .map((sectionTitle) => {
-      const configuredFields = CURRENCY_FORM_FIELDS
-        .filter((field) => {
-          const config = currencyFormCustomization.fields[field.id]
-          return config.visible && config.section === sectionTitle
-        })
-        .sort((a, b) => {
-          const left = currencyFormCustomization.fields[a.id]
-          const right = currencyFormCustomization.fields[b.id]
-          if (left.column !== right.column) return left.column - right.column
-          return left.order - right.order
-        })
-        .map((field) => ({
-          ...fieldDefinitions[field.id],
-          column: currencyFormCustomization.fields[field.id].column,
-          order: currencyFormCustomization.fields[field.id].order,
-        }))
-
-      if (configuredFields.length === 0) return null
-
-      return {
-        title: sectionTitle,
-        description: sectionDescriptions[sectionTitle],
-        collapsible: true,
-        defaultExpanded: true,
-        fields: configuredFields,
-      }
-    })
-    .filter((section): section is InlineRecordSection => Boolean(section))
+  const customizeFields = buildCustomizePreviewFields(CURRENCY_FORM_FIELDS, fieldDefinitions)
+  const detailSections: InlineRecordSection[] = buildConfiguredInlineSections({
+    fields: CURRENCY_FORM_FIELDS,
+    layout: currencyFormCustomization,
+    fieldDefinitions,
+    sectionDescriptions,
+  })
+  const systemInfo = await loadMasterDataSystemInfo({
+    entityType: 'currency',
+    entityId: currency.id,
+    createdAt: currency.createdAt,
+    updatedAt: currency.updatedAt,
+  })
+  const systemNotes = await loadMasterDataSystemNotes({ entityType: 'currency', entityId: currency.id })
 
   return (
     <RecordDetailPageShell
@@ -116,6 +112,23 @@ export default async function CurrencyDetailPage({
       }
       actions={
         <>
+          {isEditing && !isCustomizing ? (
+            <>
+              <Link href={detailHref} className="rounded-md border px-3 py-1.5 text-xs font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                form={`inline-record-form-${currency.id}`}
+                className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Save
+              </button>
+            </>
+          ) : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailCreateMenu newHref="/currencies/new" duplicateHref={`/currencies/new?duplicateFrom=${currency.id}`} /> : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailExportMenu title={currency.name} fileName={`currency-${currency.currencyId}`} sections={detailSections} /> : null}
           {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?customize=1`}
@@ -125,7 +138,7 @@ export default async function CurrencyDetailPage({
               Customize
             </Link>
           ) : null}
-          {!isEditing ? (
+          {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?edit=1`}
               className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
@@ -139,7 +152,7 @@ export default async function CurrencyDetailPage({
       }
     >
         <div className="mb-8 grid gap-4 sm:grid-cols-3">
-          <RecordDetailStatCard label="Subsidiaries" value={currency.entities.length} />
+          <RecordDetailStatCard label="Subsidiaries" value={currency.defaultCurrencySubsidiaries.length} />
           <RecordDetailStatCard label="Customers" value={currency.customers.length} />
           <RecordDetailStatCard label="Vendors" value={currency.vendors.length} />
         </div>
@@ -160,11 +173,14 @@ export default async function CurrencyDetailPage({
             sections={detailSections}
             editing={isEditing}
             columns={currencyFormCustomization.formColumns}
+            showInternalActions={false}
           />
         )}
 
-        <RecordDetailSection title="Subsidiaries (Default Currency)" count={currency.entities.length}>
-          {currency.entities.length === 0 ? (
+        {!isCustomizing ? <MasterDataSystemInfoSection info={systemInfo} /> : null}
+
+        <RecordDetailSection title="Subsidiaries (Default Currency)" count={currency.defaultCurrencySubsidiaries.length}>
+          {currency.defaultCurrencySubsidiaries.length === 0 ? (
             <RecordDetailEmptyState message="No subsidiaries use this as default currency" />
           ) : (
             <table className="min-w-full">
@@ -175,14 +191,14 @@ export default async function CurrencyDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {currency.entities.map((entity) => (
-                  <tr key={entity.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                {currency.defaultCurrencySubsidiaries.map((subsidiary) => (
+                  <tr key={subsidiary.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <RecordDetailCell>
-                      <Link href={`/subsidiaries/${entity.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {entity.subsidiaryId}
+                      <Link href={`/subsidiaries/${subsidiary.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+                        {subsidiary.subsidiaryId}
                       </Link>
                     </RecordDetailCell>
-                    <RecordDetailCell>{entity.name}</RecordDetailCell>
+                    <RecordDetailCell>{subsidiary.name}</RecordDetailCell>
                   </tr>
                 ))}
               </tbody>
@@ -243,6 +259,7 @@ export default async function CurrencyDetailPage({
             </table>
           )}
         </RecordDetailSection>
+        <SystemNotesSection notes={systemNotes} />
     </RecordDetailPageShell>
   )
 }

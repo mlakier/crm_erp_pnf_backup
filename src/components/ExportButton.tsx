@@ -53,11 +53,11 @@ export default function ExportButton({
   }
 
   return (
-    <div ref={dropdownRef} className="relative inline-block z-50">
+    <div ref={dropdownRef} className="relative inline-block shrink-0 z-50">
       <button
         type="button"
         onClick={() => setShowDropdown(!showDropdown)}
-        className={`rounded-md border font-medium ${compact ? 'px-3 py-2 text-xs' : 'px-3 py-2 text-sm'}`}
+        className={`inline-flex items-center justify-between rounded-md border font-medium ${compact ? 'w-24 px-3 py-2 text-xs' : 'w-24 px-3 py-2 text-sm'}`}
         style={{
           borderColor: 'var(--border-muted)',
           color: 'var(--text-secondary)',
@@ -66,7 +66,8 @@ export default function ExportButton({
         }}
         title="Export visible rows"
       >
-        Export ▼
+        <span>Export</span>
+        <span aria-hidden="true">▼</span>
       </button>
 
       {showDropdown && (

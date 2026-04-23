@@ -1,3 +1,5 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type ContactFormFieldKey =
   | 'contactNumber'
   | 'firstName'
@@ -7,12 +9,15 @@ export type ContactFormFieldKey =
   | 'address'
   | 'position'
   | 'customerId'
+  | 'vendorId'
   | 'inactive'
 
 export type ContactFormFieldMeta = {
   id: ContactFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -39,8 +44,9 @@ export const CONTACT_FORM_FIELDS: ContactFormFieldMeta[] = [
   { id: 'phone', label: 'Phone', fieldType: 'text', description: 'Primary contact phone number.' },
   { id: 'address', label: 'Address', fieldType: 'address', description: 'Mailing or business address for the contact.' },
   { id: 'position', label: 'Position', fieldType: 'text', description: 'Job title or role for the contact.' },
-  { id: 'customerId', label: 'Customer', fieldType: 'list', source: 'Customers master data', description: 'Customer account this contact belongs to.' },
-  { id: 'inactive', label: 'Inactive', fieldType: 'boolean', description: 'Marks the contact unavailable for new activity while preserving history.' },
+  { id: 'customerId', label: 'Customer', fieldType: 'list', sourceType: 'reference', sourceKey: 'customers', source: getListSourceText({ sourceType: 'reference', sourceKey: 'customers' }), description: 'Customer account this contact belongs to.' },
+  { id: 'vendorId', label: 'Vendor', fieldType: 'list', sourceType: 'reference', sourceKey: 'vendors', source: getListSourceText({ sourceType: 'reference', sourceKey: 'vendors' }), description: 'Vendor account this contact belongs to.' },
+  { id: 'inactive', label: 'Inactive', fieldType: 'list', sourceType: 'system', sourceKey: 'activeInactive', source: getListSourceText({ sourceType: 'system', sourceKey: 'activeInactive' }), description: 'Marks the contact unavailable for new activity while preserving history.' },
 ]
 
 export const DEFAULT_CONTACT_FORM_SECTIONS = [
@@ -60,6 +66,7 @@ export function defaultContactFormCustomization(): ContactFormCustomizationConfi
     address: 'Contact',
     position: 'Relationship',
     customerId: 'Relationship',
+    vendorId: 'Relationship',
     inactive: 'Status',
   }
 
@@ -72,6 +79,7 @@ export function defaultContactFormCustomization(): ContactFormCustomizationConfi
     address: 1,
     position: 1,
     customerId: 2,
+    vendorId: 1,
     inactive: 1,
   }
 
@@ -84,6 +92,7 @@ export function defaultContactFormCustomization(): ContactFormCustomizationConfi
     address: 1,
     position: 0,
     customerId: 0,
+    vendorId: 1,
     inactive: 0,
   }
 
@@ -93,7 +102,7 @@ export function defaultContactFormCustomization(): ContactFormCustomizationConfi
     sectionRows: {
       Core: 2,
       Contact: 2,
-      Relationship: 1,
+      Relationship: 2,
       Status: 1,
     },
     fields: Object.fromEntries(

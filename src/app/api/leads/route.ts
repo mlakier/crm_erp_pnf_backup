@@ -29,7 +29,7 @@ export async function GET() {
   try {
     const leads = await prisma.lead.findMany({
       include: {
-        entity: true,
+        subsidiary: true,
         currency: true,
         customer: true,
         contact: true,
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
       notes,
       expectedValue,
       entityId,
+      subsidiaryId: bodySubsidiaryId,
       currencyId,
       userId,
     } = body
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
         rating: rating || null,
         notes: notes || null,
         expectedValue: expectedValue === '' || expectedValue == null ? null : Number(expectedValue),
-        entityId: entityId || null,
+        subsidiaryId: bodySubsidiaryId || entityId || null,
         currencyId: currencyId || null,
         userId,
       },
@@ -136,6 +137,7 @@ export async function PUT(request: NextRequest) {
       notes,
       expectedValue,
       entityId,
+      subsidiaryId: bodySubsidiaryId,
       currencyId,
       qualifiedAt,
       convertedAt,
@@ -163,7 +165,7 @@ export async function PUT(request: NextRequest) {
         rating: rating || null,
         notes: notes || null,
         expectedValue: expectedValue === '' || expectedValue == null ? null : Number(expectedValue),
-        entityId: entityId || null,
+        subsidiaryId: bodySubsidiaryId || entityId || null,
         currencyId: currencyId || null,
         qualifiedAt: qualifiedAt ? new Date(qualifiedAt) : null,
         convertedAt: convertedAt ? new Date(convertedAt) : null,

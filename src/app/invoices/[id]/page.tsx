@@ -62,7 +62,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Invoice details</h2>
           <dl className="grid gap-4 sm:grid-cols-2">
-            <Field label="Invoice #" value={invoice.number} />
+            <Field label="Invoice Id" value={invoice.number} />
             <Field label="Customer" value={invoice.customer.name} />
             <Field label="Sales Order" value={invoice.salesOrder?.number} />
             <Field label="Quote" value={invoice.salesOrder?.quote?.number} />

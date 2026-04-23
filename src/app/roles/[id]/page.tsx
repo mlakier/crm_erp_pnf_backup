@@ -3,17 +3,25 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import DeleteButton from '@/components/DeleteButton'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
+import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
+import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
+import MasterDataSystemInfoSection from '@/components/MasterDataSystemInfoSection'
 import RoleDetailCustomizeMode from '@/components/RoleDetailCustomizeMode'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
+import SystemNotesSection from '@/components/SystemNotesSection'
 import {
   RecordDetailCell,
   RecordDetailEmptyState,
   RecordDetailHeaderCell,
   RecordDetailSection,
 } from '@/components/RecordDetailPanels'
+import { buildFieldMetaById, getFieldSourceText, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { buildConfiguredInlineSections, buildCustomizePreviewFields } from '@/lib/detail-page-helpers'
 import { loadRoleFormCustomization } from '@/lib/role-form-customization-store'
 import { ROLE_FORM_FIELDS, type RoleFormFieldKey } from '@/lib/role-form-customization'
 import { loadFormRequirements } from '@/lib/form-requirements-store'
+import { loadMasterDataSystemInfo } from '@/lib/master-data-system-info'
+import { loadMasterDataSystemNotes } from '@/lib/master-data-system-notes'
 
 export default async function RoleDetailPage({
   params,
@@ -26,8 +34,9 @@ export default async function RoleDetailPage({
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
+  const fieldMetaById = buildFieldMetaById(ROLE_FORM_FIELDS)
 
-  const [role, formCustomization, formRequirements] = await Promise.all([
+  const [role, fieldOptions, formCustomization, formRequirements] = await Promise.all([
     prisma.role.findUnique({
       where: { id },
       include: {
@@ -37,9 +46,11 @@ export default async function RoleDetailPage({
         },
       },
     }),
+    loadFieldOptionsMap(fieldMetaById, ['inactive']),
     loadRoleFormCustomization(),
     loadFormRequirements(),
   ])
+  const inactiveOptions = fieldOptions.inactive ?? []
 
   if (!role) notFound()
 
@@ -75,56 +86,26 @@ export default async function RoleDetailPage({
       label: 'Inactive',
       value: role.active ? 'false' : 'true',
       type: 'select',
-      options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
+      options: inactiveOptions,
       helpText: 'Marks the role unavailable for new assignments while preserving history.',
-      sourceText: 'System status values',
+      sourceText: getFieldSourceText(fieldMetaById, 'inactive'),
     },
   }
 
-  const customizeFields = ROLE_FORM_FIELDS.map((field) => {
-    const definition = fieldDefinitions[field.id]
-    const rawValue = definition.value ?? ''
-    const previewValue = definition.options?.find((option) => option.value === rawValue)?.label ?? rawValue
-    return {
-      id: field.id,
-      label: definition.label,
-      fieldType: field.fieldType,
-      source: field.source,
-      description: field.description,
-      previewValue,
-    }
+  const customizeFields = buildCustomizePreviewFields(ROLE_FORM_FIELDS, fieldDefinitions)
+  const detailSections: InlineRecordSection[] = buildConfiguredInlineSections({
+    fields: ROLE_FORM_FIELDS,
+    layout: formCustomization,
+    fieldDefinitions,
+    sectionDescriptions,
   })
-
-  const detailSections: InlineRecordSection[] = formCustomization.sections
-    .map((sectionTitle) => {
-      const configuredFields = ROLE_FORM_FIELDS
-        .filter((field) => {
-          const config = formCustomization.fields[field.id]
-          return config.visible && config.section === sectionTitle
-        })
-        .sort((a, b) => {
-          const left = formCustomization.fields[a.id]
-          const right = formCustomization.fields[b.id]
-          if (left.column !== right.column) return left.column - right.column
-          return left.order - right.order
-        })
-        .map((field) => ({
-          ...fieldDefinitions[field.id],
-          column: formCustomization.fields[field.id].column,
-          order: formCustomization.fields[field.id].order,
-        }))
-
-      if (configuredFields.length === 0) return null
-
-      return {
-        title: sectionTitle,
-        description: sectionDescriptions[sectionTitle],
-        collapsible: true,
-        defaultExpanded: true,
-        fields: configuredFields,
-      }
-    })
-    .filter((section): section is InlineRecordSection => Boolean(section))
+  const systemInfo = await loadMasterDataSystemInfo({
+    entityType: 'role',
+    entityId: role.id,
+    createdAt: role.createdAt,
+    updatedAt: role.updatedAt,
+  })
+  const systemNotes = await loadMasterDataSystemNotes({ entityType: 'role', entityId: role.id })
 
   return (
     <RecordDetailPageShell
@@ -141,12 +122,29 @@ export default async function RoleDetailPage({
       }
       actions={
         <>
+          {isEditing && !isCustomizing ? (
+            <>
+              <Link href={detailHref} className="rounded-md border px-3 py-1.5 text-xs font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                form={`inline-record-form-${role.id}`}
+                className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Save
+              </button>
+            </>
+          ) : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailCreateMenu newHref="/roles/new" duplicateHref={`/roles/new?duplicateFrom=${role.id}`} /> : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailExportMenu title={role.name} fileName={`role-${role.roleId}`} sections={detailSections} /> : null}
           {!isEditing && !isCustomizing ? (
             <Link href={`${detailHref}?customize=1`} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
               Customize
             </Link>
           ) : null}
-          {!isEditing ? (
+          {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?edit=1`}
               className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
@@ -175,8 +173,11 @@ export default async function RoleDetailPage({
             sections={detailSections}
             editing={isEditing}
             columns={formCustomization.formColumns}
+            showInternalActions={false}
           />
         )}
+
+        {!isCustomizing ? <MasterDataSystemInfoSection info={systemInfo} /> : null}
 
         <RecordDetailSection title="Users" count={role.users.length}>
           <div className="px-6 pt-6">
@@ -215,6 +216,7 @@ export default async function RoleDetailPage({
             </table>
           )}
         </RecordDetailSection>
+        <SystemNotesSection notes={systemNotes} />
     </RecordDetailPageShell>
   )
 }

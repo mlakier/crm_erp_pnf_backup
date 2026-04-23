@@ -2,18 +2,20 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useListOptions } from '@/lib/list-options-client'
+import type { SelectOption } from '@/lib/list-source'
 
 export default function LeadConvertOpportunityForm({
   leadId,
   defaultName,
   defaultStage,
   items,
+  stageOptions,
 }: {
   leadId: string
   defaultName: string
   defaultStage: string
   items: Array<{ id: string; name: string; listPrice: number; itemId: string | null }>
+  stageOptions: SelectOption[]
 }) {
   const router = useRouter()
   const [name, setName] = useState(defaultName)
@@ -29,7 +31,6 @@ export default function LeadConvertOpportunityForm({
     unitPrice: string
     notes: string
   }>>([])
-  const stageOptions = useListOptions('opportunity', 'stage')
 
   const addLineItem = () => {
     setLineItems((prev) => [...prev, { itemId: '', description: '', quantity: '1', unitPrice: '', notes: '' }])
@@ -141,7 +142,7 @@ export default function LeadConvertOpportunityForm({
             style={{ borderColor: 'var(--border-muted)' }}
           >
             {stageOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </div>

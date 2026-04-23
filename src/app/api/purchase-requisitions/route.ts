@@ -7,7 +7,7 @@ import { generateNextPurchaseOrderNumber } from '@/lib/purchase-order-number'
 const INCLUDE = {
   vendor: true,
   department: true,
-  entity: true,
+  subsidiary: true,
   currency: true,
   lineItems: { orderBy: { createdAt: 'asc' as const } },
 } as const
@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { title, description, priority, neededByDate, notes, vendorId, departmentId, entityId, currencyId, userId } = body
+    const { title, description, priority, neededByDate, notes, vendorId, departmentId, entityId, subsidiaryId, currencyId, userId } = body
+    const requestSubsidiaryId = subsidiaryId ?? entityId
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         userId,
         departmentId: departmentId || null,
         vendorId: vendorId || null,
-        entityId: entityId || null,
+        subsidiaryId: requestSubsidiaryId || null,
         currencyId: currencyId || null,
       },
       include: INCLUDE,
@@ -84,7 +85,8 @@ export async function PUT(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
     const body = await request.json()
-    const { status, title, description, priority, neededByDate, notes, vendorId, departmentId, entityId, currencyId } = body
+    const { status, title, description, priority, neededByDate, notes, vendorId, departmentId, entityId, subsidiaryId, currencyId } = body
+    const requestSubsidiaryId = subsidiaryId ?? entityId
 
     // Load current state before updating so we can detect the approval transition
     const before = await prisma.requisition.findUnique({
@@ -107,7 +109,7 @@ export async function PUT(request: NextRequest) {
         ...(notes !== undefined ? { notes: notes || null } : {}),
         ...(vendorId !== undefined ? { vendorId: vendorId || null } : {}),
         ...(departmentId !== undefined ? { departmentId: departmentId || null } : {}),
-        ...(entityId !== undefined ? { entityId: entityId || null } : {}),
+        ...(requestSubsidiaryId !== undefined ? { subsidiaryId: requestSubsidiaryId || null } : {}),
         ...(currencyId !== undefined ? { currencyId: currencyId || null } : {}),
       },
     })
@@ -136,7 +138,7 @@ export async function PUT(request: NextRequest) {
             total: before.total,
             vendorId: effectiveVendorId,
             userId: before.userId,
-            entityId: entityId !== undefined ? (entityId || null) : before.entityId,
+            subsidiaryId: requestSubsidiaryId !== undefined ? (requestSubsidiaryId || null) : before.subsidiaryId,
             currencyId: currencyId !== undefined ? (currencyId || null) : before.currencyId,
             requisitionId: before.id,
             lineItems: {

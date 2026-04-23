@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { ensureRegisteredManagedLists } from '@/lib/manage-lists'
 
 function getDisplayOrder(key: string): string {
   try {
@@ -16,6 +17,7 @@ function getDisplayOrder(key: string): string {
  * Respects the per-key display order setting (alphabetical or list order).
  */
 export async function loadListValues(key: string): Promise<string[]> {
+  await ensureRegisteredManagedLists()
   const displayOrder = getDisplayOrder(key)
   const rows = await prisma.listOption.findMany({
     where: { key },

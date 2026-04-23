@@ -1,30 +1,23 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const BILL_NUMBER_PREFIX = 'BILL-'
-const BILL_NUMBER_WIDTH = 6
-
-export function formatBillNumber(sequence: number) {
-  return `${BILL_NUMBER_PREFIX}${String(sequence).padStart(BILL_NUMBER_WIDTH, '0')}`
+export function formatBillNumber(sequence: number, config = DEFAULT_ID_SETTINGS.bill) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextBillNumber() {
+  const config = await loadIdSetting('bill')
   const latestBills = await prisma.bill.findMany({
+    where: { number: { startsWith: config.prefix } },
     orderBy: {
       number: 'desc',
     },
     select: {
       number: true,
     },
-    take: 50,
+    take: 200,
   })
-
-  for (const bill of latestBills) {
-    const match = bill.number.match(/(\d+)$/)
-    if (match) {
-      const parsed = Number.parseInt(match[1], 10)
-      return formatBillNumber(Number.isNaN(parsed) ? 1 : parsed + 1)
-    }
-  }
-
-  return formatBillNumber(1)
+  const nextSequence = getNextSequenceFromValues(latestBills.map((bill) => bill.number), config)
+  return formatBillNumber(nextSequence, config)
 }

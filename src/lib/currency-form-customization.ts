@@ -1,5 +1,8 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type CurrencyFormFieldKey =
   | 'currencyId'
+  | 'code'
   | 'name'
   | 'symbol'
   | 'decimals'
@@ -10,6 +13,8 @@ export type CurrencyFormFieldMeta = {
   id: CurrencyFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -29,12 +34,13 @@ export type CurrencyFormCustomizationConfig = {
 }
 
 export const CURRENCY_FORM_FIELDS: CurrencyFormFieldMeta[] = [
-  { id: 'currencyId', label: 'Currency ID', fieldType: 'text', description: 'Unique ISO or internal code for the currency.' },
+  { id: 'currencyId', label: 'Currency ID', fieldType: 'text', description: 'System-generated currency master record identifier.' },
+  { id: 'code', label: 'Code', fieldType: 'text', description: 'ISO currency code or operating currency code, such as USD, CAD, or AUD.' },
   { id: 'name', label: 'Name', fieldType: 'text', description: 'Display name for the currency.' },
   { id: 'symbol', label: 'Symbol', fieldType: 'text', description: 'Printed symbol used on forms and reports.' },
   { id: 'decimals', label: 'Decimal Places', fieldType: 'number', description: 'Number of decimal places used for amounts in this currency.' },
   { id: 'isBase', label: 'Base Currency', fieldType: 'boolean', description: 'Marks whether this is the primary company currency.' },
-  { id: 'inactive', label: 'Inactive', fieldType: 'list', source: 'System status values', description: 'Marks the currency unavailable for new records while preserving history.' },
+  { id: 'inactive', label: 'Inactive', fieldType: 'list', sourceType: 'system', sourceKey: 'activeInactive', source: getListSourceText({ sourceType: 'system', sourceKey: 'activeInactive' }), description: 'Marks the currency unavailable for new records while preserving history.' },
 ]
 
 export const DEFAULT_CURRENCY_FORM_SECTIONS = [
@@ -45,6 +51,7 @@ export const DEFAULT_CURRENCY_FORM_SECTIONS = [
 export function defaultCurrencyFormCustomization(): CurrencyFormCustomizationConfig {
   const sectionMap: Record<CurrencyFormFieldKey, string> = {
     currencyId: 'Core',
+    code: 'Core',
     name: 'Core',
     symbol: 'Core',
     decimals: 'Settings',
@@ -54,8 +61,9 @@ export function defaultCurrencyFormCustomization(): CurrencyFormCustomizationCon
 
   const columnMap: Record<CurrencyFormFieldKey, number> = {
     currencyId: 1,
-    name: 2,
-    symbol: 1,
+    code: 2,
+    name: 1,
+    symbol: 2,
     decimals: 1,
     isBase: 2,
     inactive: 1,
@@ -63,7 +71,8 @@ export function defaultCurrencyFormCustomization(): CurrencyFormCustomizationCon
 
   const rowMap: Record<CurrencyFormFieldKey, number> = {
     currencyId: 0,
-    name: 0,
+    code: 0,
+    name: 1,
     symbol: 1,
     decimals: 0,
     isBase: 0,

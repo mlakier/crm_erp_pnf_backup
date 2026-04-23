@@ -110,3 +110,47 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update quote' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing quote id' }, { status: 400 })
+    }
+
+    const existing = await prisma.quote.findUnique({
+      where: { id },
+      select: { id: true, number: true, userId: true, salesOrder: { select: { number: true } } },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Quote not found' }, { status: 404 })
+    }
+
+    if (existing.salesOrder) {
+      return NextResponse.json(
+        { error: `Transaction has the following child records:\n\nSales Order ${existing.salesOrder.number}` },
+        { status: 409 },
+      )
+    }
+
+    await prisma.$transaction([
+      prisma.quoteLineItem.deleteMany({ where: { quoteId: id } }),
+      prisma.quote.delete({ where: { id } }),
+    ])
+
+    await logActivity({
+      entityType: 'quote',
+      entityId: id,
+      action: 'delete',
+      summary: `Deleted quote ${existing.number}`,
+      userId: existing.userId,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: 'Failed to delete quote' }, { status: 500 })
+  }
+}

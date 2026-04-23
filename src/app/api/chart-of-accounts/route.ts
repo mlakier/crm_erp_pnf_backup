@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { generateNextChartOfAccountId } from '@/lib/chart-of-account-id'
 
 type ScopeMode = 'selected' | 'parent'
 
@@ -9,7 +10,7 @@ const INCLUDE = {
   closeToAccount: { select: { id: true, accountId: true, name: true } },
   subsidiaryAssignments: {
     include: {
-      subsidiary: { select: { id: true, subsidiaryId: true, name: true, parentEntityId: true } },
+      subsidiary: { select: { id: true, subsidiaryId: true, name: true, parentSubsidiaryId: true } },
     },
     orderBy: { subsidiary: { subsidiaryId: 'asc' as const } },
   },
@@ -20,6 +21,12 @@ function parseBool(value: unknown) {
 }
 
 function parseIds(value: unknown) {
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  }
   if (!Array.isArray(value)) return []
   return value
     .map((entry) => String(entry ?? '').trim())
@@ -57,7 +64,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    const accountId = String(body?.accountId ?? '').trim()
+    const providedAccountId = String(body?.accountId ?? '').trim()
+    const accountNumber = String(body?.accountNumber ?? '').trim()
     const name = String(body?.name ?? '').trim()
     const description = String(body?.description ?? '').trim() || null
     const accountType = String(body?.accountType ?? '').trim()
@@ -82,8 +90,8 @@ export async function POST(request: NextRequest) {
     const includeChildren = parseBool(body?.includeChildren)
     const subsidiaryIds = parseIds(body?.subsidiaryIds)
 
-    if (!accountId || !name || !accountType) {
-      return NextResponse.json({ error: 'Account Id, Name, and Account Type are required' }, { status: 400 })
+    if (!accountNumber || !name || !accountType) {
+      return NextResponse.json({ error: 'Account Number, Name, and Account Type are required' }, { status: 400 })
     }
 
     if (scopeMode === 'parent' && !parentSubsidiaryId) {
@@ -94,9 +102,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Select at least one subsidiary or switch to parent scope mode' }, { status: 400 })
     }
 
+    const accountId = providedAccountId || await generateNextChartOfAccountId()
+
     const created = await prisma.chartOfAccounts.create({
       data: {
         accountId,
+        accountNumber,
         name,
         description,
         accountType,
@@ -115,7 +126,7 @@ export async function POST(request: NextRequest) {
         parentAccountId,
         closeToAccountId,
         parentSubsidiaryId: scopeMode === 'parent' ? parentSubsidiaryId : null,
-        includeChildren: scopeMode === 'parent' ? includeChildren : false,
+        includeChildren,
         subsidiaryAssignments: scopeMode === 'selected'
           ? {
               create: subsidiaryIds.map((subsidiaryId) => ({ subsidiaryId })),
@@ -140,6 +151,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
 
     const accountId = body?.accountId !== undefined ? String(body.accountId).trim() : undefined
+    const accountNumber = body?.accountNumber !== undefined ? String(body.accountNumber).trim() : undefined
     const name = body?.name !== undefined ? String(body.name).trim() : undefined
     const description = body?.description !== undefined ? (String(body.description).trim() || null) : undefined
     const accountType = body?.accountType !== undefined ? String(body.accountType).trim() : undefined
@@ -167,6 +179,9 @@ export async function PUT(request: NextRequest) {
     if (accountId !== undefined && !accountId) {
       return NextResponse.json({ error: 'Account Id cannot be empty' }, { status: 400 })
     }
+    if (accountNumber !== undefined && !accountNumber) {
+      return NextResponse.json({ error: 'Account Number cannot be empty' }, { status: 400 })
+    }
     if (name !== undefined && !name) {
       return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
     }
@@ -179,6 +194,7 @@ export async function PUT(request: NextRequest) {
         where: { id },
         data: {
           ...(accountId !== undefined ? { accountId } : {}),
+          ...(accountNumber !== undefined ? { accountNumber } : {}),
           ...(name !== undefined ? { name } : {}),
           ...(description !== undefined ? { description } : {}),
           ...(accountType !== undefined ? { accountType } : {}),
@@ -205,7 +221,7 @@ export async function PUT(request: NextRequest) {
           ...(scopeMode === 'selected'
             ? {
                 parentSubsidiaryId: null,
-                includeChildren: false,
+                includeChildren: includeChildren ?? false,
               }
             : {}),
           ...((scopeMode === undefined && includeChildren !== undefined) ? { includeChildren } : {}),
@@ -227,6 +243,10 @@ export async function PUT(request: NextRequest) {
       }
 
       if (scopeMode === undefined && subsidiaryIds !== undefined) {
+        await tx.chartOfAccounts.update({
+          where: { id },
+          data: { parentSubsidiaryId: null },
+        })
         await tx.chartOfAccountSubsidiary.deleteMany({ where: { chartOfAccountId: id } })
         if (subsidiaryIds.length > 0) {
           await tx.chartOfAccountSubsidiary.createMany({

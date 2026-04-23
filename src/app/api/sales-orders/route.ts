@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity } from '@/lib/activity'
+import { createFieldChangeSummary, logActivity } from '@/lib/activity'
 import { generateNextSalesOrderNumber } from '@/lib/sales-order-number'
 
 export async function GET() {
@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       include: {
         customer: true,
         salesOrder: true,
+        lineItems: true,
       },
     })
 
@@ -54,6 +55,20 @@ export async function POST(request: NextRequest) {
         customerId: quote.customerId,
         userId: quote.userId,
         quoteId: quote.id,
+        subsidiaryId: quote.subsidiaryId,
+        currencyId: quote.currencyId,
+        lineItems: quote.lineItems.length
+          ? {
+              create: quote.lineItems.map((line) => ({
+                description: line.description,
+                quantity: line.quantity,
+                unitPrice: line.unitPrice,
+                lineTotal: line.lineTotal,
+                notes: line.notes,
+                itemId: line.itemId,
+              })),
+            }
+          : undefined,
       },
     })
 
@@ -100,6 +115,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing sales order status' }, { status: 400 })
     }
 
+    const existingSalesOrder = await prisma.salesOrder.findUnique({
+      where: { id },
+      select: { id: true, number: true, status: true, userId: true },
+    })
+
+    if (!existingSalesOrder) {
+      return NextResponse.json({ error: 'Sales order not found' }, { status: 404 })
+    }
+
     const salesOrder = await prisma.salesOrder.update({
       where: { id },
       data: { status },
@@ -109,12 +133,75 @@ export async function PUT(request: NextRequest) {
       entityType: 'sales-order',
       entityId: salesOrder.id,
       action: 'update',
-      summary: `Updated sales order ${salesOrder.number} to status ${salesOrder.status}`,
+      summary:
+        existingSalesOrder.status !== salesOrder.status
+          ? createFieldChangeSummary({
+              context: 'UI',
+              fieldName: 'Status',
+              oldValue: existingSalesOrder.status ?? '',
+              newValue: salesOrder.status ?? '',
+            })
+          : `Updated sales order ${salesOrder.number} to status ${salesOrder.status}`,
       userId: salesOrder.userId,
     })
 
     return NextResponse.json(salesOrder)
   } catch {
     return NextResponse.json({ error: 'Failed to update sales order' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing sales order id' }, { status: 400 })
+    }
+
+    const existing = await prisma.salesOrder.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        number: true,
+        userId: true,
+        invoices: { select: { number: true }, orderBy: { createdAt: 'asc' } },
+        fulfillments: { select: { number: true }, orderBy: { createdAt: 'asc' } },
+      },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Sales order not found' }, { status: 404 })
+    }
+
+    const childRecords = [
+      ...existing.invoices.map((invoice) => `Invoice ${invoice.number}`),
+      ...existing.fulfillments.map((fulfillment) => `Fulfillment ${fulfillment.number}`),
+    ]
+
+    if (childRecords.length) {
+      return NextResponse.json(
+        { error: `Transaction has the following child records:\n\n${childRecords.join('\n')}` },
+        { status: 409 },
+      )
+    }
+
+    await prisma.$transaction([
+      prisma.salesOrderLineItem.deleteMany({ where: { salesOrderId: id } }),
+      prisma.salesOrder.delete({ where: { id } }),
+    ])
+
+    await logActivity({
+      entityType: 'sales-order',
+      entityId: id,
+      action: 'delete',
+      summary: `Deleted sales order ${existing.number}`,
+      userId: existing.userId,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: 'Failed to delete sales order' }, { status: 500 })
   }
 }

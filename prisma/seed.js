@@ -117,7 +117,7 @@ async function main() {
   ]
 
   for (const subsidiary of subsidiarySeeds) {
-    await prisma.entity.upsert({
+    await prisma.subsidiary.upsert({
       where: { subsidiaryId: subsidiary.subsidiaryId },
       update: {
         name: subsidiary.name,
@@ -145,7 +145,7 @@ async function main() {
     })
   }
 
-  const subsidiaryRecords = await prisma.entity.findMany({
+  const subsidiaryRecords = await prisma.subsidiary.findMany({
     where: { subsidiaryId: { in: subsidiarySeeds.map((subsidiary) => subsidiary.subsidiaryId) } },
   })
   const subsidiaryByCode = new Map(subsidiaryRecords.map((subsidiary) => [subsidiary.subsidiaryId, subsidiary]))
@@ -319,7 +319,7 @@ async function main() {
         name: department.name,
         description: department.description,
         division: department.division,
-        entityId: subsidiaryByCode.get(department.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(department.subsidiaryCode)?.id ?? null,
         active: false,
       },
       create: {
@@ -327,7 +327,7 @@ async function main() {
         name: department.name,
         description: department.description,
         division: department.division,
-        entityId: subsidiaryByCode.get(department.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(department.subsidiaryCode)?.id ?? null,
         active: false,
       },
     })
@@ -411,7 +411,7 @@ async function main() {
         email: employee.email,
         title: employee.title,
         departmentId: departmentByCode.get(employee.departmentCode)?.id ?? null,
-        entityId: subsidiaryByCode.get(employee.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(employee.subsidiaryCode)?.id ?? null,
         active: true,
       },
       create: {
@@ -421,7 +421,7 @@ async function main() {
         email: employee.email,
         title: employee.title,
         departmentId: departmentByCode.get(employee.departmentCode)?.id ?? null,
-        entityId: subsidiaryByCode.get(employee.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(employee.subsidiaryCode)?.id ?? null,
         active: true,
       },
     })
@@ -501,7 +501,7 @@ async function main() {
         phone: customer.phone,
         address: customer.address,
         industry: customer.industry,
-        entityId: subsidiaryByCode.get(customer.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(customer.subsidiaryCode)?.id ?? null,
         currencyId: currencyByCode.get(customer.currencyCode)?.id ?? null,
         inactive: false,
         userId: adminUser.id,
@@ -513,7 +513,7 @@ async function main() {
         phone: customer.phone,
         address: customer.address,
         industry: customer.industry,
-        entityId: subsidiaryByCode.get(customer.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(customer.subsidiaryCode)?.id ?? null,
         currencyId: currencyByCode.get(customer.currencyCode)?.id ?? null,
         inactive: false,
         userId: adminUser.id,
@@ -625,7 +625,7 @@ async function main() {
         phone: vendor.phone,
         address: vendor.address,
         taxId: vendor.taxId,
-        entityId: subsidiaryByCode.get(vendor.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(vendor.subsidiaryCode)?.id ?? null,
         currencyId: currencyByCode.get(vendor.currencyCode)?.id ?? null,
         inactive: false,
       },
@@ -636,7 +636,7 @@ async function main() {
         phone: vendor.phone,
         address: vendor.address,
         taxId: vendor.taxId,
-        entityId: subsidiaryByCode.get(vendor.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(vendor.subsidiaryCode)?.id ?? null,
         currencyId: currencyByCode.get(vendor.currencyCode)?.id ?? null,
         inactive: false,
       },
@@ -761,7 +761,7 @@ async function main() {
         listPrice: item.listPrice,
         standardCost: item.standardCost ?? null,
         averageCost: item.averageCost ?? null,
-        entityId: subsidiaryByCode.get(item.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(item.subsidiaryCode)?.id ?? null,
         currencyId: currencyByCode.get(item.currencyCode)?.id ?? null,
         incomeAccountId: glAccountByNumber.get(item.incomeAccountNumber)?.id ?? null,
         deferredRevenueAccountId: glAccountByNumber.get(item.deferredRevenueAccountNumber)?.id ?? null,
@@ -789,7 +789,7 @@ async function main() {
         listPrice: item.listPrice,
         standardCost: item.standardCost ?? null,
         averageCost: item.averageCost ?? null,
-        entityId: subsidiaryByCode.get(item.subsidiaryCode)?.id ?? null,
+        subsidiaryId: subsidiaryByCode.get(item.subsidiaryCode)?.id ?? null,
         currencyId: currencyByCode.get(item.currencyCode)?.id ?? null,
         incomeAccountId: glAccountByNumber.get(item.incomeAccountNumber)?.id ?? null,
         deferredRevenueAccountId: glAccountByNumber.get(item.deferredRevenueAccountNumber)?.id ?? null,
@@ -807,7 +807,7 @@ async function main() {
   const inventoryAccountId = glAccountByNumber.get('1210')?.id ?? null
 
   for (const subsidiary of subsidiarySeeds) {
-    await prisma.entity.update({
+    await prisma.subsidiary.update({
       where: { subsidiaryId: subsidiary.subsidiaryId },
       data: {
         retainedEarningsAccountId,

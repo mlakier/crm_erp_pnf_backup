@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import CreateModalButton from '@/components/CreateModalButton'
-import DepartmentCreateForm from '@/components/DepartmentCreateForm'
+import CreatePageLinkButton from '@/components/CreatePageLinkButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -13,17 +12,23 @@ import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/ma
 import { displayMasterDataValue, formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadDepartmentCustomization } from '@/lib/department-customization-store'
+import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { DEPARTMENT_FORM_FIELDS } from '@/lib/department-form-customization'
 import { loadDepartmentFormCustomization } from '@/lib/department-form-customization-store'
-import { loadCustomListState } from '@/lib/custom-list-store'
 import { loadListValues } from '@/lib/load-list-values'
 import {
   departmentColumnLabels,
   departmentListDefinition,
 } from '@/lib/master-data-list-definitions'
-import {
-  CUSTOM_FIELD_TYPES,
-  CustomFieldDefinitionSummary,
-} from '@/lib/custom-fields'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
+
+function joinSubsidiaryLabels(
+  assignments: Array<{ subsidiary: { subsidiaryId: string } }>,
+) {
+  const labels = assignments.map(({ subsidiary }) => subsidiary.subsidiaryId)
+  if (labels.length === 0) return '-'
+  return labels.join(', ')
+}
 
 export default async function DepartmentsPage({
   searchParams,
@@ -32,43 +37,83 @@ export default async function DepartmentsPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
 
   const where = query
-    ? { OR: [{ departmentId: { contains: query } }, { name: { contains: query } }, { description: { contains: query } }, { division: { contains: query } }] }
+    ? {
+        OR: [
+          { departmentId: { contains: query, mode: 'insensitive' as const } },
+          { departmentNumber: { contains: query, mode: 'insensitive' as const } },
+          { name: { contains: query, mode: 'insensitive' as const } },
+          { description: { contains: query, mode: 'insensitive' as const } },
+          { division: { contains: query, mode: 'insensitive' as const } },
+          { planningCategory: { contains: query, mode: 'insensitive' as const } },
+        ],
+      }
     : {}
 
   const total = await prisma.department.count({ where })
   const pagination = getPagination(total, params.page)
+  const fieldMetaById = buildFieldMetaById(DEPARTMENT_FORM_FIELDS)
   const orderBy =
-    sort === 'oldest'
-      ? [{ createdAt: 'asc' as const }]
-      : sort === 'name'
-        ? [{ name: 'asc' as const }, { departmentId: 'asc' as const }]
-        : [{ createdAt: 'desc' as const }]
+    sort === 'id'
+      ? [{ departmentId: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
+        ? [{ createdAt: 'asc' as const }]
+        : sort === 'name'
+          ? [{ name: 'asc' as const }, { departmentId: 'asc' as const }]
+          : [{ createdAt: 'desc' as const }]
 
-  const [departments, managers, subsidiaries, companyLogoPages, customization, formCustomization, customListState, customFields, divisionValues] = await Promise.all([
-    prisma.department.findMany({ where, include: { entity: true }, orderBy, skip: pagination.skip, take: pagination.pageSize }),
+  const [
+    departments,
+    employees,
+    subsidiaries,
+    companyLogoPages,
+    customization,
+    formCustomization,
+    planningCategoryValues,
+    fieldOptions,
+  ] = await Promise.all([
+    prisma.department.findMany({
+      where,
+      include: {
+        departmentSubsidiaries: {
+          include: { subsidiary: true },
+          orderBy: { subsidiary: { subsidiaryId: 'asc' } },
+        },
+      },
+      orderBy,
+      skip: pagination.skip,
+      take: pagination.pageSize,
+    }),
     prisma.employee.findMany({
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       select: { id: true, firstName: true, lastName: true, employeeId: true },
     }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
+    prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
     loadCompanyPageLogo(),
     loadDepartmentCustomization(),
     loadDepartmentFormCustomization(),
-    loadCustomListState(),
-    prisma.customFieldDefinition.findMany({
-      where: { entityType: 'department', active: true },
-      orderBy: [{ label: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, name: true, label: true, type: true, required: true, defaultValue: true, options: true, entityType: true },
-    }),
-    loadListValues('DIVISION'),
+    loadListValues('DEPT-PLANNING-CATEGORY'),
+    loadFieldOptionsMap(fieldMetaById, ['inactive']),
   ])
+  const inactiveOptions = fieldOptions.inactive ?? []
 
   const configuredColumnOrder = Array.isArray(customization.columnOrder) ? customization.columnOrder : []
   const fixedFirst = ['department-id', 'name']
-  const defaultOrder = ['description', 'division', 'subsidiary', 'manager', 'status', 'created', 'last-modified']
+  const defaultOrder = [
+    'department-number',
+    'description',
+    'division',
+    'subsidiaries',
+    'include-children',
+    'planning-category',
+    'manager',
+    'approver',
+    'status',
+    'created',
+    'last-modified',
+  ]
   const orderedMiddle = [
     ...configuredColumnOrder.filter((id) => !fixedFirst.includes(id) && id !== 'actions' && defaultOrder.includes(id)),
     ...defaultOrder.filter((id) => !configuredColumnOrder.includes(id)),
@@ -78,32 +123,22 @@ export default async function DepartmentsPage({
     'department-id',
     'name',
     ...orderedMiddle.filter((id) => {
+      if (id === 'department-number') return customization.tableVisibility.departmentNumber
       if (id === 'description') return customization.tableVisibility.description
       if (id === 'division') return customization.tableVisibility.division
-      if (id === 'subsidiary') return customization.tableVisibility.subsidiary
+      if (id === 'subsidiaries') return customization.tableVisibility.subsidiaries
+      if (id === 'include-children') return customization.tableVisibility.includeChildren
+      if (id === 'planning-category') return customization.tableVisibility.planningCategory
       if (id === 'manager') return customization.tableVisibility.manager
+      if (id === 'approver') return customization.tableVisibility.approver
       if (id === 'status') return customization.tableVisibility.status
       return true
     }),
     'actions',
   ]
 
-  const divisionOptions = divisionValues.length > 0 ? divisionValues : (() => {
-    const divisionCustomListId = customization.listBindings.divisionCustomListId
-    const divisionRows = divisionCustomListId ? customListState.customRows[divisionCustomListId] ?? [] : []
-    return divisionRows.map((row) => row.value)
-  })()
-  const normalizedCustomFields: CustomFieldDefinitionSummary[] = customFields.flatMap((field) => (
-    CUSTOM_FIELD_TYPES.includes(field.type as (typeof CUSTOM_FIELD_TYPES)[number])
-      ? [{
-          ...field,
-          type: field.type as CustomFieldDefinitionSummary['type'],
-        }]
-      : []
-  ))
-
-  const managerById = new Map(
-    managers.map((manager) => [manager.id, `${manager.firstName} ${manager.lastName}${manager.employeeId ? ` (${manager.employeeId})` : ''}`])
+  const employeeLabelById = new Map(
+    employees.map((employee) => [employee.id, `${employee.firstName} ${employee.lastName}${employee.employeeId ? ` (${employee.employeeId})` : ''}`]),
   )
 
   const buildPageHref = (p: number) => {
@@ -121,9 +156,7 @@ export default async function DepartmentsPage({
         total={total}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Department" title="New Department">
-            <DepartmentCreateForm managers={managers} subsidiaries={subsidiaries} customization={customization} divisionOptions={divisionOptions} customFields={normalizedCustomFields} />
-          </CreateModalButton>
+          <CreatePageLinkButton href="/departments/new" label="New Department" />
         }
       />
 
@@ -163,6 +196,10 @@ export default async function DepartmentsPage({
                       )
                     }
 
+                    if (columnId === 'department-number') {
+                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="department-number">{displayMasterDataValue(department.departmentNumber)}</MasterDataMutedCell>
+                    }
+
                     if (columnId === 'name') {
                       return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="name">{department.name}</MasterDataMutedCell>
                     }
@@ -175,12 +212,24 @@ export default async function DepartmentsPage({
                       return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="division">{displayMasterDataValue(department.division)}</MasterDataMutedCell>
                     }
 
-                    if (columnId === 'subsidiary') {
-                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="subsidiary">{department.entity ? `${department.entity.subsidiaryId} - ${department.entity.name}` : '-'}</MasterDataMutedCell>
+                    if (columnId === 'subsidiaries') {
+                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="subsidiaries">{joinSubsidiaryLabels(department.departmentSubsidiaries)}</MasterDataMutedCell>
+                    }
+
+                    if (columnId === 'include-children') {
+                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="include-children">{department.includeChildren ? 'Yes' : 'No'}</MasterDataMutedCell>
+                    }
+
+                    if (columnId === 'planning-category') {
+                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="planning-category">{displayMasterDataValue(department.planningCategory)}</MasterDataMutedCell>
                     }
 
                     if (columnId === 'manager') {
-                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="manager">{displayMasterDataValue(managerById.get(department.managerId ?? ''))}</MasterDataMutedCell>
+                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="manager">{displayMasterDataValue(employeeLabelById.get(department.managerEmployeeId ?? ''))}</MasterDataMutedCell>
+                    }
+
+                    if (columnId === 'approver') {
+                      return <MasterDataMutedCell key={`${department.id}-${columnId}`} columnId="approver">{displayMasterDataValue(employeeLabelById.get(department.approverEmployeeId ?? ''))}</MasterDataMutedCell>
                     }
 
                     if (columnId === 'status') {
@@ -197,32 +246,67 @@ export default async function DepartmentsPage({
 
                     const editFields = [
                       { name: 'departmentId', label: 'Department Id', value: department.departmentId },
+                      { name: 'departmentNumber', label: 'Department Number', value: department.departmentNumber ?? '' },
                       { name: 'name', label: 'Name', value: department.name },
                       ...(formCustomization.fields.description.visible ? [{ name: 'description', label: 'Description', value: department.description ?? '' }] : []),
                       ...(formCustomization.fields.division.visible ? [{ name: 'division', label: 'Division', value: department.division ?? '' }] : []),
-                      ...(formCustomization.fields.entityId.visible
+                      ...(formCustomization.fields.subsidiaryIds.visible
                         ? [{
-                            name: 'entityId',
-                            label: 'Subsidiary',
-                            value: department.entityId ?? '',
+                            name: 'subsidiaryIds',
+                            label: 'Subsidiaries',
+                            value: department.departmentSubsidiaries.map(({ subsidiary }) => subsidiary.id).join(','),
                             type: 'select' as const,
-                            placeholder: 'Select subsidiary',
+                            multiple: true,
                             options: subsidiaries.map((subsidiary) => ({
                               value: subsidiary.id,
                               label: `${subsidiary.subsidiaryId} - ${subsidiary.name}`,
                             })),
                           }]
                         : []),
-                      ...(formCustomization.fields.managerId.visible
+                      ...(formCustomization.fields.includeChildren.visible
                         ? [{
-                            name: 'managerId',
-                            label: 'Manager',
-                            value: department.managerId ?? '',
+                            name: 'includeChildren',
+                            label: 'Include Children',
+                            value: String(department.includeChildren),
+                            type: 'select' as const,
+                            options: [
+                              { value: 'false', label: 'No' },
+                              { value: 'true', label: 'Yes' },
+                            ],
+                          }]
+                        : []),
+                      ...(formCustomization.fields.planningCategory.visible
+                        ? [{
+                            name: 'planningCategory',
+                            label: 'Department Planning Category',
+                            value: department.planningCategory ?? '',
+                            type: 'select' as const,
+                            options: planningCategoryValues.map((option) => ({ value: option, label: option })),
+                          }]
+                        : []),
+                      ...(formCustomization.fields.managerEmployeeId.visible
+                        ? [{
+                            name: 'managerEmployeeId',
+                            label: 'Department Manager',
+                            value: department.managerEmployeeId ?? '',
                             type: 'select' as const,
                             placeholder: 'Select manager',
-                            options: managers.map((manager) => ({
-                              value: manager.id,
-                              label: `${manager.firstName} ${manager.lastName}${manager.employeeId ? ` (${manager.employeeId})` : ''}`,
+                            options: employees.map((employee) => ({
+                              value: employee.id,
+                              label: employeeLabelById.get(employee.id) ?? employee.id,
+                            })),
+                          }]
+                        : []),
+                      ...(formCustomization.fields.approverEmployeeId.visible
+                        ? [{
+                            name: 'approverEmployeeId',
+                            label: 'Department Approver',
+                            value: department.approverEmployeeId ?? '',
+                            type: 'select' as const,
+                            placeholder: 'Select approver',
+                            options: employees.map((employee) => ({
+                              value: employee.id,
+                              label: employeeLabelById.get(employee.id) ?? employee.id,
                             })),
                           }]
                         : []),
@@ -231,10 +315,7 @@ export default async function DepartmentsPage({
                         label: 'Inactive',
                         value: String(!department.active),
                         type: 'select' as const,
-                        options: [
-                          { value: 'false', label: 'No' },
-                          { value: 'true', label: 'Yes' },
-                        ],
+                        options: inactiveOptions,
                       },
                     ]
 

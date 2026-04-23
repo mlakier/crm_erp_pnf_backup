@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react'
+'use client'
+
+import { useState, type ReactNode } from 'react'
 
 export function RecordDetailStatCard({
   label,
@@ -37,13 +39,21 @@ export function RecordDetailSection({
   title,
   count,
   summary,
+  actions,
+  collapsible = false,
+  defaultExpanded = true,
   children,
 }: {
   title: string
   count: number
   summary?: ReactNode
-  children: ReactNode
+  actions?: ReactNode
+  collapsible?: boolean
+  defaultExpanded?: boolean
+  children?: ReactNode
 }) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+
   return (
     <div
       className="mb-6 overflow-hidden rounded-xl border"
@@ -53,8 +63,22 @@ export function RecordDetailSection({
         className="flex items-center justify-between border-b px-6 py-4"
         style={{ borderColor: 'var(--border-muted)' }}
       >
-        <h2 className="text-base font-semibold text-white">{title}</h2>
         <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          {collapsible ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((prev) => !prev)}
+              className="rounded-md px-1.5 py-0.5 text-xs"
+              style={{ color: 'var(--text-muted)' }}
+              aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
+            >
+              {expanded ? '▾' : '▸'}
+            </button>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          {actions}
           {summary ? (
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
               {summary}
@@ -71,7 +95,7 @@ export function RecordDetailSection({
           </span>
         </div>
       </div>
-      <div className="overflow-x-auto">{children}</div>
+      {expanded ? <div className="overflow-x-auto">{children}</div> : null}
     </div>
   )
 }
@@ -88,7 +112,7 @@ export function RecordDetailHeaderCell({
   children,
   className = '',
 }: {
-  children: ReactNode
+  children?: ReactNode
   className?: string
 }) {
   return (
@@ -105,7 +129,7 @@ export function RecordDetailCell({
   children,
   className = '',
 }: {
-  children: ReactNode
+  children?: ReactNode
   className?: string
 }) {
   return (

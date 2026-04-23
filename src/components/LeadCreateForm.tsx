@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useListOptions } from '@/lib/list-options-client'
+import type { SelectOption } from '@/lib/list-source'
 import { isValidEmail } from '@/lib/validation'
 import AddressModal, { parseAddress } from '@/components/AddressModal'
 
@@ -10,12 +10,18 @@ export default function LeadCreateForm({
   userId,
   entities,
   currencies,
+  leadSourceOptions,
+  leadRatingOptions,
+  leadStatusOptions,
   onSuccess,
   onCancel,
 }: {
   userId: string
   entities: Array<{ id: string; subsidiaryId: string; name: string }>
-  currencies: Array<{ id: string; currencyId: string; name: string }>
+  currencies: Array<{ id: string; currencyId: string; code?: string; name: string }>
+  leadSourceOptions: SelectOption[]
+  leadRatingOptions: SelectOption[]
+  leadStatusOptions: SelectOption[]
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -37,9 +43,6 @@ export default function LeadCreateForm({
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const leadSourceOptions = useListOptions('lead', 'source')
-  const leadRatingOptions = useListOptions('lead', 'rating')
-  const leadStatusOptions = useListOptions('lead', 'status')
 
   async function submitForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -139,7 +142,7 @@ export default function LeadCreateForm({
           <span>Status</span>
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             {leadStatusOptions.map((option) => (
-              <option key={option} value={option.toLowerCase()}>{option}</option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
@@ -148,7 +151,7 @@ export default function LeadCreateForm({
           <select value={source} onChange={(e) => setSource(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             <option value="">None</option>
             {leadSourceOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
@@ -159,7 +162,7 @@ export default function LeadCreateForm({
           <select value={rating} onChange={(e) => setRating(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             <option value="">None</option>
             {leadRatingOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
@@ -180,7 +183,7 @@ export default function LeadCreateForm({
           <span>Currency</span>
           <select value={currencyId} onChange={(e) => setCurrencyId(e.target.value)} className="w-full rounded-md border px-3 py-2 text-white bg-transparent" style={{ borderColor: 'var(--border-muted)' }}>
             <option value="">None</option>
-            {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.currencyId} - {currency.name}</option>)}
+            {currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.code ?? currency.currencyId} - {currency.name}</option>)}
           </select>
         </label>
       </div>

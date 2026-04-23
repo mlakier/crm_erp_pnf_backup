@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState, useCallback } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 
 /* ── Every navigable list page in the app ── */
 const ALL_PAGES = [
@@ -34,7 +34,6 @@ const ALL_PAGES = [
   { key: 'journals', label: 'Journals', group: 'RTR' },
 ]
 
-const GROUPS = ['Master Data', 'OTC', 'PTP', 'RTR']
 const PROCESS_GROUPS = ['OTC', 'PTP', 'RTR']
 
 type Role = { id: string; roleId: string; name: string; description?: string }
@@ -45,6 +44,29 @@ type PermRow = {
   canEdit: boolean
   canDelete: boolean
   blockedStates: string[]
+}
+type ListConfigResponse = {
+  rowsByKey?: Record<string, Array<{ value: string }>>
+}
+type PermissionResponseRow = {
+  page: string
+  canView: boolean
+  canCreate: boolean
+  canEdit: boolean
+  canDelete: boolean
+  blockedStates?: string | null
+}
+type AiPermission = {
+  page: string
+  canView: boolean
+  canCreate: boolean
+  canEdit: boolean
+  canDelete: boolean
+  blockedStates?: string[]
+}
+type AiPermissionResponse = {
+  permissions?: AiPermission[]
+  error?: string
 }
 
 /* ── STATUS PILL colours ── */
@@ -80,6 +102,7 @@ const STATUS_COLORS: Record<string, { color: string; border: string }> = {
   prospecting: { color: '#94a3b8', border: '#475569' },
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getStatusStyle(status: string) {
   const s = status.toLowerCase()
   const c = STATUS_COLORS[s] ?? { color: '#94a3b8', border: '#475569' }
@@ -152,12 +175,12 @@ export default function ManagePermissionsPage() {
 
   // Load status options for pages that have them
   useEffect(() => {
-    fetch('/api/config/lists').then(r => r.json()).then((data: any) => {
+    fetch('/api/config/lists').then(r => r.json()).then((data: ListConfigResponse) => {
       const rowsByKey = data.rowsByKey || {}
       const map: Record<string, string[]> = {}
       for (const p of ALL_PAGES) {
         if (p.statusKey && rowsByKey[p.statusKey]) {
-          map[p.statusKey] = rowsByKey[p.statusKey].map((v: any) => v.value)
+          map[p.statusKey] = rowsByKey[p.statusKey].map((v) => v.value)
         }
       }
       setStatusOptions(map)
@@ -167,9 +190,9 @@ export default function ManagePermissionsPage() {
   // Load permissions for selected role
   useEffect(() => {
     if (!selectedRoleId) return
-    fetch('/api/permissions?roleId=' + selectedRoleId).then(r => r.json()).then((perms: any[]) => {
+    fetch('/api/permissions?roleId=' + selectedRoleId).then(r => r.json()).then((perms: PermissionResponseRow[]) => {
       setGrid(ALL_PAGES.map(p => {
-        const existing = perms.find((perm: any) => perm.page === p.key)
+        const existing = perms.find((perm) => perm.page === p.key)
         return existing
           ? { page: p.key, canView: existing.canView, canCreate: existing.canCreate, canEdit: existing.canEdit, canDelete: existing.canDelete, blockedStates: existing.blockedStates ? existing.blockedStates.split(',').filter(Boolean) : [] }
           : { page: p.key, canView: false, canCreate: false, canEdit: false, canDelete: false, blockedStates: [] }
@@ -244,7 +267,7 @@ export default function ManagePermissionsPage() {
           statusOptions,
         }),
       })
-      const data = await res.json()
+      const data = await res.json() as AiPermissionResponse
       if (!res.ok || !data.permissions) {
         console.warn('AI API failed, falling back to static rules:', data.error)
         applyStaticFallback()
@@ -252,7 +275,7 @@ export default function ManagePermissionsPage() {
         return
       }
       setGrid(prev => prev.map(row => {
-        const aiPerm = data.permissions.find((p: any) => p.page === row.page)
+        const aiPerm = data.permissions?.find((p) => p.page === row.page)
         if (!aiPerm) return row
         return {
           ...row,

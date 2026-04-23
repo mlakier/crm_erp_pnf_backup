@@ -118,3 +118,59 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing invoice id' }, { status: 400 })
+    }
+
+    const existing = await prisma.invoice.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        number: true,
+        userId: true,
+        salesOrder: { select: { userId: true } },
+        cashReceipts: { select: { number: true, id: true }, orderBy: { createdAt: 'asc' } },
+        creditMemos: { select: { number: true }, orderBy: { createdAt: 'asc' } },
+      },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
+    const childRecords = [
+      ...existing.cashReceipts.map((receipt) => `Invoice Receipt ${receipt.number ?? receipt.id}`),
+      ...existing.creditMemos.map((creditMemo) => `Credit Memo ${creditMemo.number}`),
+    ]
+
+    if (childRecords.length) {
+      return NextResponse.json(
+        { error: `Transaction has the following child records:\n\n${childRecords.join('\n')}` },
+        { status: 409 },
+      )
+    }
+
+    await prisma.$transaction([
+      prisma.invoiceLineItem.deleteMany({ where: { invoiceId: id } }),
+      prisma.invoice.delete({ where: { id } }),
+    ])
+
+    await logActivity({
+      entityType: 'invoice',
+      entityId: id,
+      action: 'delete',
+      summary: `Deleted invoice ${existing.number}`,
+      userId: existing.userId ?? existing.salesOrder?.userId,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: 'Failed to delete invoice' }, { status: 500 })
+  }
+}

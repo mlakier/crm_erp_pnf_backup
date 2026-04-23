@@ -6,7 +6,7 @@ import { loadCompanyInformationSettings } from '@/lib/company-information-settin
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import type { ReactNode } from 'react'
 
-export type Column = { id: string; label: string }
+export type Column = { id: string; label: string; tooltip?: string }
 
 type PageShellProps = {
   /** Page title */
@@ -59,7 +59,6 @@ export default async function PageShell(props: PageShellProps) {
     params,
     statusOptions,
     statusFilter = 'all',
-    sortOptions,
     sort = 'newest',
     newButton,
     showLogo = true,
@@ -156,21 +155,15 @@ export default async function PageShell(props: PageShellProps) {
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <input type="hidden" name="status" value={statusFilter} />
-            {sortOptions && sortOptions.length > 0 ? (
-              <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-                {sortOptions.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            ) : null}
             <input type="hidden" name="page" value="1" />
+            {sort ? <input type="hidden" name="sort" value={sort} /> : null}
             <ExportButton tableId={tableId} fileName={tableId} />
             <ColumnSelector tableId={tableId} columns={columns} />
           </div>
         </form>
 
         {/* Table body — rendered by parent */}
-        <div className="overflow-x-auto" data-column-selector-table={tableId}>
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table={tableId}>
           {children}
         </div>
 

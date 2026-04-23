@@ -1,4 +1,13 @@
-export const DEPARTMENT_OPTIONAL_FIELD_KEYS = ['description', 'division', 'entityId', 'managerId'] as const
+export const DEPARTMENT_OPTIONAL_FIELD_KEYS = [
+  'departmentNumber',
+  'description',
+  'division',
+  'subsidiaryIds',
+  'includeChildren',
+  'planningCategory',
+  'managerEmployeeId',
+  'approverEmployeeId',
+] as const
 
 export type DepartmentOptionalFieldKey = (typeof DEPARTMENT_OPTIONAL_FIELD_KEYS)[number]
 
@@ -14,23 +23,31 @@ export type DepartmentCustomizationConfig = {
     divisionDefaultValue: string | null
   }
   tableVisibility: {
+    departmentNumber: boolean
     name: boolean
     description: boolean
     division: boolean
-    subsidiary: boolean
+    subsidiaries: boolean
+    includeChildren: boolean
+    planningCategory: boolean
     manager: boolean
+    approver: boolean
     status: boolean
   }
   columnOrder: string[]
 }
 
 export const DEPARTMENT_COLUMN_IDS = [
-  'code',
+  'department-id',
+  'department-number',
   'name',
   'description',
   'division',
-  'subsidiary',
+  'subsidiaries',
+  'include-children',
+  'planning-category',
   'manager',
+  'approver',
   'status',
   'created',
   'last-modified',
@@ -39,21 +56,29 @@ export const DEPARTMENT_COLUMN_IDS = [
 
 export const DEPARTMENT_DEFAULT_CUSTOMIZATION: DepartmentCustomizationConfig = {
   fields: {
+    departmentNumber: { visible: true, required: false },
     description: { visible: true, required: false },
     division: { visible: true, required: false },
-    entityId: { visible: true, required: false },
-    managerId: { visible: true, required: false },
+    subsidiaryIds: { visible: true, required: false },
+    includeChildren: { visible: true, required: false },
+    planningCategory: { visible: true, required: false },
+    managerEmployeeId: { visible: true, required: false },
+    approverEmployeeId: { visible: true, required: false },
   },
   listBindings: {
     divisionCustomListId: null,
     divisionDefaultValue: null,
   },
   tableVisibility: {
+    departmentNumber: true,
     name: true,
     description: true,
     division: true,
-    subsidiary: true,
+    subsidiaries: true,
+    includeChildren: true,
+    planningCategory: true,
     manager: true,
+    approver: true,
     status: true,
   },
   columnOrder: [...DEPARTMENT_COLUMN_IDS],
@@ -77,7 +102,7 @@ function sanitizeFieldConfig(value: unknown, fallback: DepartmentFieldConfig): D
 
 function sanitizeColumnOrder(value: unknown): string[] {
   const allowed = new Set<string>(DEPARTMENT_COLUMN_IDS)
-  const fixedFirst = ['code', 'name']
+  const fixedFirst = ['department-id', 'name']
   const next: string[] = []
 
   if (Array.isArray(value)) {
@@ -89,7 +114,7 @@ function sanitizeColumnOrder(value: unknown): string[] {
     })
   }
 
-  const merged: string[] = ['code', 'name']
+  const merged: string[] = ['department-id', 'name']
 
   for (const id of DEPARTMENT_COLUMN_IDS) {
     if (id === 'actions' || fixedFirst.includes(id)) continue
@@ -128,12 +153,16 @@ export function mergeDepartmentCustomization(overrides: unknown): DepartmentCust
 
   if (root.tableVisibility && typeof root.tableVisibility === 'object') {
     const input = root.tableVisibility
-    merged.tableVisibility.name = input.name === true
-    merged.tableVisibility.description = input.description === true
-    merged.tableVisibility.division = input.division === true
-    merged.tableVisibility.subsidiary = input.subsidiary === true
-    merged.tableVisibility.manager = input.manager === true
-    merged.tableVisibility.status = input.status === true
+    if (input.departmentNumber !== undefined) merged.tableVisibility.departmentNumber = input.departmentNumber === true
+    if (input.name !== undefined) merged.tableVisibility.name = input.name === true
+    if (input.description !== undefined) merged.tableVisibility.description = input.description === true
+    if (input.division !== undefined) merged.tableVisibility.division = input.division === true
+    if (input.subsidiaries !== undefined) merged.tableVisibility.subsidiaries = input.subsidiaries === true
+    if (input.includeChildren !== undefined) merged.tableVisibility.includeChildren = input.includeChildren === true
+    if (input.planningCategory !== undefined) merged.tableVisibility.planningCategory = input.planningCategory === true
+    if (input.manager !== undefined) merged.tableVisibility.manager = input.manager === true
+    if (input.approver !== undefined) merged.tableVisibility.approver = input.approver === true
+    if (input.status !== undefined) merged.tableVisibility.status = input.status === true
   }
 
   merged.columnOrder = sanitizeColumnOrder(root.columnOrder)

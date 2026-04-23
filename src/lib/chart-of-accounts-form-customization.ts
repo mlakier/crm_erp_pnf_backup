@@ -1,11 +1,16 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type ChartOfAccountsFormFieldKey =
   | 'accountId'
+  | 'accountNumber'
   | 'name'
   | 'description'
   | 'accountType'
   | 'normalBalance'
   | 'financialStatementSection'
   | 'financialStatementGroup'
+  | 'subsidiaryIds'
+  | 'includeChildren'
   | 'parentAccountId'
   | 'closeToAccountId'
   | 'isPosting'
@@ -22,6 +27,8 @@ export type ChartOfAccountsFormFieldMeta = {
   id: ChartOfAccountsFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -41,15 +48,18 @@ export type ChartOfAccountsFormCustomizationConfig = {
 }
 
 export const CHART_OF_ACCOUNTS_FORM_FIELDS: ChartOfAccountsFormFieldMeta[] = [
-  { id: 'accountId', label: 'Account Id', fieldType: 'text', description: 'Unique account number or code used throughout the ledger.' },
+  { id: 'accountId', label: 'Account Id', fieldType: 'text', description: 'System-generated GL account identifier used throughout the platform.' },
+  { id: 'accountNumber', label: 'Account Number', fieldType: 'text', description: 'Business-facing GL account number such as 1000 or 760.' },
   { id: 'name', label: 'Name', fieldType: 'text', description: 'Reporting name for the account.' },
   { id: 'description', label: 'Description', fieldType: 'text', description: 'Longer explanation of the account purpose or usage guidance.' },
-  { id: 'accountType', label: 'Account Type', fieldType: 'list', source: 'System account type values', description: 'Broad accounting classification for the account.' },
-  { id: 'normalBalance', label: 'Normal Balance', fieldType: 'list', source: 'System balance values', description: 'Default debit or credit orientation for the account.' },
+  { id: 'accountType', label: 'Account Type', fieldType: 'list', sourceType: 'system', sourceKey: 'accountType', source: getListSourceText({ sourceType: 'system', sourceKey: 'accountType' }), description: 'Broad accounting classification for the account.' },
+  { id: 'normalBalance', label: 'Normal Balance', fieldType: 'list', sourceType: 'system', sourceKey: 'normalBalance', source: getListSourceText({ sourceType: 'system', sourceKey: 'normalBalance' }), description: 'Default debit or credit orientation for the account.' },
   { id: 'financialStatementSection', label: 'FS Section', fieldType: 'text', description: 'Financial statement section used for rollups and presentation.' },
   { id: 'financialStatementGroup', label: 'FS Group', fieldType: 'text', description: 'More granular reporting group under the statement section.' },
-  { id: 'parentAccountId', label: 'Parent Account', fieldType: 'list', source: 'Chart of Accounts master data', description: 'Rollup parent for hierarchical reporting.' },
-  { id: 'closeToAccountId', label: 'Close To Account', fieldType: 'list', source: 'Chart of Accounts master data', description: 'Target account used when closing temporary balances.' },
+  { id: 'subsidiaryIds', label: 'Subsidiaries', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Subsidiaries where this GL account is available.' },
+  { id: 'includeChildren', label: 'Include Children', fieldType: 'boolean', description: 'If enabled, child subsidiaries under selected subsidiaries also inherit account availability.' },
+  { id: 'parentAccountId', label: 'Parent Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Rollup parent for hierarchical reporting.' },
+  { id: 'closeToAccountId', label: 'Close To Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Target account used when closing temporary balances.' },
   { id: 'isPosting', label: 'Posting Account', fieldType: 'boolean', description: 'Controls whether journals can post directly to this account.' },
   { id: 'isControlAccount', label: 'Control Account', fieldType: 'boolean', description: 'Marks accounts managed primarily by subledgers or protected processes.' },
   { id: 'allowsManualPosting', label: 'Allow Manual Posting', fieldType: 'boolean', description: 'Determines whether users can manually post journals to this account.' },
@@ -71,6 +81,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS_FORM_SECTIONS = [
 export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCustomizationConfig {
   const sectionMap: Record<ChartOfAccountsFormFieldKey, string> = {
     accountId: 'Core',
+    accountNumber: 'Core',
     name: 'Core',
     description: 'Core',
     accountType: 'Core',
@@ -78,6 +89,8 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     financialStatementSection: 'Reporting',
     financialStatementGroup: 'Reporting',
     cashFlowCategory: 'Reporting',
+    subsidiaryIds: 'Structure',
+    includeChildren: 'Structure',
     parentAccountId: 'Structure',
     closeToAccountId: 'Structure',
     requiresSubledgerType: 'Structure',
@@ -92,13 +105,16 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
 
   const columnMap: Record<ChartOfAccountsFormFieldKey, number> = {
     accountId: 1,
-    name: 2,
-    description: 1,
-    accountType: 2,
+    accountNumber: 2,
+    name: 1,
+    description: 2,
+    accountType: 1,
     normalBalance: 1,
     financialStatementSection: 2,
     financialStatementGroup: 1,
     cashFlowCategory: 2,
+    subsidiaryIds: 1,
+    includeChildren: 2,
     parentAccountId: 1,
     closeToAccountId: 2,
     requiresSubledgerType: 1,
@@ -113,16 +129,19 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
 
   const rowMap: Record<ChartOfAccountsFormFieldKey, number> = {
     accountId: 0,
-    name: 0,
+    accountNumber: 0,
+    name: 1,
     description: 1,
-    accountType: 1,
+    accountType: 2,
     normalBalance: 0,
     financialStatementSection: 0,
     financialStatementGroup: 1,
     cashFlowCategory: 1,
-    parentAccountId: 0,
-    closeToAccountId: 0,
-    requiresSubledgerType: 1,
+    subsidiaryIds: 0,
+    includeChildren: 0,
+    parentAccountId: 1,
+    closeToAccountId: 1,
+    requiresSubledgerType: 2,
     isPosting: 0,
     isControlAccount: 0,
     allowsManualPosting: 1,
@@ -136,9 +155,9 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     formColumns: 2,
     sections: [...DEFAULT_CHART_OF_ACCOUNTS_FORM_SECTIONS],
     sectionRows: {
-      Core: 2,
+      Core: 3,
       Reporting: 2,
-      Structure: 2,
+      Structure: 3,
       Controls: 4,
     },
     fields: Object.fromEntries(

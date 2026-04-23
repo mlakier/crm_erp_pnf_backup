@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import LeadConvertOpportunityForm from '@/components/LeadConvertOpportunityForm'
+import { loadListOptionsForSource } from '@/lib/list-source'
 
 function leadDisplayName(lead: {
   company: string | null
@@ -28,7 +29,7 @@ function opportunityNameFromLead(lead: {
 export default async function LeadConvertPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [lead, items] = await Promise.all([
+  const [lead, items, stageOptions] = await Promise.all([
     prisma.lead.findUnique({
       where: { id },
       select: {
@@ -48,6 +49,7 @@ export default async function LeadConvertPage({ params }: { params: Promise<{ id
       orderBy: { name: 'asc' },
       select: { id: true, name: true, listPrice: true, itemId: true },
     }),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-OPP-STAGE' }),
   ])
 
   if (!lead) notFound()
@@ -81,6 +83,7 @@ export default async function LeadConvertPage({ params }: { params: Promise<{ id
             defaultName={opportunityNameFromLead(lead)}
             defaultStage={defaultStage}
             items={items}
+            stageOptions={stageOptions}
           />
         </section>
       </div>

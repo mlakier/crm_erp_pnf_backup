@@ -1,30 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const LEAD_NUMBER_PREFIX = 'LEAD-'
-const LEAD_NUMBER_WIDTH = 6
-
-export function formatLeadNumber(sequence: number) {
-  return `${LEAD_NUMBER_PREFIX}${String(sequence).padStart(LEAD_NUMBER_WIDTH, '0')}`
+export function formatLeadNumber(sequence: number, config = DEFAULT_ID_SETTINGS.lead) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextLeadNumber() {
-  const latestLead = await prisma.lead.findFirst({
-    where: {
-      leadNumber: {
-        not: null,
-      },
-    },
-    orderBy: {
-      leadNumber: 'desc',
-    },
-    select: {
-      leadNumber: true,
-    },
+  const config = await loadIdSetting('lead')
+  const latestLeads = await prisma.lead.findMany({
+    where: { leadNumber: { startsWith: config.prefix } },
+    orderBy: { leadNumber: 'desc' },
+    select: { leadNumber: true },
+    take: 200,
   })
-
-  const latestSequence = latestLead?.leadNumber
-    ? Number.parseInt(latestLead.leadNumber.replace(LEAD_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatLeadNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestLeads.map((lead) => lead.leadNumber), config)
+  return formatLeadNumber(nextSequence, config)
 }

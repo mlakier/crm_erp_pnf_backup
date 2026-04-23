@@ -1,18 +1,19 @@
-import NextAuth from 'next-auth'
+import type { Department } from '@prisma/client'
+import type { DefaultSession } from 'next-auth'
+
+type SessionDepartment = Pick<Department, 'id' | 'name' | 'departmentId'> | null
 
 declare module 'next-auth' {
   interface User {
     role?: string
-    department?: any
+    department?: SessionDepartment
   }
 
   interface Session {
-    user: {
+    user: DefaultSession['user'] & {
       id: string
-      email: string
-      name?: string
       role?: string
-      department?: any
+      department?: SessionDepartment
     }
   }
 }
@@ -20,6 +21,6 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     role?: string
-    department?: any
+    department?: SessionDepartment
   }
 }

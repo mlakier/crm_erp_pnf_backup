@@ -12,7 +12,7 @@ type SubsidiaryEntity = {
   country: string | null
   entityType: string | null
   taxId: string | null
-  parentEntityId: string | null
+  parentSubsidiaryId: string | null
 }
 
 const NODE_WIDTH = 300
@@ -291,9 +291,9 @@ export default function SubsidiaryHierarchyFlow({
       }
       const pdfValidEdges: Array<{ parentId: string; childId: string }> = []
       for (const entity of entities) {
-        if (entity.parentEntityId && pdfEntityById.has(entity.parentEntityId)) {
-          pdfG.setEdge(entity.parentEntityId, entity.id)
-          pdfValidEdges.push({ parentId: entity.parentEntityId, childId: entity.id })
+        if (entity.parentSubsidiaryId && pdfEntityById.has(entity.parentSubsidiaryId)) {
+          pdfG.setEdge(entity.parentSubsidiaryId, entity.id)
+          pdfValidEdges.push({ parentId: entity.parentSubsidiaryId, childId: entity.id })
         }
       }
       dagre.layout(pdfG)
@@ -342,7 +342,7 @@ export default function SubsidiaryHierarchyFlow({
 
       // Center root in PDF frame
       let pdfChartLeft = Math.max(PDF_EXPORT_PADDING, Math.floor((pdfFrameW - pdfWidth) / 2))
-      const pdfRootEntity = entities.find((e) => !e.parentEntityId || !pdfEntityById.has(e.parentEntityId))
+      const pdfRootEntity = entities.find((e) => !e.parentSubsidiaryId || !pdfEntityById.has(e.parentSubsidiaryId))
       if (pdfRootEntity) {
         const rn = pdfNodeById.get(pdfRootEntity.id)
         if (rn) {
@@ -512,9 +512,9 @@ export default function SubsidiaryHierarchyFlow({
 
     const validEdges: Array<{ parentId: string; childId: string }> = []
     for (const entity of entities) {
-      if (entity.parentEntityId && entityById.has(entity.parentEntityId)) {
-        g.setEdge(entity.parentEntityId, entity.id)
-        validEdges.push({ parentId: entity.parentEntityId, childId: entity.id })
+      if (entity.parentSubsidiaryId && entityById.has(entity.parentSubsidiaryId)) {
+        g.setEdge(entity.parentSubsidiaryId, entity.id)
+        validEdges.push({ parentId: entity.parentSubsidiaryId, childId: entity.id })
       }
     }
 
@@ -571,7 +571,7 @@ export default function SubsidiaryHierarchyFlow({
 
     // Center the root node horizontally within the frame
     let chartLeft = Math.max(EXPORT_PADDING, Math.floor((computedFrameWidth - computedWidth) / 2))
-    const rootEntity = entities.find((e) => !e.parentEntityId || !entityById.has(e.parentEntityId))
+    const rootEntity = entities.find((e) => !e.parentSubsidiaryId || !entityById.has(e.parentSubsidiaryId))
     if (rootEntity) {
       const rootNode = nodeById.get(rootEntity.id)
       if (rootNode) {

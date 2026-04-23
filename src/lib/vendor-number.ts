@@ -1,30 +1,19 @@
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
+import { formatIdentifier, getNextSequenceFromValues, loadIdSetting } from '@/lib/id-settings'
 
-const VENDOR_NUMBER_PREFIX = 'VEND-'
-const VENDOR_NUMBER_WIDTH = 6
-
-export function formatVendorNumber(sequence: number) {
-  return `${VENDOR_NUMBER_PREFIX}${String(sequence).padStart(VENDOR_NUMBER_WIDTH, '0')}`
+export function formatVendorNumber(sequence: number, config = DEFAULT_ID_SETTINGS.vendor) {
+  return formatIdentifier(sequence, config)
 }
 
 export async function generateNextVendorNumber() {
-  const latestVendor = await prisma.vendor.findFirst({
-    where: {
-      vendorNumber: {
-        not: null,
-      },
-    },
-    orderBy: {
-      vendorNumber: 'desc',
-    },
-    select: {
-      vendorNumber: true,
-    },
+  const config = await loadIdSetting('vendor')
+  const latestVendors = await prisma.vendor.findMany({
+    where: { vendorNumber: { startsWith: config.prefix } },
+    orderBy: { vendorNumber: 'desc' },
+    select: { vendorNumber: true },
+    take: 200,
   })
-
-  const latestSequence = latestVendor?.vendorNumber
-    ? Number.parseInt(latestVendor.vendorNumber.replace(VENDOR_NUMBER_PREFIX, ''), 10)
-    : 0
-
-  return formatVendorNumber(Number.isNaN(latestSequence) ? 1 : latestSequence + 1)
+  const nextSequence = getNextSequenceFromValues(latestVendors.map((vendor) => vendor.vendorNumber), config)
+  return formatVendorNumber(nextSequence, config)
 }

@@ -1,3 +1,5 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type CustomerFormFieldKey =
   | 'customerId'
   | 'name'
@@ -13,6 +15,8 @@ export type CustomerFormFieldMeta = {
   id: CustomerFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -37,10 +41,10 @@ export const CUSTOMER_FORM_FIELDS: CustomerFormFieldMeta[] = [
   { id: 'email', label: 'Email', fieldType: 'text', description: 'Primary customer email address.' },
   { id: 'phone', label: 'Phone', fieldType: 'text', description: 'Primary customer phone number.' },
   { id: 'address', label: 'Billing Address', fieldType: 'address', description: 'Main billing address for the customer.' },
-  { id: 'industry', label: 'Industry', fieldType: 'list', source: 'Customer industry list', description: 'Customer industry or segment classification.' },
-  { id: 'primarySubsidiaryId', label: 'Primary Subsidiary', fieldType: 'list', source: 'Subsidiaries master data', description: 'Default legal entity context for this customer.' },
-  { id: 'primaryCurrencyId', label: 'Primary Currency', fieldType: 'list', source: 'Currencies master data', description: 'Default transaction currency for this customer.' },
-  { id: 'inactive', label: 'Inactive', fieldType: 'boolean', description: 'Marks the customer unavailable for new activity while preserving history.' },
+  { id: 'industry', label: 'Industry', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-CUST-INDUSTRY', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-CUST-INDUSTRY' }), description: 'Customer industry or segment classification.' },
+  { id: 'primarySubsidiaryId', label: 'Primary Subsidiary', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Default subsidiary context for this customer.' },
+  { id: 'primaryCurrencyId', label: 'Primary Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Default transaction currency for this customer.' },
+  { id: 'inactive', label: 'Inactive', fieldType: 'list', sourceType: 'system', sourceKey: 'activeInactive', source: getListSourceText({ sourceType: 'system', sourceKey: 'activeInactive' }), description: 'Marks the customer unavailable for new activity while preserving history.' },
 ]
 
 export const DEFAULT_CUSTOMER_FORM_SECTIONS = [

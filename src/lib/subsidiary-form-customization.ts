@@ -1,3 +1,5 @@
+import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
+
 export type SubsidiaryFormFieldKey =
   | 'subsidiaryId'
   | 'name'
@@ -7,7 +9,7 @@ export type SubsidiaryFormFieldKey =
   | 'address'
   | 'taxId'
   | 'registrationNumber'
-  | 'parentEntityId'
+  | 'parentSubsidiaryId'
   | 'defaultCurrencyId'
   | 'functionalCurrencyId'
   | 'reportingCurrencyId'
@@ -24,6 +26,8 @@ export type SubsidiaryFormFieldMeta = {
   id: SubsidiaryFormFieldKey
   label: string
   fieldType: string
+  sourceType?: FieldSourceType
+  sourceKey?: string
   source?: string
   description?: string
 }
@@ -43,26 +47,26 @@ export type SubsidiaryFormCustomizationConfig = {
 }
 
 export const SUBSIDIARY_FORM_FIELDS: SubsidiaryFormFieldMeta[] = [
-  { id: 'subsidiaryId', label: 'Subsidiary ID', fieldType: 'text', description: 'System-generated legal entity code.' },
+  { id: 'subsidiaryId', label: 'Subsidiary ID', fieldType: 'text', description: 'System-generated legal Subsidiary code.' },
   { id: 'name', label: 'Name', fieldType: 'text', description: 'Operating name of the subsidiary.' },
-  { id: 'legalName', label: 'Legal Name', fieldType: 'text', description: 'Registered legal entity name.' },
-  { id: 'entityType', label: 'Type', fieldType: 'text', description: 'Entity classification such as corporation, LLC, or branch.' },
-  { id: 'country', label: 'Country', fieldType: 'list', source: 'Country reference list', description: 'Country of registration or primary operation.' },
+  { id: 'legalName', label: 'Legal Name', fieldType: 'text', description: 'Registered legal Subsidiary name.' },
+  { id: 'entityType', label: 'Type', fieldType: 'text', description: 'Subsidiary classification such as corporation, LLC, or branch.' },
+  { id: 'country', label: 'Country', fieldType: 'list', sourceType: 'system', sourceKey: 'countries', source: getListSourceText({ sourceType: 'system', sourceKey: 'countries' }), description: 'Country of registration or primary operation.' },
   { id: 'address', label: 'Address', fieldType: 'address', description: 'Mailing or registered office address.' },
   { id: 'taxId', label: 'Tax ID', fieldType: 'text', description: 'Primary tax registration or identification number.' },
   { id: 'registrationNumber', label: 'Registration Number', fieldType: 'text', description: 'Corporate registration number where applicable.' },
-  { id: 'parentEntityId', label: 'Parent Subsidiary', fieldType: 'list', source: 'Subsidiaries master data', description: 'Parent entity used for hierarchy and consolidation.' },
-  { id: 'defaultCurrencyId', label: 'Primary Currency', fieldType: 'list', source: 'Currencies master data', description: 'Default transaction currency for the subsidiary.' },
-  { id: 'functionalCurrencyId', label: 'Functional Currency', fieldType: 'list', source: 'Currencies master data', description: 'Currency of the primary economic environment.' },
-  { id: 'reportingCurrencyId', label: 'Reporting Currency', fieldType: 'list', source: 'Currencies master data', description: 'Currency used for group or reporting presentation.' },
-  { id: 'consolidationMethod', label: 'Consolidation Method', fieldType: 'text', description: 'How the entity is consolidated into group reporting.' },
+  { id: 'parentSubsidiaryId', label: 'Parent Subsidiary', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Parent Subsidiary used for hierarchy and consolidation.' },
+  { id: 'defaultCurrencyId', label: 'Primary Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Default transaction currency for the subsidiary.' },
+  { id: 'functionalCurrencyId', label: 'Functional Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Currency of the primary economic environment.' },
+  { id: 'reportingCurrencyId', label: 'Reporting Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Currency used for group or reporting presentation.' },
+  { id: 'consolidationMethod', label: 'Consolidation Method', fieldType: 'text', description: 'How the Subsidiary is consolidated into group reporting.' },
   { id: 'ownershipPercent', label: 'Ownership Percent', fieldType: 'number', description: 'Ownership percentage held in the subsidiary.' },
-  { id: 'retainedEarningsAccountId', label: 'Retained Earnings Account', fieldType: 'list', source: 'Chart of Accounts', description: 'Default retained earnings account for close activity.' },
-  { id: 'ctaAccountId', label: 'CTA Account', fieldType: 'list', source: 'Chart of Accounts', description: 'Cumulative translation adjustment account.' },
-  { id: 'intercompanyClearingAccountId', label: 'Intercompany Clearing Account', fieldType: 'list', source: 'Chart of Accounts', description: 'Clearing account for intercompany activity.' },
-  { id: 'dueToAccountId', label: 'Due To Account', fieldType: 'list', source: 'Chart of Accounts', description: 'Default due-to intercompany account.' },
-  { id: 'dueFromAccountId', label: 'Due From Account', fieldType: 'list', source: 'Chart of Accounts', description: 'Default due-from intercompany account.' },
-  { id: 'inactive', label: 'Inactive', fieldType: 'boolean', description: 'Marks the subsidiary unavailable for new activity while preserving history.' },
+  { id: 'retainedEarningsAccountId', label: 'Retained Earnings Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Default retained earnings account for close activity.' },
+  { id: 'ctaAccountId', label: 'CTA Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Cumulative translation adjustment account.' },
+  { id: 'intercompanyClearingAccountId', label: 'Intercompany Clearing Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Clearing account for intercompany activity.' },
+  { id: 'dueToAccountId', label: 'Due To Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Default due-to intercompany account.' },
+  { id: 'dueFromAccountId', label: 'Due From Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Default due-from intercompany account.' },
+  { id: 'inactive', label: 'Inactive', fieldType: 'list', sourceType: 'system', sourceKey: 'activeInactive', source: getListSourceText({ sourceType: 'system', sourceKey: 'activeInactive' }), description: 'Marks the subsidiary unavailable for new activity while preserving history.' },
 ]
 
 export const DEFAULT_SUBSIDIARY_FORM_SECTIONS = [
@@ -85,7 +89,7 @@ export function defaultSubsidiaryFormCustomization(): SubsidiaryFormCustomizatio
     address: 'Registration',
     taxId: 'Registration',
     registrationNumber: 'Registration',
-    parentEntityId: 'Hierarchy',
+    parentSubsidiaryId: 'Hierarchy',
     defaultCurrencyId: 'Currency',
     functionalCurrencyId: 'Currency',
     reportingCurrencyId: 'Currency',
@@ -108,7 +112,7 @@ export function defaultSubsidiaryFormCustomization(): SubsidiaryFormCustomizatio
     address: 2,
     taxId: 1,
     registrationNumber: 2,
-    parentEntityId: 1,
+    parentSubsidiaryId: 1,
     defaultCurrencyId: 1,
     functionalCurrencyId: 2,
     reportingCurrencyId: 1,
@@ -131,7 +135,7 @@ export function defaultSubsidiaryFormCustomization(): SubsidiaryFormCustomizatio
     address: 1,
     taxId: 2,
     registrationNumber: 2,
-    parentEntityId: 0,
+    parentSubsidiaryId: 0,
     defaultCurrencyId: 0,
     functionalCurrencyId: 0,
     reportingCurrencyId: 1,

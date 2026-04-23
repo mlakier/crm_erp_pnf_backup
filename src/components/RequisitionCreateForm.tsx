@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 
 type Vendor = { id: string; name: string }
 type Department = { id: string; name: string; departmentId: string }
-type Entity = { id: string; subsidiaryId: string; name: string }
-type Currency = { id: string; currencyId: string; name: string }
+type Subsidiary = { id: string; subsidiaryId: string; name: string }
+type Currency = { id: string; currencyId: string; code?: string; name: string }
 
 export default function RequisitionCreateForm({
   userId,
@@ -20,7 +20,7 @@ export default function RequisitionCreateForm({
   userId: string
   vendors: Vendor[]
   departments: Department[]
-  entities: Entity[]
+  entities: Subsidiary[]
   currencies: Currency[]
   onSuccess?: () => void
   onCancel?: () => void
@@ -33,7 +33,7 @@ export default function RequisitionCreateForm({
   const [notes, setNotes] = useState('')
   const [vendorId, setVendorId] = useState('')
   const [departmentId, setDepartmentId] = useState('')
-  const [entityId, setEntityId] = useState('')
+  const [subsidiaryId, setSubsidiaryId] = useState('')
   const [currencyId, setCurrencyId] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -55,7 +55,7 @@ export default function RequisitionCreateForm({
           notes: notes || null,
           vendorId: vendorId || null,
           departmentId: departmentId || null,
-          entityId: entityId || null,
+          subsidiaryId: subsidiaryId || null,
           currencyId: currencyId || null,
           userId,
         }),
@@ -174,8 +174,8 @@ export default function RequisitionCreateForm({
         <div>
           <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Subsidiary</label>
           <select
-            value={entityId}
-            onChange={(e) => setEntityId(e.target.value)}
+            value={subsidiaryId}
+            onChange={(e) => setSubsidiaryId(e.target.value)}
             className={inputCls}
             style={{ borderColor: 'var(--border-muted)' }}
           >
@@ -198,7 +198,7 @@ export default function RequisitionCreateForm({
             <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select currency —</option>
             {currencies.map((c) => (
               <option key={c.id} value={c.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {c.currencyId} – {c.name}
+                {c.code ?? c.currencyId} – {c.name}
               </option>
             ))}
           </select>

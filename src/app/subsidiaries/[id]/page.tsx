@@ -3,18 +3,25 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import DeleteButton from '@/components/DeleteButton'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
-import { COUNTRY_OPTIONS } from '@/lib/address-country-config'
+import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
+import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
+import MasterDataSystemInfoSection from '@/components/MasterDataSystemInfoSection'
 import SubsidiaryDetailCustomizeMode from '@/components/SubsidiaryDetailCustomizeMode'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
+import SystemNotesSection from '@/components/SystemNotesSection'
 import {
   RecordDetailCell,
   RecordDetailEmptyState,
   RecordDetailHeaderCell,
   RecordDetailSection,
 } from '@/components/RecordDetailPanels'
+import { buildConfiguredInlineSections, buildCustomizePreviewFields } from '@/lib/detail-page-helpers'
 import { loadSubsidiaryFormCustomization } from '@/lib/subsidiary-form-customization-store'
 import { SUBSIDIARY_FORM_FIELDS, type SubsidiaryFormFieldKey } from '@/lib/subsidiary-form-customization'
 import { loadFormRequirements } from '@/lib/form-requirements-store'
+import { buildFieldMetaById, getFieldSourceText, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { loadMasterDataSystemInfo } from '@/lib/master-data-system-info'
+import { loadMasterDataSystemNotes } from '@/lib/master-data-system-notes'
 
 export default async function SubsidiaryDetailPage({
   params,
@@ -28,15 +35,17 @@ export default async function SubsidiaryDetailPage({
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
 
-  const [entity, currencies, parentEntities, glAccounts, formCustomization, formRequirements] = await Promise.all([
-    prisma.entity.findUnique({
+  const fieldMetaById = buildFieldMetaById(SUBSIDIARY_FORM_FIELDS)
+
+  const [Subsidiary, fieldOptions, formCustomization, formRequirements] = await Promise.all([
+    prisma.subsidiary.findUnique({
       where: { id },
       include: {
         defaultCurrency: true,
         functionalCurrency: true,
         reportingCurrency: true,
-        parentEntity: true,
-        childEntities: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
+        parentSubsidiary: true,
+        childSubsidiaries: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
         employees: { orderBy: { lastName: 'asc' }, select: { id: true, firstName: true, lastName: true, title: true, email: true } },
         customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerId: true } },
         vendors: { orderBy: { name: 'asc' }, select: { id: true, name: true, vendorNumber: true } },
@@ -47,27 +56,26 @@ export default async function SubsidiaryDetailPage({
         dueFromAccount: { select: { id: true, accountId: true, name: true } },
       },
     }),
-    prisma.currency.findMany({
-      orderBy: { currencyId: 'asc' },
-      select: { id: true, currencyId: true, name: true },
-    }),
-    prisma.entity.findMany({
-      where: { NOT: { id } },
-      orderBy: { subsidiaryId: 'asc' },
-      select: { id: true, subsidiaryId: true, name: true },
-    }),
-    prisma.chartOfAccounts.findMany({
-      where: { active: true },
-      orderBy: { accountId: 'asc' },
-      select: { id: true, accountId: true, name: true },
-    }),
+    loadFieldOptionsMap(fieldMetaById, [
+      'country',
+      'defaultCurrencyId',
+      'functionalCurrencyId',
+      'reportingCurrencyId',
+      'parentSubsidiaryId',
+      'retainedEarningsAccountId',
+      'ctaAccountId',
+      'intercompanyClearingAccountId',
+      'dueToAccountId',
+      'dueFromAccountId',
+      'inactive',
+    ]),
     loadSubsidiaryFormCustomization(),
     loadFormRequirements(),
   ])
 
-  if (!entity) notFound()
+  if (!Subsidiary) notFound()
 
-  const detailHref = `/subsidiaries/${entity.id}`
+  const detailHref = `/subsidiaries/${Subsidiary.id}`
   const sectionDescriptions: Record<string, string> = {
     Core: 'Primary identity and operating name for the subsidiary.',
     Registration: 'Legal registration, country, and statutory identifiers.',
@@ -78,197 +86,180 @@ export default async function SubsidiaryDetailPage({
     Status: 'Availability and active-state controls.',
   }
 
-  const currencyOptions = currencies.map((currency) => ({ value: currency.id, label: `${currency.currencyId} - ${currency.name}` }))
-  const parentOptions = parentEntities.map((candidate) => ({ value: candidate.id, label: `${candidate.subsidiaryId} - ${candidate.name}` }))
-  const glOptions = glAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` }))
-
   const fieldDefinitions: Record<SubsidiaryFormFieldKey, InlineRecordSection['fields'][number]> = {
-    subsidiaryId: { name: 'subsidiaryId', label: 'Subsidiary ID', value: entity.subsidiaryId, helpText: 'System-generated legal entity code.' },
-    name: { name: 'name', label: 'Name', value: entity.name, helpText: 'Operating name of the subsidiary.' },
-    legalName: { name: 'legalName', label: 'Legal Name', value: entity.legalName ?? '', helpText: 'Registered legal entity name.' },
-    entityType: { name: 'entityType', label: 'Type', value: entity.entityType ?? '', helpText: 'Entity classification such as corporation, LLC, or branch.' },
+    subsidiaryId: { name: 'subsidiaryId', label: 'Subsidiary ID', value: Subsidiary.subsidiaryId, helpText: 'System-generated legal Subsidiary code.' },
+    name: { name: 'name', label: 'Name', value: Subsidiary.name, helpText: 'Operating name of the subsidiary.' },
+    legalName: { name: 'legalName', label: 'Legal Name', value: Subsidiary.legalName ?? '', helpText: 'Registered legal Subsidiary name.' },
+    entityType: { name: 'entityType', label: 'Type', value: Subsidiary.entityType ?? '', helpText: 'Subsidiary classification such as corporation, LLC, or branch.' },
     country: {
       name: 'country',
       label: 'Country',
-      value: entity.country ?? '',
+      value: Subsidiary.country ?? '',
       type: 'select',
       placeholder: 'Select country',
-      options: COUNTRY_OPTIONS.map((option) => ({ value: option.code, label: option.label })),
+      options: fieldOptions.country ?? [],
       helpText: 'Country of registration or primary operation.',
-      sourceText: 'Country reference list',
+      sourceText: getFieldSourceText(fieldMetaById, 'country'),
     },
-    address: { name: 'address', label: 'Address', value: entity.address ?? '', type: 'address', helpText: 'Mailing or registered office address.' },
-    taxId: { name: 'taxId', label: 'Tax ID', value: entity.taxId ?? '', helpText: 'Primary tax registration or identification number.' },
-    registrationNumber: { name: 'registrationNumber', label: 'Registration Number', value: entity.registrationNumber ?? '', helpText: 'Corporate registration number where applicable.' },
-    parentEntityId: {
-      name: 'parentEntityId',
+    address: { name: 'address', label: 'Address', value: Subsidiary.address ?? '', type: 'address', helpText: 'Mailing or registered office address.' },
+    taxId: { name: 'taxId', label: 'Tax ID', value: Subsidiary.taxId ?? '', helpText: 'Primary tax registration or identification number.' },
+    registrationNumber: { name: 'registrationNumber', label: 'Registration Number', value: Subsidiary.registrationNumber ?? '', helpText: 'Corporate registration number where applicable.' },
+    parentSubsidiaryId: {
+      name: 'parentSubsidiaryId',
       label: 'Parent Subsidiary',
-      value: entity.parentEntityId ?? '',
+      value: Subsidiary.parentSubsidiaryId ?? '',
       type: 'select',
       placeholder: 'Select parent subsidiary',
-      options: parentOptions,
-      helpText: 'Parent entity used for hierarchy and consolidation.',
-      sourceText: 'Subsidiaries master data',
+      options: fieldOptions.parentSubsidiaryId ?? [],
+      helpText: 'Parent Subsidiary used for hierarchy and consolidation.',
+      sourceText: getFieldSourceText(fieldMetaById, 'parentSubsidiaryId'),
     },
     defaultCurrencyId: {
       name: 'defaultCurrencyId',
       label: 'Primary Currency',
-      value: entity.defaultCurrencyId ?? '',
+      value: Subsidiary.defaultCurrencyId ?? '',
       type: 'select',
       placeholder: 'Select currency',
-      options: currencyOptions,
+      options: fieldOptions.defaultCurrencyId ?? [],
       helpText: 'Default transaction currency for the subsidiary.',
-      sourceText: 'Currencies master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'defaultCurrencyId'),
     },
     functionalCurrencyId: {
       name: 'functionalCurrencyId',
       label: 'Functional Currency',
-      value: entity.functionalCurrencyId ?? '',
+      value: Subsidiary.functionalCurrencyId ?? '',
       type: 'select',
       placeholder: 'Select currency',
-      options: currencyOptions,
+      options: fieldOptions.functionalCurrencyId ?? [],
       helpText: 'Currency of the primary economic environment.',
-      sourceText: 'Currencies master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'functionalCurrencyId'),
     },
     reportingCurrencyId: {
       name: 'reportingCurrencyId',
       label: 'Reporting Currency',
-      value: entity.reportingCurrencyId ?? '',
+      value: Subsidiary.reportingCurrencyId ?? '',
       type: 'select',
       placeholder: 'Select currency',
-      options: currencyOptions,
+      options: fieldOptions.reportingCurrencyId ?? [],
       helpText: 'Currency used for group or reporting presentation.',
-      sourceText: 'Currencies master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'reportingCurrencyId'),
     },
-    consolidationMethod: { name: 'consolidationMethod', label: 'Consolidation Method', value: entity.consolidationMethod ?? '', helpText: 'How the entity is consolidated into group reporting.' },
-    ownershipPercent: { name: 'ownershipPercent', label: 'Ownership Percent', value: entity.ownershipPercent?.toString() ?? '', type: 'number', helpText: 'Ownership percentage held in the subsidiary.' },
+    consolidationMethod: { name: 'consolidationMethod', label: 'Consolidation Method', value: Subsidiary.consolidationMethod ?? '', helpText: 'How the Subsidiary is consolidated into group reporting.' },
+    ownershipPercent: { name: 'ownershipPercent', label: 'Ownership Percent', value: Subsidiary.ownershipPercent?.toString() ?? '', type: 'number', helpText: 'Ownership percentage held in the subsidiary.' },
     retainedEarningsAccountId: {
       name: 'retainedEarningsAccountId',
       label: 'Retained Earnings Account',
-      value: entity.retainedEarningsAccountId ?? '',
+      value: Subsidiary.retainedEarningsAccountId ?? '',
       type: 'select',
       placeholder: 'Select account',
-      options: glOptions,
+      options: fieldOptions.retainedEarningsAccountId ?? [],
       helpText: 'Default retained earnings account for close activity.',
-      sourceText: 'Chart of Accounts',
+      sourceText: getFieldSourceText(fieldMetaById, 'retainedEarningsAccountId'),
     },
     ctaAccountId: {
       name: 'ctaAccountId',
       label: 'CTA Account',
-      value: entity.ctaAccountId ?? '',
+      value: Subsidiary.ctaAccountId ?? '',
       type: 'select',
       placeholder: 'Select account',
-      options: glOptions,
+      options: fieldOptions.ctaAccountId ?? [],
       helpText: 'Cumulative translation adjustment account.',
-      sourceText: 'Chart of Accounts',
+      sourceText: getFieldSourceText(fieldMetaById, 'ctaAccountId'),
     },
     intercompanyClearingAccountId: {
       name: 'intercompanyClearingAccountId',
       label: 'Intercompany Clearing Account',
-      value: entity.intercompanyClearingAccountId ?? '',
+      value: Subsidiary.intercompanyClearingAccountId ?? '',
       type: 'select',
       placeholder: 'Select account',
-      options: glOptions,
+      options: fieldOptions.intercompanyClearingAccountId ?? [],
       helpText: 'Clearing account for intercompany activity.',
-      sourceText: 'Chart of Accounts',
+      sourceText: getFieldSourceText(fieldMetaById, 'intercompanyClearingAccountId'),
     },
     dueToAccountId: {
       name: 'dueToAccountId',
       label: 'Due To Account',
-      value: entity.dueToAccountId ?? '',
+      value: Subsidiary.dueToAccountId ?? '',
       type: 'select',
       placeholder: 'Select account',
-      options: glOptions,
+      options: fieldOptions.dueToAccountId ?? [],
       helpText: 'Default due-to intercompany account.',
-      sourceText: 'Chart of Accounts',
+      sourceText: getFieldSourceText(fieldMetaById, 'dueToAccountId'),
     },
     dueFromAccountId: {
       name: 'dueFromAccountId',
       label: 'Due From Account',
-      value: entity.dueFromAccountId ?? '',
+      value: Subsidiary.dueFromAccountId ?? '',
       type: 'select',
       placeholder: 'Select account',
-      options: glOptions,
+      options: fieldOptions.dueFromAccountId ?? [],
       helpText: 'Default due-from intercompany account.',
-      sourceText: 'Chart of Accounts',
+      sourceText: getFieldSourceText(fieldMetaById, 'dueFromAccountId'),
     },
     inactive: {
       name: 'inactive',
       label: 'Inactive',
-      value: String(!entity.active),
+      value: String(!Subsidiary.active),
       type: 'select',
-      options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
+      options: fieldOptions.inactive ?? [],
       helpText: 'Marks the subsidiary unavailable for new activity while preserving history.',
-      sourceText: 'System status values',
+      sourceText: getFieldSourceText(fieldMetaById, 'inactive'),
     },
   }
 
-  const customizeFields = SUBSIDIARY_FORM_FIELDS.map((field) => {
-    const definition = fieldDefinitions[field.id]
-    const rawValue = definition.value ?? ''
-    const previewValue = definition.options?.find((option) => option.value === rawValue)?.label ?? rawValue
-    return {
-      id: field.id,
-      label: definition.label,
-      fieldType: field.fieldType,
-      source: field.source,
-      description: field.description,
-      previewValue,
-    }
+  const customizeFields = buildCustomizePreviewFields(SUBSIDIARY_FORM_FIELDS, fieldDefinitions)
+  const detailSections: InlineRecordSection[] = buildConfiguredInlineSections({
+    fields: SUBSIDIARY_FORM_FIELDS,
+    layout: formCustomization,
+    fieldDefinitions,
+    sectionDescriptions,
   })
-
-  const detailSections: InlineRecordSection[] = formCustomization.sections
-    .map((sectionTitle) => {
-      const configuredFields = SUBSIDIARY_FORM_FIELDS
-        .filter((field) => {
-          const config = formCustomization.fields[field.id]
-          return config.visible && config.section === sectionTitle
-        })
-        .sort((a, b) => {
-          const left = formCustomization.fields[a.id]
-          const right = formCustomization.fields[b.id]
-          if (left.column !== right.column) return left.column - right.column
-          return left.order - right.order
-        })
-        .map((field) => ({
-          ...fieldDefinitions[field.id],
-          column: formCustomization.fields[field.id].column,
-          order: formCustomization.fields[field.id].order,
-        }))
-
-      if (configuredFields.length === 0) return null
-
-      return {
-        title: sectionTitle,
-        description: sectionDescriptions[sectionTitle],
-        collapsible: true,
-        defaultExpanded: true,
-        fields: configuredFields,
-      }
-    })
-    .filter((section): section is InlineRecordSection => Boolean(section))
+  const systemInfo = await loadMasterDataSystemInfo({
+    entityType: 'Subsidiary',
+    entityId: Subsidiary.id,
+    createdAt: Subsidiary.createdAt,
+    updatedAt: Subsidiary.updatedAt,
+  })
+  const systemNotes = await loadMasterDataSystemNotes({ entityType: 'Subsidiary', entityId: Subsidiary.id })
 
   return (
     <RecordDetailPageShell
       backHref={isCustomizing ? detailHref : '/subsidiaries'}
       backLabel={isCustomizing ? '<- Back to Subsidiary Detail' : '<- Back to Subsidiaries'}
-      meta={entity.subsidiaryId}
-      title={entity.name}
+      meta={Subsidiary.subsidiaryId}
+      title={Subsidiary.name}
       badge={
-        entity.entityType ? (
+        Subsidiary.entityType ? (
           <span className="inline-block rounded-full px-3 py-0.5 text-sm" style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: 'var(--accent-primary-strong)' }}>
-            {entity.entityType}
+            {Subsidiary.entityType}
           </span>
         ) : null
       }
       actions={
         <>
+          {isEditing && !isCustomizing ? (
+            <>
+              <Link href={detailHref} className="rounded-md border px-3 py-1.5 text-xs font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                form={`inline-record-form-${Subsidiary.id}`}
+                className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Save
+              </button>
+            </>
+          ) : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailCreateMenu newHref="/subsidiaries/new" duplicateHref={`/subsidiaries/new?duplicateFrom=${Subsidiary.id}`} /> : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailExportMenu title={Subsidiary.name} fileName={`subsidiary-${Subsidiary.subsidiaryId}`} sections={detailSections} /> : null}
           {!isEditing && !isCustomizing ? (
             <Link href={`${detailHref}?customize=1`} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
               Customize
             </Link>
           ) : null}
-          {!isEditing ? (
+          {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?edit=1`}
               className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
@@ -277,7 +268,7 @@ export default async function SubsidiaryDetailPage({
               Edit
             </Link>
           ) : null}
-          {!isCustomizing ? <DeleteButton resource="entities" id={entity.id} /> : null}
+          {!isCustomizing ? <DeleteButton resource="subsidiaries" id={Subsidiary.id} /> : null}
         </>
       }
     >
@@ -292,16 +283,19 @@ export default async function SubsidiaryDetailPage({
         ) : (
           <InlineRecordDetails
             resource="entities"
-            id={entity.id}
+            id={Subsidiary.id}
             title="Subsidiary details"
             sections={detailSections}
             editing={isEditing}
             columns={formCustomization.formColumns}
+            showInternalActions={false}
           />
         )}
 
-        <RecordDetailSection title="Child Subsidiaries" count={entity.childEntities.length}>
-          {entity.childEntities.length === 0 ? (
+        {!isCustomizing ? <MasterDataSystemInfoSection info={systemInfo} /> : null}
+
+        <RecordDetailSection title="Child Subsidiaries" count={Subsidiary.childSubsidiaries.length}>
+          {Subsidiary.childSubsidiaries.length === 0 ? (
             <RecordDetailEmptyState message="No child subsidiaries" />
           ) : (
             <table className="min-w-full">
@@ -312,7 +306,7 @@ export default async function SubsidiaryDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {entity.childEntities.map((child) => (
+                {Subsidiary.childSubsidiaries.map((child) => (
                   <tr key={child.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <RecordDetailCell>
                       <Link href={`/subsidiaries/${child.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
@@ -327,8 +321,8 @@ export default async function SubsidiaryDetailPage({
           )}
         </RecordDetailSection>
 
-        <RecordDetailSection title="Employees" count={entity.employees.length}>
-          {entity.employees.length === 0 ? (
+        <RecordDetailSection title="Employees" count={Subsidiary.employees.length}>
+          {Subsidiary.employees.length === 0 ? (
             <RecordDetailEmptyState message="No employees in this subsidiary" />
           ) : (
             <table className="min-w-full">
@@ -340,7 +334,7 @@ export default async function SubsidiaryDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {entity.employees.map((employee) => (
+                {Subsidiary.employees.map((employee) => (
                   <tr key={employee.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <RecordDetailCell>
                       <Link href={`/employees/${employee.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
@@ -356,8 +350,8 @@ export default async function SubsidiaryDetailPage({
           )}
         </RecordDetailSection>
 
-        <RecordDetailSection title="Customers" count={entity.customers.length}>
-          {entity.customers.length === 0 ? (
+        <RecordDetailSection title="Customers" count={Subsidiary.customers.length}>
+          {Subsidiary.customers.length === 0 ? (
             <RecordDetailEmptyState message="No customers in this subsidiary" />
           ) : (
             <table className="min-w-full">
@@ -368,7 +362,7 @@ export default async function SubsidiaryDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {entity.customers.map((customer) => (
+                {Subsidiary.customers.map((customer) => (
                   <tr key={customer.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <RecordDetailCell>
                       <Link href={`/customers/${customer.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
@@ -383,8 +377,8 @@ export default async function SubsidiaryDetailPage({
           )}
         </RecordDetailSection>
 
-        <RecordDetailSection title="Vendors" count={entity.vendors.length}>
-          {entity.vendors.length === 0 ? (
+        <RecordDetailSection title="Vendors" count={Subsidiary.vendors.length}>
+          {Subsidiary.vendors.length === 0 ? (
             <RecordDetailEmptyState message="No vendors in this subsidiary" />
           ) : (
             <table className="min-w-full">
@@ -395,7 +389,7 @@ export default async function SubsidiaryDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {entity.vendors.map((vendor) => (
+                {Subsidiary.vendors.map((vendor) => (
                   <tr key={vendor.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                     <RecordDetailCell>
                       <Link href={`/vendors/${vendor.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
@@ -409,6 +403,7 @@ export default async function SubsidiaryDetailPage({
             </table>
           )}
         </RecordDetailSection>
+        <SystemNotesSection notes={systemNotes} />
     </RecordDetailPageShell>
   )
 }

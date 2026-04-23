@@ -87,13 +87,34 @@ body {
 
 [data-column-selector-table] table,
 .overflow-x-auto table {
+  width: max-content;
   min-width: max-content;
+}
+
+.record-list-scroll-region {
+  max-height: calc(100vh - 20rem);
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+[data-column-selector-table] th {
+  overflow: visible;
+}
+
+[data-column-selector-table] th,
+[data-column-selector-table] td {
+  white-space: nowrap;
+}
+
+[data-column-selector-table] th:hover {
+  z-index: 80 !important;
 }
 
 /* Sticky columns for wide list tables. */
 [data-column-selector-table] {
-  --pin-id-width: 140px;
-  --pin-name-width: 240px;
+  --pin-id-width: max-content;
+  --pin-name-width: max-content;
 }
 
 [data-column-selector-table] th[data-column="actions"],
@@ -131,7 +152,6 @@ body {
   z-index: 6;
   width: var(--pin-id-width);
   min-width: var(--pin-id-width);
-  max-width: var(--pin-id-width);
   background-color: var(--card);
   box-shadow: 1px 0 0 0 var(--border-muted);
 }
@@ -154,7 +174,6 @@ body {
   z-index: 14;
   width: var(--pin-id-width);
   min-width: var(--pin-id-width);
-  max-width: var(--pin-id-width);
   background-color: var(--card);
   box-shadow: 1px 0 0 0 var(--border-muted);
 }
@@ -175,4 +194,3 @@ body {
 [data-column-selector-table] th[data-column="name"] {
   z-index: 13;
 }
-

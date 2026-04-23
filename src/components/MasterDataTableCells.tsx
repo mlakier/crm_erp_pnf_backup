@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import {
   MASTER_DATA_BODY_CELL_CLASSNAME,
   MASTER_DATA_EMPTY_CELL_CLASSNAME,
@@ -13,16 +14,20 @@ type CellProps = {
   className?: string
   columnId?: string
   style?: CSSProperties
+  tooltip?: string
 }
 
-export function MasterDataHeaderCell({ children, className, columnId, style }: CellProps) {
+export function MasterDataHeaderCell({ children, className, columnId, style, tooltip }: CellProps) {
+  const headerContent =
+    typeof children === 'string' ? <RecordListHeaderLabel label={children} tooltip={tooltip} /> : children
+
   return (
     <th
       data-column={columnId}
       className={className ?? MASTER_DATA_HEADER_CELL_CLASSNAME}
       style={style ?? MASTER_DATA_HEADER_CELL_STYLE}
     >
-      {children}
+      {headerContent}
     </th>
   )
 }

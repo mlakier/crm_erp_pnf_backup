@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import AddressModal, { parseAddress } from '@/components/AddressModal'
+import MultiSelectDropdown from '@/components/MultiSelectDropdown'
 import { isValidEmail } from '@/lib/validation'
 
 export interface InlineRecordField {
@@ -11,6 +12,7 @@ export interface InlineRecordField {
   label: string
   value: string
   type?: 'text' | 'number' | 'date' | 'email' | 'select' | 'checkbox' | 'address'
+  multiple?: boolean
   column?: number
   order?: number
   options?: Array<{ value: string; label: string }>
@@ -40,6 +42,7 @@ export default function InlineRecordDetails({
   sections,
   editing,
   columns = 2,
+  showInternalActions = true,
 }: {
   resource: string
   id: string
@@ -48,6 +51,7 @@ export default function InlineRecordDetails({
   sections?: InlineRecordSection[]
   editing: boolean
   columns?: number
+  showInternalActions?: boolean
 }) {
   const resolvedSections = sections ?? [{ title, fields: fields ?? [] }]
   const allFields = resolvedSections.flatMap((section) => section.fields)
@@ -124,7 +128,7 @@ export default function InlineRecordDetails({
     <div className="mb-8 rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{title}</h2>
-        {editing ? (
+        {editing && showInternalActions ? (
           <div className="flex items-center gap-2">
             <Link
               href={pathname}
@@ -320,28 +324,46 @@ function SectionFieldGrid({
                     </p>
                   </div>
                 ) : field.type === 'select' ? (
-                  <select
-                    value={values[field.name] ?? ''}
-                    disabled={isDisabled}
-                    onChange={(event) =>
-                      setValues((prev) => ({ ...prev, [field.name]: event.target.value }))
-                    }
-                    className="block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{ borderColor: 'var(--border-muted)' }}
-                  >
-                    <option value="" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
-                      {field.placeholder ?? 'Select option'}
-                    </option>
-                    {(field.options ?? []).map((option) => (
-                      <option
-                        key={`${field.name}-${option.value}`}
-                        value={option.value}
-                        style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}
-                      >
-                        {option.label}
+                  field.multiple ? (
+                    <MultiSelectDropdown
+                      value={splitMultiValue(values[field.name] ?? '')}
+                      options={field.options ?? []}
+                      disabled={isDisabled}
+                      placeholder={field.placeholder ?? 'Select options'}
+                      onChange={(next) =>
+                        setValues((prev) => ({
+                          ...prev,
+                          [field.name]: next.join(','),
+                        }))
+                      }
+                    />
+                  ) : (
+                    <select
+                      value={values[field.name] ?? ''}
+                      disabled={isDisabled}
+                      onChange={(event) =>
+                        setValues((prev) => ({
+                          ...prev,
+                          [field.name]: event.target.value,
+                        }))
+                      }
+                      className="block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ borderColor: 'var(--border-muted)' }}
+                    >
+                      <option value="" style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}>
+                        {field.placeholder ?? 'Select option'}
                       </option>
-                    ))}
-                  </select>
+                      {(field.options ?? []).map((option) => (
+                        <option
+                          key={`${field.name}-${option.value}`}
+                          value={option.value}
+                          style={{ backgroundColor: 'var(--card-elevated)', color: '#ffffff' }}
+                        >
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )
                 ) : (
                   <input
                     type={field.type ?? 'text'}
@@ -381,8 +403,21 @@ function SectionFieldGrid({
 
 function formatDisplayValue(field: InlineRecordField, value: string, optionLabels: Record<string, string>) {
   if (field.type === 'checkbox') return value === 'true' ? 'Yes' : 'No'
-  if (field.type === 'select') return optionLabels[value] ?? value ?? '-'
+  if (field.type === 'select') {
+    if (field.multiple) {
+      const labels = splitMultiValue(value).map((entry) => optionLabels[entry] ?? entry).filter(Boolean)
+      return labels.length > 0 ? labels.join(', ') : '-'
+    }
+    return optionLabels[value] ?? value ?? '-'
+  }
   return value || '-'
+}
+
+function splitMultiValue(value: string) {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
 }
 
 function buildTooltipContent(field: InlineRecordField) {

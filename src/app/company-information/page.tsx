@@ -291,7 +291,7 @@ export default function CompanyInformationPage() {
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Legal Entity Registered As</span>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Legal Subsidiary Registered As</span>
               <input value={settings.legalEntityRegisteredAs} onChange={(e) => updateSetting('legalEntityRegisteredAs', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
             </label>
 

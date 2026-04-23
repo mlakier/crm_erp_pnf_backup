@@ -1,6 +1,6 @@
 'use client'
 
-import { cloneElement, isValidElement, ReactElement, useEffect, useMemo, useState } from 'react'
+import { cloneElement, isValidElement, ReactElement, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CSSProperties } from 'react'
 
@@ -23,9 +23,6 @@ export default function CreateModalButton({
 }: CreateModalButtonProps) {
   const [open, setOpen] = useState(false)
   const [dismissPrompt, setDismissPrompt] = useState('')
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => { setMounted(true) }, [])
 
   const close = () => {
     setDismissPrompt('')
@@ -53,7 +50,7 @@ export default function CreateModalButton({
         <span className="mr-1.5 text-lg leading-none">+</span>{buttonLabel}
       </button>
 
-      {open && mounted ? createPortal(
+      {open && typeof document !== 'undefined' ? createPortal(
         <div
           className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4"
           onClick={(event) => {

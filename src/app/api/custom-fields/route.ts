@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ label: 'asc' }, { createdAt: 'asc' }],
     })
     return NextResponse.json(fields)
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch custom fields' }, { status: 500 })
   }
 }
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(field, { status: 201 })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create custom field' }, { status: 500 })
   }
 }

@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthOptions } from 'next-auth'
+import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from './prisma'
@@ -88,7 +88,7 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         session.user.id = token.sub ?? session.user.id
         session.user.role = token.role as string
-        session.user.department = token.department as any
+        session.user.department = token.department
       }
       return session
     },

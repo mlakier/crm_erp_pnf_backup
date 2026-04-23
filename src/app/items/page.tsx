@@ -1,7 +1,7 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { prisma } from '@/lib/prisma'
-import CreateModalButton from '@/components/CreateModalButton'
-import ItemCreateForm from '@/components/ItemCreateForm'
+import CreatePageLinkButton from '@/components/CreatePageLinkButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -12,8 +12,11 @@ import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
-import { loadListOptions } from '@/lib/list-options-store'
+import { ITEM_FORM_FIELDS, type ItemFormFieldKey } from '@/lib/item-form-customization'
 import { itemListDefinition } from '@/lib/master-data-list-definitions'
+import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { buildFieldStyleListTooltip } from '@/lib/field-style-list-tooltip'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 export default async function ItemsPage({
   searchParams,
@@ -22,20 +25,33 @@ export default async function ItemsPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const itemFieldMetaById = buildFieldMetaById(ITEM_FORM_FIELDS)
+  const fieldTooltip = (fieldId: keyof typeof itemFieldMetaById) =>
+    buildFieldStyleListTooltip({
+      label: itemFieldMetaById[fieldId].label,
+      fieldId: itemFieldMetaById[fieldId].id,
+      fieldType: itemFieldMetaById[fieldId].fieldType,
+      description: itemFieldMetaById[fieldId].description,
+      sourceText: itemFieldMetaById[fieldId].source,
+    })
 
   const where = query
-    ? { OR: [{ name: { contains: query } }, { itemId: { contains: query } }, { sku: { contains: query } }] }
+    ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { itemId: { contains: query, mode: 'insensitive' as const } }, { sku: { contains: query, mode: 'insensitive' as const } }] }
     : {}
 
   const total = await prisma.item.count({ where })
   const pagination = getPagination(total, params.page)
 
-  const [items, entities, currencies, glAccounts, revRecTemplates, listOptions, companyLogoPages] = await Promise.all([
+  const [items, entities, glAccounts, revRecTemplates, fieldOptions, companyLogoPages] = await Promise.all([
     prisma.item.findMany({
       where,
       include: {
-        entity: true,
+        subsidiary: true,
+        itemSubsidiaries: { include: { subsidiary: true }, orderBy: { subsidiary: { subsidiaryId: 'asc' } } },
+        department: true,
+        location: true,
+        preferredVendor: true,
         currency: true,
         defaultRevRecTemplate: true,
         incomeAccount: true,
@@ -45,7 +61,9 @@ export default async function ItemsPage({
         deferredCostAccount: true,
       },
       orderBy:
-        sort === 'oldest'
+        sort === 'id'
+          ? [{ itemId: 'asc' as const }, { createdAt: 'desc' as const }]
+          : sort === 'oldest'
           ? [{ createdAt: 'asc' as const }]
           : sort === 'name'
             ? [{ name: 'asc' as const }]
@@ -53,8 +71,7 @@ export default async function ItemsPage({
       skip: pagination.skip,
       take: pagination.pageSize,
     }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' } }),
-    prisma.currency.findMany({ orderBy: { currencyId: 'asc' } }),
+    prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' } }),
     prisma.chartOfAccounts.findMany({
       where: { active: true },
       orderBy: { accountId: 'asc' },
@@ -65,13 +82,35 @@ export default async function ItemsPage({
       orderBy: { templateId: 'asc' },
       select: { id: true, templateId: true, name: true },
     }),
-    loadListOptions(),
+    loadFieldOptionsMap(itemFieldMetaById, [
+      'itemType',
+      'itemCategory',
+      'uom',
+      'primaryPurchaseUnit',
+      'primarySaleUnit',
+      'primaryUnitsType',
+      'revenueStream',
+      'recognitionMethod',
+      'recognitionTrigger',
+      'createRevenueArrangementOn',
+      'createForecastPlanOn',
+      'createRevenuePlanOn',
+      'performanceObligationType',
+      'billingType',
+      'line',
+      'productLine',
+      'departmentId',
+      'locationId',
+      'preferredVendorId',
+      'inactive',
+    ]),
     loadCompanyPageLogo(),
   ])
 
   const buildPageHref = (p: number) => {
     const s = new URLSearchParams()
     if (params.q) s.set('q', params.q)
+    if (sort) s.set('sort', sort)
     s.set('page', String(p))
     return `/items?${s.toString()}`
   }
@@ -84,6 +123,75 @@ export default async function ItemsPage({
   const formatAccountLabel = (account: { accountId: string; name: string } | null) =>
     account ? `${account.accountId} - ${account.name}` : '-'
 
+  type ItemRow = (typeof items)[number]
+  type ItemListColumnId = ItemFormFieldKey | 'created' | 'last-modified' | 'actions'
+
+  const formatNumber = (value: number | null | undefined) => (value == null ? '-' : value.toFixed(2))
+  const formatBoolean = (value: boolean) => (value ? 'Yes' : 'No')
+
+  const renderItemFieldValue = (item: ItemRow, columnId: ItemListColumnId): ReactNode => {
+    switch (columnId) {
+      case 'itemId':
+        return (
+          <Link href={`/items/${item.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+            {item.itemId ?? '-'}
+          </Link>
+        )
+      case 'inactive':
+        return formatBoolean(!item.active)
+      case 'listPrice':
+        return formatNumber(item.listPrice)
+      case 'standaloneSellingPrice':
+        return formatNumber(item.standaloneSellingPrice)
+      case 'standardCost':
+        return formatNumber(item.standardCost)
+      case 'averageCost':
+        return formatNumber(item.averageCost)
+      case 'subsidiaryIds':
+        return item.itemSubsidiaries.length > 0
+          ? item.itemSubsidiaries.map((assignment) => assignment.subsidiary.subsidiaryId).join(', ')
+          : item.subsidiary?.subsidiaryId ?? '-'
+      case 'includeChildren':
+        return formatBoolean(item.includeChildren)
+      case 'currencyId':
+        return item.currency?.code ?? '-'
+      case 'departmentId':
+        return item.department ? `${item.department.departmentId} - ${item.department.name}` : '-'
+      case 'locationId':
+        return item.location ? `${item.location.code} - ${item.location.name}` : '-'
+      case 'preferredVendorId':
+        return item.preferredVendor ? `${item.preferredVendor.vendorNumber ?? item.preferredVendor.id} - ${item.preferredVendor.name}` : '-'
+      case 'defaultRevRecTemplateId':
+        return item.defaultRevRecTemplate ? `${item.defaultRevRecTemplate.templateId} - ${item.defaultRevRecTemplate.name}` : '-'
+      case 'incomeAccountId':
+        return formatAccountLabel(item.incomeAccount)
+      case 'deferredRevenueAccountId':
+        return formatAccountLabel(item.deferredRevenueAccount)
+      case 'inventoryAccountId':
+        return formatAccountLabel(item.inventoryAccount)
+      case 'cogsExpenseAccountId':
+        return formatAccountLabel(item.cogsExpenseAccount)
+      case 'deferredCostAccountId':
+        return formatAccountLabel(item.deferredCostAccount)
+      case 'allocationEligible':
+      case 'dropShipItem':
+      case 'specialOrderItem':
+      case 'canBeFulfilled':
+      case 'directRevenuePosting':
+        return formatBoolean(item[columnId])
+      case 'created':
+        return formatMasterDataDate(item.createdAt)
+      case 'last-modified':
+        return formatMasterDataDate(item.updatedAt)
+      case 'actions':
+        return null
+      default: {
+        const value = item[columnId]
+        return value == null || value === '' ? '-' : String(value)
+      }
+    }
+  }
+
   return (
     <div className="min-h-full px-8 py-8">
       <MasterDataPageHeader
@@ -91,9 +199,7 @@ export default async function ItemsPage({
         total={total}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Item" title="New Item">
-            <ItemCreateForm entities={entities} currencies={currencies} glAccounts={glAccounts} revRecTemplates={revRecTemplates} />
-          </CreateModalButton>
+          <CreatePageLinkButton href="/items/new" label="New Item" />
         }
       />
 
@@ -109,28 +215,15 @@ export default async function ItemsPage({
         <table className="min-w-full" id={itemListDefinition.tableId}>
           <thead>
             <tr style={MASTER_DATA_TABLE_DIVIDER_STYLE}>
-              <MasterDataHeaderCell columnId="item-id">Item Id</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="name">Name</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="sku">SKU</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="type">Item Type</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="price">Price</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="subsidiary">Subsidiary</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="currency">Currency</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="revenue-stream">Revenue Stream</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="recognition-method">Recognition Method</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="rev-rec-template">Rev Rec Template</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="ssp">SSP</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="standard-cost">Standard Cost</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="income-account">Income Account</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="deferred-revenue-account">Deferred Revenue Account</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="inventory-account">Inventory Account</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="cogs-expense-account">COGS / Expense Account</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="deferred-cost-account">Deferred Cost Account</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="direct-revenue-posting">Direct Revenue Posting</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="inactive">Inactive</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="created">Created</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="last-modified">Last Modified</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="actions">Actions</MasterDataHeaderCell>
+              {itemListDefinition.columns.map((column) => (
+                <MasterDataHeaderCell
+                  key={column.id}
+                  columnId={column.id}
+                  tooltip={column.id in itemFieldMetaById ? fieldTooltip(column.id as keyof typeof itemFieldMetaById) : undefined}
+                >
+                  {column.label}
+                </MasterDataHeaderCell>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -139,70 +232,130 @@ export default async function ItemsPage({
             ) : (
               items.map((item, index) => (
                 <tr key={item.id} style={getMasterDataRowStyle(index, items.length)}>
-                  <MasterDataBodyCell columnId="item-id">
-                    <Link href={`/items/${item.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                      {item.itemId ?? '-'}
-                    </Link>
-                  </MasterDataBodyCell>
-                  <MasterDataBodyCell columnId="name" className="px-4 py-2 text-sm font-medium text-white">{item.name}</MasterDataBodyCell>
-                  <MasterDataMutedCell columnId="sku">{item.sku ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="type" className="px-4 py-2 text-sm capitalize">{item.itemType}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="price">{item.listPrice.toFixed(2)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="subsidiary">{item.entity?.subsidiaryId ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="currency">{item.currency?.currencyId ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="revenue-stream">{item.revenueStream ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="recognition-method">{item.recognitionMethod ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="rev-rec-template">{item.defaultRevRecTemplate ? `${item.defaultRevRecTemplate.templateId} - ${item.defaultRevRecTemplate.name}` : '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="ssp">{item.standaloneSellingPrice != null ? item.standaloneSellingPrice.toFixed(2) : '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="standard-cost">{item.standardCost != null ? item.standardCost.toFixed(2) : '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="income-account">{formatAccountLabel(item.incomeAccount)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="deferred-revenue-account">{formatAccountLabel(item.deferredRevenueAccount)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="inventory-account">{formatAccountLabel(item.inventoryAccount)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="cogs-expense-account">{formatAccountLabel(item.cogsExpenseAccount)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="deferred-cost-account">{formatAccountLabel(item.deferredCostAccount)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="direct-revenue-posting">{item.directRevenuePosting ? 'Yes' : 'No'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="inactive">{item.active ? 'No' : 'Yes'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="created">{formatMasterDataDate(item.createdAt)}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="last-modified">{formatMasterDataDate(item.updatedAt)}</MasterDataMutedCell>
-                  <MasterDataBodyCell columnId="actions">
-                    <div className="flex items-center gap-2">
-                      <EditButton
+                  {itemListDefinition.columns.map((column) => {
+                    if (column.id === 'actions') {
+                      return (
+                        <MasterDataBodyCell key={column.id} columnId={column.id}>
+                          <div className="flex items-center gap-2">
+                            <EditButton
                         resource="items"
                         id={item.id}
                         fields={[
                           { name: 'name', label: 'Name', value: item.name },
                           { name: 'itemId', label: 'Item Id', value: item.itemId ?? '' },
                           { name: 'sku', label: 'SKU', value: item.sku ?? '' },
+                          { name: 'description', label: 'Description', value: item.description ?? '' },
+                          { name: 'salesDescription', label: 'Sales Description', value: item.salesDescription ?? '' },
+                          { name: 'purchaseDescription', label: 'Purchase Description', value: item.purchaseDescription ?? '' },
                           {
                             name: 'itemType',
                             label: 'Item Type',
                             value: item.itemType,
                             type: 'select',
                             placeholder: 'Select item type',
-                            options: listOptions.item.type.map((value) => ({ value, label: value })),
+                            options: fieldOptions.itemType ?? [],
                           },
-                          { name: 'uom', label: 'UOM', value: item.uom ?? '' },
+                          {
+                            name: 'itemCategory',
+                            label: 'Item Category',
+                            value: item.itemCategory ?? '',
+                            type: 'select',
+                            placeholder: 'Select item category',
+                            options: fieldOptions.itemCategory ?? [],
+                          },
+                          { name: 'uom', label: 'UOM', value: item.uom ?? '', type: 'select', options: fieldOptions.uom ?? [] },
+                          { name: 'primaryPurchaseUnit', label: 'Primary Purchase Unit', value: item.primaryPurchaseUnit ?? '', type: 'select', options: fieldOptions.primaryPurchaseUnit ?? [] },
+                          { name: 'primarySaleUnit', label: 'Primary Sales Unit', value: item.primarySaleUnit ?? '', type: 'select', options: fieldOptions.primarySaleUnit ?? [] },
+                          { name: 'primaryUnitsType', label: 'Primary Units Type', value: item.primaryUnitsType ?? '', type: 'select', options: fieldOptions.primaryUnitsType ?? [] },
                           { name: 'listPrice', label: 'List Price', value: String(item.listPrice), type: 'number' },
-                          { name: 'revenueStream', label: 'Revenue Stream', value: item.revenueStream ?? '' },
-                          { name: 'recognitionMethod', label: 'Recognition Method', value: item.recognitionMethod ?? '', type: 'select', options: [{ value: 'point_in_time', label: 'Point in Time' }, { value: 'over_time', label: 'Over Time' }] },
-                          { name: 'recognitionTrigger', label: 'Recognition Trigger', value: item.recognitionTrigger ?? '' },
+                          { name: 'revenueStream', label: 'Revenue Stream', value: item.revenueStream ?? '', type: 'select', options: fieldOptions.revenueStream ?? [] },
+                          { name: 'recognitionMethod', label: 'Recognition Method', value: item.recognitionMethod ?? '', type: 'select', options: fieldOptions.recognitionMethod ?? [] },
+                          { name: 'recognitionTrigger', label: 'Recognition Trigger', value: item.recognitionTrigger ?? '', type: 'select', options: fieldOptions.recognitionTrigger ?? [] },
                           { name: 'defaultRevRecTemplateId', label: 'Rev Rec Template', value: item.defaultRevRecTemplateId ?? '', type: 'select', placeholder: 'Select template', options: revRecTemplates.map((template) => ({ value: template.id, label: `${template.templateId} - ${template.name}` })) },
                           { name: 'defaultTermMonths', label: 'Default Term Months', value: item.defaultTermMonths != null ? String(item.defaultTermMonths) : '', type: 'number' },
+                          { name: 'createRevenueArrangementOn', label: 'Create Revenue Arrangement On', value: item.createRevenueArrangementOn ?? '', type: 'select', options: fieldOptions.createRevenueArrangementOn ?? [] },
+                          { name: 'createForecastPlanOn', label: 'Create Forecast Plan On', value: item.createForecastPlanOn ?? '', type: 'select', options: fieldOptions.createForecastPlanOn ?? [] },
+                          { name: 'createRevenuePlanOn', label: 'Create Revenue Plan On', value: item.createRevenuePlanOn ?? '', type: 'select', options: fieldOptions.createRevenuePlanOn ?? [] },
+                          { name: 'allocationEligible', label: 'Allocation Eligible', value: item.allocationEligible ? 'true' : 'false', type: 'checkbox', placeholder: 'Allocation Eligible' },
+                          { name: 'performanceObligationType', label: 'Performance Obligation Type', value: item.performanceObligationType ?? '', type: 'select', options: fieldOptions.performanceObligationType ?? [] },
                           { name: 'standaloneSellingPrice', label: 'Standalone Selling Price', value: item.standaloneSellingPrice != null ? String(item.standaloneSellingPrice) : '', type: 'number' },
-                          { name: 'billingType', label: 'Billing Type', value: item.billingType ?? '' },
+                          { name: 'billingType', label: 'Billing Type', value: item.billingType ?? '', type: 'select', options: fieldOptions.billingType ?? [] },
                           { name: 'standardCost', label: 'Standard Cost', value: item.standardCost != null ? String(item.standardCost) : '', type: 'number' },
                           { name: 'averageCost', label: 'Average Cost', value: item.averageCost != null ? String(item.averageCost) : '', type: 'number' },
+                          {
+                            name: 'subsidiaryIds',
+                            label: 'Subsidiaries',
+                            value: item.itemSubsidiaries.map((assignment) => assignment.subsidiaryId).join(','),
+                            type: 'select',
+                            multiple: true,
+                            placeholder: 'Select Subsidiaries',
+                            options: entities.map((Subsidiary) => ({ value: Subsidiary.id, label: `${Subsidiary.subsidiaryId} - ${Subsidiary.name}` })),
+                          },
+                          { name: 'includeChildren', label: 'Include Children', value: item.includeChildren ? 'true' : 'false', type: 'checkbox', placeholder: 'Include Children' },
+                          {
+                            name: 'departmentId',
+                            label: 'Department Id',
+                            value: item.departmentId ?? '',
+                            type: 'select',
+                            placeholder: 'Select department',
+                            options: fieldOptions.departmentId ?? [],
+                          },
+                          {
+                            name: 'locationId',
+                            label: 'Location Id',
+                            value: item.locationId ?? '',
+                            type: 'select',
+                            placeholder: 'Select location',
+                            options: fieldOptions.locationId ?? [],
+                          },
                           { name: 'incomeAccountId', label: 'Income Account', value: item.incomeAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
                           { name: 'deferredRevenueAccountId', label: 'Deferred Revenue Account', value: item.deferredRevenueAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
-                          { name: 'inventoryAccountId', label: 'Inventory Account', value: item.inventoryAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
+                          { name: 'inventoryAccountId', label: 'Asset Account', value: item.inventoryAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
                           { name: 'cogsExpenseAccountId', label: 'COGS / Expense Account', value: item.cogsExpenseAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
                           { name: 'deferredCostAccountId', label: 'Deferred Cost Account', value: item.deferredCostAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
+                          { name: 'line', label: 'Line', value: item.line ?? '', type: 'select', options: fieldOptions.line ?? [] },
+                          { name: 'productLine', label: 'Product Line', value: item.productLine ?? '', type: 'select', options: fieldOptions.productLine ?? [] },
+                          { name: 'dropShipItem', label: 'Drop Ship Item', value: item.dropShipItem ? 'true' : 'false', type: 'checkbox', placeholder: 'Drop Ship Item' },
+                          { name: 'specialOrderItem', label: 'Special Order Item', value: item.specialOrderItem ? 'true' : 'false', type: 'checkbox', placeholder: 'Special Order Item' },
+                          { name: 'canBeFulfilled', label: 'Can Be Fulfilled', value: item.canBeFulfilled ? 'true' : 'false', type: 'checkbox', placeholder: 'Can Be Fulfilled' },
+                          {
+                            name: 'preferredVendorId',
+                            label: 'Preferred Vendor Id',
+                            value: item.preferredVendorId ?? '',
+                            type: 'select',
+                            placeholder: 'Select preferred vendor',
+                            options: fieldOptions.preferredVendorId ?? [],
+                          },
                           { name: 'directRevenuePosting', label: 'Direct Revenue Posting', value: item.directRevenuePosting ? 'true' : 'false', type: 'checkbox', placeholder: 'Direct Revenue Posting' },
                         ]}
                       />
-                      <DeleteButton resource="items" id={item.id} />
-                    </div>
-                  </MasterDataBodyCell>
+                            <DeleteButton resource="items" id={item.id} />
+                          </div>
+                        </MasterDataBodyCell>
+                      )
+                    }
+
+                    const columnId = column.id as ItemListColumnId
+                    const content = renderItemFieldValue(item, columnId)
+
+                    return column.id === 'name' || column.id === 'itemId' ? (
+                      <MasterDataBodyCell
+                        key={column.id}
+                        columnId={column.id}
+                        className={column.id === 'name' ? 'px-4 py-2 text-sm font-medium text-white' : undefined}
+                      >
+                        {content}
+                      </MasterDataBodyCell>
+                    ) : (
+                      <MasterDataMutedCell
+                        key={column.id}
+                        columnId={column.id}
+                        className={column.id === 'itemType' ? 'px-4 py-2 text-sm capitalize' : undefined}
+                      >
+                        {content}
+                      </MasterDataMutedCell>
+                    )
+                  })}
                 </tr>
               ))
             )}

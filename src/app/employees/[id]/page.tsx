@@ -3,17 +3,25 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import DeleteButton from '@/components/DeleteButton'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
+import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
+import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
+import MasterDataSystemInfoSection from '@/components/MasterDataSystemInfoSection'
 import EmployeeDetailCustomizeMode from '@/components/EmployeeDetailCustomizeMode'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
+import SystemNotesSection from '@/components/SystemNotesSection'
 import {
   RecordDetailCell,
   RecordDetailEmptyState,
   RecordDetailHeaderCell,
   RecordDetailSection,
 } from '@/components/RecordDetailPanels'
+import { buildConfiguredInlineSections, buildCustomizePreviewFields } from '@/lib/detail-page-helpers'
 import { loadEmployeeFormCustomization } from '@/lib/employee-form-customization-store'
 import { EMPLOYEE_FORM_FIELDS, type EmployeeFormFieldKey } from '@/lib/employee-form-customization'
 import { loadFormRequirements } from '@/lib/form-requirements-store'
+import { buildFieldMetaById, getFieldSourceText, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { loadMasterDataSystemInfo } from '@/lib/master-data-system-info'
+import { loadMasterDataSystemNotes } from '@/lib/master-data-system-notes'
 
 export default async function EmployeeDetailPage({
   params,
@@ -27,11 +35,17 @@ export default async function EmployeeDetailPage({
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
 
-  const [employee, subsidiaries, departments, managers, allUsers, linkedUsers, formCustomization, formRequirements] = await Promise.all([
+  const fieldMetaById = buildFieldMetaById(EMPLOYEE_FORM_FIELDS)
+
+  const [employee, fieldOptions, allUsers, linkedUsers, formCustomization, formRequirements] = await Promise.all([
     prisma.employee.findUnique({
       where: { id },
       include: {
-        entity: true,
+        subsidiary: true,
+        employeeSubsidiaries: {
+          include: { subsidiary: true },
+          orderBy: { subsidiary: { subsidiaryId: 'asc' } },
+        },
         departmentRef: true,
         user: { select: { id: true, userId: true, name: true, email: true } },
         manager: { select: { id: true, firstName: true, lastName: true, title: true, employeeId: true } },
@@ -41,19 +55,7 @@ export default async function EmployeeDetailPage({
         },
       },
     }),
-    prisma.entity.findMany({
-      orderBy: { subsidiaryId: 'asc' },
-      select: { id: true, subsidiaryId: true, name: true },
-    }),
-    prisma.department.findMany({
-      orderBy: [{ departmentId: 'asc' }, { name: 'asc' }],
-      select: { id: true, departmentId: true, name: true },
-    }),
-    prisma.employee.findMany({
-      where: { id: { not: id } },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-      select: { id: true, firstName: true, lastName: true, employeeId: true },
-    }),
+    loadFieldOptionsMap(fieldMetaById, ['subsidiaryIds', 'departmentId', 'managerId', 'laborType', 'inactive']),
     prisma.user.findMany({
       orderBy: [{ name: 'asc' }, { email: 'asc' }],
       select: { id: true, userId: true, name: true, email: true },
@@ -87,6 +89,12 @@ export default async function EmployeeDetailPage({
       value: employee.employeeId ?? '',
       helpText: 'Unique employee number or code.',
     },
+    eid: {
+      name: 'eid',
+      label: 'EID',
+      value: employee.eid ?? '',
+      helpText: 'External or enterprise employee identifier.',
+    },
     firstName: {
       name: 'firstName',
       label: 'First Name',
@@ -118,31 +126,44 @@ export default async function EmployeeDetailPage({
       value: employee.title ?? '',
       helpText: 'Job title or role label.',
     },
+    laborType: {
+      name: 'laborType',
+      label: 'Labor Type',
+      value: employee.laborType ?? '',
+      type: 'select',
+      placeholder: 'Select labor type',
+      options: fieldOptions.laborType ?? [],
+      helpText: 'Labor classification used for staffing, costing, or billing.',
+      sourceText: getFieldSourceText(fieldMetaById, 'laborType'),
+    },
     departmentId: {
       name: 'departmentId',
       label: 'Department',
       value: employee.departmentId ?? '',
       type: 'select',
       placeholder: 'Select department',
-      options: departments.map((department) => ({
-        value: department.id,
-        label: `${department.departmentId} - ${department.name}`,
-      })),
+      options: fieldOptions.departmentId ?? [],
       helpText: 'Department the employee belongs to.',
-      sourceText: 'Departments master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'departmentId'),
     },
-    entityId: {
-      name: 'entityId',
-      label: 'Subsidiary',
-      value: employee.entityId ?? '',
+    subsidiaryIds: {
+      name: 'subsidiaryIds',
+      label: 'Subsidiaries',
+      value: employee.employeeSubsidiaries.map((assignment) => assignment.subsidiaryId).join(','),
       type: 'select',
-      placeholder: 'Select subsidiary',
-      options: subsidiaries.map((subsidiary) => ({
-        value: subsidiary.id,
-        label: `${subsidiary.subsidiaryId} - ${subsidiary.name}`,
-      })),
-      helpText: 'Legal entity or subsidiary the employee belongs to.',
-      sourceText: 'Subsidiaries master data',
+      multiple: true,
+      placeholder: 'Select subsidiaries',
+      options: fieldOptions.subsidiaryIds ?? [],
+      helpText: 'Subsidiaries where the employee is available.',
+      sourceText: getFieldSourceText(fieldMetaById, 'subsidiaryIds'),
+    },
+    includeChildren: {
+      name: 'includeChildren',
+      label: 'Include Children',
+      value: String(employee.includeChildren),
+      type: 'checkbox',
+      placeholder: 'Include Children',
+      helpText: 'If enabled, child subsidiaries under selected subsidiaries also inherit employee availability.',
     },
     managerId: {
       name: 'managerId',
@@ -150,12 +171,9 @@ export default async function EmployeeDetailPage({
       value: employee.managerId ?? '',
       type: 'select',
       placeholder: 'Select manager',
-      options: managers.map((manager) => ({
-        value: manager.id,
-        label: `${manager.firstName} ${manager.lastName}${manager.employeeId ? ` (${manager.employeeId})` : ''}`,
-      })),
+      options: fieldOptions.managerId ?? [],
       helpText: 'Direct manager of the employee.',
-      sourceText: 'Employees master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'managerId'),
     },
     userId: {
       name: 'userId',
@@ -168,7 +186,7 @@ export default async function EmployeeDetailPage({
         label: `${user.name ?? user.email}${user.userId ? ` (${user.userId})` : ''}`,
       })),
       helpText: 'User account linked to this employee.',
-      sourceText: 'Users master data',
+      sourceText: getFieldSourceText(fieldMetaById, 'userId'),
     },
     hireDate: {
       name: 'hireDate',
@@ -189,59 +207,26 @@ export default async function EmployeeDetailPage({
       label: 'Inactive',
       value: String(!employee.active),
       type: 'select',
-      options: [
-        { value: 'false', label: 'No' },
-        { value: 'true', label: 'Yes' },
-      ],
+      options: fieldOptions.inactive ?? [],
       helpText: 'Marks the employee unavailable for new activity while preserving history.',
-      sourceText: 'System status values',
+      sourceText: getFieldSourceText(fieldMetaById, 'inactive'),
     },
   }
 
-  const customizeFields = EMPLOYEE_FORM_FIELDS.map((field) => {
-    const definition = fieldDefinitions[field.id]
-    const rawValue = definition.value ?? ''
-    const previewValue = definition.options?.find((option) => option.value === rawValue)?.label ?? rawValue
-    return {
-      id: field.id,
-      label: definition.label,
-      fieldType: field.fieldType,
-      source: field.source,
-      description: field.description,
-      previewValue,
-    }
+  const customizeFields = buildCustomizePreviewFields(EMPLOYEE_FORM_FIELDS, fieldDefinitions)
+  const detailSections: InlineRecordSection[] = buildConfiguredInlineSections({
+    fields: EMPLOYEE_FORM_FIELDS,
+    layout: formCustomization,
+    fieldDefinitions,
+    sectionDescriptions,
   })
-
-  const detailSections: InlineRecordSection[] = formCustomization.sections
-    .map((sectionTitle) => {
-      const configuredFields = EMPLOYEE_FORM_FIELDS
-        .filter((field) => {
-          const config = formCustomization.fields[field.id]
-          return config.visible && config.section === sectionTitle
-        })
-        .sort((a, b) => {
-          const left = formCustomization.fields[a.id]
-          const right = formCustomization.fields[b.id]
-          if (left.column !== right.column) return left.column - right.column
-          return left.order - right.order
-        })
-        .map((field) => ({
-          ...fieldDefinitions[field.id],
-          column: formCustomization.fields[field.id].column,
-          order: formCustomization.fields[field.id].order,
-        }))
-
-      if (configuredFields.length === 0) return null
-
-      return {
-        title: sectionTitle,
-        description: sectionDescriptions[sectionTitle],
-        collapsible: true,
-        defaultExpanded: true,
-        fields: configuredFields,
-      }
-    })
-    .filter((section): section is InlineRecordSection => Boolean(section))
+  const systemInfo = await loadMasterDataSystemInfo({
+    entityType: 'employee',
+    entityId: employee.id,
+    createdAt: employee.createdAt,
+    updatedAt: employee.updatedAt,
+  })
+  const systemNotes = await loadMasterDataSystemNotes({ entityType: 'employee', entityId: employee.id })
 
   return (
     <RecordDetailPageShell
@@ -261,12 +246,29 @@ export default async function EmployeeDetailPage({
       }
       actions={
         <>
+          {isEditing && !isCustomizing ? (
+            <>
+              <Link href={detailHref} className="rounded-md border px-3 py-1.5 text-xs font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                form={`inline-record-form-${employee.id}`}
+                className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Save
+              </button>
+            </>
+          ) : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailCreateMenu newHref="/employees/new" duplicateHref={`/employees/new?duplicateFrom=${employee.id}`} /> : null}
+          {!isEditing && !isCustomizing ? <MasterDataDetailExportMenu title={`${employee.firstName} ${employee.lastName}`} fileName={`employee-${employee.employeeId ?? employee.id}`} sections={detailSections} /> : null}
           {!isEditing && !isCustomizing ? (
             <Link href={`${detailHref}?customize=1`} className="rounded-md border px-3 py-2 text-sm" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
               Customize
             </Link>
           ) : null}
-          {!isEditing ? (
+          {!isEditing && !isCustomizing ? (
             <Link
               href={`${detailHref}?edit=1`}
               className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
@@ -295,8 +297,11 @@ export default async function EmployeeDetailPage({
             sections={detailSections}
             editing={isEditing}
             columns={formCustomization.formColumns}
+            showInternalActions={false}
           />
         )}
+
+        {!isCustomizing ? <MasterDataSystemInfoSection info={systemInfo} /> : null}
 
         <RecordDetailSection title="Direct Reports" count={employee.directReports.length}>
           {employee.directReports.length === 0 ? (
@@ -348,9 +353,19 @@ export default async function EmployeeDetailPage({
               </tbody>
             </table>
           ) : (
-            <RecordDetailEmptyState message="No linked user" />
+            <div className="flex items-center justify-between gap-3 px-5 py-4">
+              <RecordDetailEmptyState message="No linked user" />
+              <Link
+                href={`/users/new?employeeId=${employee.id}`}
+                className="rounded-md px-3 py-2 text-sm font-medium text-white"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Add User
+              </Link>
+            </div>
           )}
         </RecordDetailSection>
+        <SystemNotesSection notes={systemNotes} />
     </RecordDetailPageShell>
   )
 }

@@ -1,7 +1,5 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import CreateModalButton from '@/components/CreateModalButton'
-import EmployeeCreateForm from '@/components/EmployeeCreateForm'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -12,8 +10,15 @@ import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
+import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
+import { EMPLOYEE_FORM_FIELDS } from '@/lib/employee-form-customization'
 import { loadEmployeeFormCustomization } from '@/lib/employee-form-customization-store'
 import { employeeListDefinition } from '@/lib/master-data-list-definitions'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
+
+function formatSubsidiaryIds(assignments: Array<{ subsidiary: { subsidiaryId: string } }>) {
+  return assignments.map((assignment) => assignment.subsidiary.subsidiaryId).join(', ') || '-'
+}
 
 export default async function EmployeesPage({
   searchParams,
@@ -22,25 +27,45 @@ export default async function EmployeesPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const queryTokens = query.split(/\s+/).filter(Boolean)
+
+  const employeeSearchFields = (value: string) => [
+    { employeeId: { contains: value, mode: 'insensitive' as const } },
+    { eid: { contains: value, mode: 'insensitive' as const } },
+    { firstName: { contains: value, mode: 'insensitive' as const } },
+    { lastName: { contains: value, mode: 'insensitive' as const } },
+    { email: { contains: value, mode: 'insensitive' as const } },
+    { title: { contains: value, mode: 'insensitive' as const } },
+    { laborType: { contains: value, mode: 'insensitive' as const } },
+    { departmentRef: { is: { departmentId: { contains: value, mode: 'insensitive' as const } } } },
+    { departmentRef: { is: { name: { contains: value, mode: 'insensitive' as const } } } },
+  ]
 
   const where = query
-    ? { OR: [{ firstName: { contains: query } }, { lastName: { contains: query } }, { email: { contains: query } }] }
+    ? { AND: queryTokens.map((token) => ({ OR: employeeSearchFields(token) })) }
     : {}
 
   const total = await prisma.employee.count({ where })
   const pagination = getPagination(total, params.page)
+  const fieldMetaById = buildFieldMetaById(EMPLOYEE_FORM_FIELDS)
 
-  const [employees, entities, departments, managers, users, linkedUsers, companyLogoPages, formCustomization] = await Promise.all([
+  const [employees, departments, managers, users, linkedUsers, companyLogoPages, fieldOptions, formCustomization] = await Promise.all([
     prisma.employee.findMany({
       where,
       include: {
-        entity: true,
+        subsidiary: true,
+        employeeSubsidiaries: {
+          include: { subsidiary: true },
+          orderBy: { subsidiary: { subsidiaryId: 'asc' } },
+        },
         departmentRef: true,
         user: { select: { id: true, userId: true, name: true, email: true } },
       },
       orderBy:
-        sort === 'oldest'
+        sort === 'id'
+          ? [{ employeeId: 'asc' as const }, { createdAt: 'desc' as const }]
+          : sort === 'oldest'
           ? [{ createdAt: 'asc' as const }]
           : sort === 'name'
             ? [{ lastName: 'asc' as const }, { firstName: 'asc' as const }]
@@ -48,7 +73,6 @@ export default async function EmployeesPage({
       skip: pagination.skip,
       take: pagination.pageSize,
     }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' } }),
     prisma.department.findMany({
       orderBy: [{ departmentId: 'asc' }, { name: 'asc' }],
       select: { id: true, departmentId: true, name: true },
@@ -66,19 +90,22 @@ export default async function EmployeesPage({
       select: { userId: true },
     }),
     loadCompanyPageLogo(),
+    loadFieldOptionsMap(fieldMetaById, ['laborType', 'inactive', 'subsidiaryIds']),
     loadEmployeeFormCustomization(),
   ])
+  const inactiveOptions = fieldOptions.inactive ?? []
+  const laborTypeOptions = fieldOptions.laborType ?? []
+  const subsidiaryOptions = fieldOptions.subsidiaryIds ?? []
 
   const buildPageHref = (p: number) => {
     const s = new URLSearchParams()
     if (params.q) s.set('q', params.q)
+    if (sort) s.set('sort', sort)
     s.set('page', String(p))
     return `/employees?${s.toString()}`
   }
 
   const linkedUserIdSet = new Set(linkedUsers.map((entry) => entry.userId).filter((value): value is string => Boolean(value)))
-  const availableCreateUsers = users.filter((user) => !linkedUserIdSet.has(user.id))
-
   return (
     <div className="min-h-full px-8 py-8">
       <MasterDataPageHeader
@@ -86,9 +113,14 @@ export default async function EmployeesPage({
         total={total}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Employee" title="New Employee">
-            <EmployeeCreateForm entities={entities} departments={departments} managers={managers} users={availableCreateUsers} />
-          </CreateModalButton>
+          <Link
+            href="/employees/new"
+            className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            <span className="mr-1.5 text-lg leading-none">+</span>
+            New Employee
+          </Link>
         }
       />
 
@@ -105,11 +137,14 @@ export default async function EmployeesPage({
           <thead>
             <tr style={MASTER_DATA_TABLE_DIVIDER_STYLE}>
               <MasterDataHeaderCell columnId="employee-id">Employee Id</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="eid">EID</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="name">Name</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="email">Email</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="title">Title</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="labor-type">Labor Type</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="department">Department</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="subsidiary">Subsidiary</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="subsidiaries">Subsidiaries</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="include-children">Include Children</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="linked-user">Linked User</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="inactive">Inactive</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="created">Created</MasterDataHeaderCell>
@@ -119,7 +154,7 @@ export default async function EmployeesPage({
           </thead>
           <tbody>
             {employees.length === 0 ? (
-              <MasterDataEmptyStateRow colSpan={10}>No employees found</MasterDataEmptyStateRow>
+              <MasterDataEmptyStateRow colSpan={14}>No employees found</MasterDataEmptyStateRow>
             ) : (
               employees.map((employee, index) => (
                 <tr key={employee.id} style={getMasterDataRowStyle(index, employees.length)}>
@@ -128,11 +163,14 @@ export default async function EmployeesPage({
                       {employee.employeeId ?? 'Pending'}
                     </Link>
                   </MasterDataBodyCell>
+                  <MasterDataMutedCell columnId="eid">{employee.eid ?? '-'}</MasterDataMutedCell>
                   <MasterDataBodyCell columnId="name" className="px-4 py-2 text-sm font-medium text-white">{employee.firstName} {employee.lastName}</MasterDataBodyCell>
                   <MasterDataMutedCell columnId="email">{employee.email ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="title">{employee.title ?? '-'}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="labor-type">{employee.laborType ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="department">{employee.departmentRef?.departmentId ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="subsidiary">{employee.entity?.subsidiaryId ?? '-'}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="subsidiaries">{formatSubsidiaryIds(employee.employeeSubsidiaries)}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="include-children">{employee.includeChildren ? 'Yes' : 'No'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="linked-user">{employee.user ? `${employee.user.name ?? employee.user.email}${employee.user.userId ? ` (${employee.user.userId})` : ''}` : '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="inactive">{employee.active ? 'No' : 'Yes'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="created">{formatMasterDataDate(employee.createdAt)}</MasterDataMutedCell>
@@ -144,11 +182,22 @@ export default async function EmployeesPage({
                         id={employee.id}
                         fields={[
                           ...(formCustomization.fields.employeeId.visible ? [{ name: 'employeeId', label: 'Employee ID', value: employee.employeeId ?? '' }] : []),
+                          ...(formCustomization.fields.eid.visible ? [{ name: 'eid', label: 'EID', value: employee.eid ?? '' }] : []),
                           ...(formCustomization.fields.firstName.visible ? [{ name: 'firstName', label: 'First Name', value: employee.firstName }] : []),
                           ...(formCustomization.fields.lastName.visible ? [{ name: 'lastName', label: 'Last Name', value: employee.lastName }] : []),
                           ...(formCustomization.fields.email.visible ? [{ name: 'email', label: 'Email', value: employee.email ?? '', type: 'email' as const }] : []),
                           ...(formCustomization.fields.phone.visible ? [{ name: 'phone', label: 'Phone', value: employee.phone ?? '' }] : []),
                           ...(formCustomization.fields.title.visible ? [{ name: 'title', label: 'Title', value: employee.title ?? '' }] : []),
+                          ...(formCustomization.fields.laborType.visible
+                            ? [{
+                                name: 'laborType',
+                                label: 'Labor Type',
+                                value: employee.laborType ?? '',
+                                type: 'select' as const,
+                                placeholder: 'Select labor type',
+                                options: laborTypeOptions,
+                              }]
+                            : []),
                           ...(formCustomization.fields.departmentId.visible
                             ? [{
                                 name: 'departmentId',
@@ -159,14 +208,24 @@ export default async function EmployeesPage({
                                 options: departments.map((department) => ({ value: department.id, label: `${department.departmentId} - ${department.name}` })),
                               }]
                             : []),
-                          ...(formCustomization.fields.entityId.visible
+                          ...(formCustomization.fields.subsidiaryIds.visible
                             ? [{
-                                name: 'entityId',
-                                label: 'Subsidiary',
-                                value: employee.entityId ?? '',
+                                name: 'subsidiaryIds',
+                                label: 'Subsidiaries',
+                                value: employee.employeeSubsidiaries.map((assignment) => assignment.subsidiaryId).join(','),
                                 type: 'select' as const,
-                                placeholder: 'Select subsidiary',
-                                options: entities.map((entity) => ({ value: entity.id, label: `${entity.subsidiaryId} - ${entity.name}` })),
+                                multiple: true,
+                                placeholder: 'Select subsidiaries',
+                                options: subsidiaryOptions,
+                              }]
+                            : []),
+                          ...(formCustomization.fields.includeChildren.visible
+                            ? [{
+                                name: 'includeChildren',
+                                label: 'Include Children',
+                                value: String(employee.includeChildren),
+                                type: 'checkbox' as const,
+                                placeholder: 'Include Children',
                               }]
                             : []),
                           ...(formCustomization.fields.managerId.visible
@@ -230,7 +289,7 @@ export default async function EmployeesPage({
                                 label: 'Inactive',
                                 value: String(!employee.active),
                                 type: 'select' as const,
-                                options: [{ value: 'false', label: 'No' }, { value: 'true', label: 'Yes' }],
+                                options: inactiveOptions,
                               }]
                             : []),
                         ]}

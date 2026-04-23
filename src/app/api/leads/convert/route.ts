@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
 import { normalizePhone } from '@/lib/format'
+import { loadCompanyPreferencesSettings } from '@/lib/company-preferences-store'
 import { formatCustomerNumber } from '@/lib/customer-number'
 import { formatContactNumber } from '@/lib/contact-number'
 import { formatOpportunityNumber } from '@/lib/opportunity-number'
@@ -111,6 +112,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const preferences = await loadCompanyPreferencesSettings()
+
     const result = await prisma.$transaction(async (tx) => {
       let customerId = lead.customerId
 
@@ -130,16 +133,17 @@ export async function POST(request: NextRequest) {
         if (existingCustomer) {
           customerId = existingCustomer.id
         } else {
-          const customerSequence = await getNextSequenceNumber(tx, 'customer', 'customerId', 'CUST-')
+          const customerConfig = preferences.idSettings.customer
+          const customerSequence = await getNextSequenceNumber(tx, 'customer', 'customerId', customerConfig.prefix)
           const customer = await tx.customer.create({
             data: {
-              customerId: formatCustomerNumber(customerSequence),
+              customerId: formatCustomerNumber(customerSequence, customerConfig),
               name: customerNameFromLead(lead),
               email: lead.email || null,
               phone: normalizePhone(lead.phone),
               address: lead.address || null,
               industry: lead.industry || null,
-              entityId: lead.entityId || null,
+              subsidiaryId: lead.subsidiaryId || null,
               currencyId: lead.currencyId || null,
               userId: lead.userId,
             },
@@ -155,10 +159,11 @@ export async function POST(request: NextRequest) {
 
       let contactId = lead.contactId
       if (!contactId && (lead.firstName || lead.lastName || lead.email)) {
-        const contactSequence = await getNextSequenceNumber(tx, 'contact', 'contactNumber', 'CONT-')
+        const contactConfig = preferences.idSettings.contact
+        const contactSequence = await getNextSequenceNumber(tx, 'contact', 'contactNumber', contactConfig.prefix)
         const contact = await tx.contact.create({
           data: {
-            contactNumber: formatContactNumber(contactSequence),
+            contactNumber: formatContactNumber(contactSequence, contactConfig),
             firstName: lead.firstName || 'Primary',
             lastName: lead.lastName || 'Contact',
             email: lead.email || null,
@@ -172,11 +177,12 @@ export async function POST(request: NextRequest) {
         contactId = contact.id
       }
 
+      const opportunityConfig = preferences.idSettings.opportunity
       const opportunitySequence = await getNextSequenceNumber(
         tx,
         'opportunity',
         'opportunityNumber',
-        'OPP-'
+        opportunityConfig.prefix
       )
 
       const parsedAmount =
@@ -217,12 +223,12 @@ export async function POST(request: NextRequest) {
 
       const opportunity = await tx.opportunity.create({
         data: {
-          opportunityNumber: formatOpportunityNumber(opportunitySequence),
+          opportunityNumber: formatOpportunityNumber(opportunitySequence, opportunityConfig),
           name: (name || '').trim() || opportunityNameFromLead(lead),
           amount: finalAmount,
           stage: stage || (lead.status === 'qualified' ? 'qualification' : 'prospecting'),
           closeDate: closeDate ? new Date(closeDate) : null,
-          entityId: lead.entityId || null,
+          subsidiaryId: lead.subsidiaryId || null,
           currencyId: lead.currencyId || null,
           customerId,
           userId: lead.userId,

@@ -37,7 +37,7 @@ function ensureSchedulerAuthorized(request: NextRequest) {
 async function getBaseAndQuoteCurrencies() {
   const activeCurrencies = await prisma.currency.findMany({
     where: { active: true },
-    orderBy: [{ isBase: 'desc' }, { currencyId: 'asc' }],
+    orderBy: [{ isBase: 'desc' }, { code: 'asc' }],
   })
 
   if (activeCurrencies.length < 2) {
@@ -46,7 +46,7 @@ async function getBaseAndQuoteCurrencies() {
 
   const baseCurrency =
     activeCurrencies.find((currency) => currency.isBase)
-    ?? activeCurrencies.find((currency) => currency.currencyId === 'USD')
+    ?? activeCurrencies.find((currency) => currency.code === 'USD')
     ?? activeCurrencies[0]
 
   const quoteCurrencies = activeCurrencies.filter((currency) => currency.id !== baseCurrency.id)
@@ -108,8 +108,8 @@ async function logSync(status: string, message: string) {
 async function syncLatestExchangeRates() {
   const { baseCurrency, quoteCurrencies } = await getBaseAndQuoteCurrencies()
   const url = new URL(FRANKFURTER_API_URL)
-  url.searchParams.set('base', baseCurrency.currencyId)
-  url.searchParams.set('quotes', quoteCurrencies.map((currency) => currency.currencyId).join(','))
+  url.searchParams.set('base', baseCurrency.code)
+  url.searchParams.set('quotes', quoteCurrencies.map((currency) => currency.code).join(','))
   url.searchParams.set('providers', FRANKFURTER_PROVIDER)
 
   const response = await fetch(url.toString(), {
@@ -134,7 +134,7 @@ async function syncLatestExchangeRates() {
   }
 
   const effectiveDate = new Date(`${effectiveDateText}T00:00:00.000Z`)
-  const quotesByCode = new Map(quoteCurrencies.map((currency) => [currency.currencyId.toUpperCase(), currency]))
+  const quotesByCode = new Map(quoteCurrencies.map((currency) => [currency.code.toUpperCase(), currency]))
   const existing = await prisma.exchangeRate.findMany({
     where: {
       baseCurrencyId: baseCurrency.id,
@@ -188,7 +188,7 @@ async function syncLatestExchangeRates() {
 
   const result = {
     provider: FRANKFURTER_PROVIDER,
-    baseCurrency: baseCurrency.currencyId,
+    baseCurrency: baseCurrency.code,
     effectiveDate: effectiveDateText,
     created,
     updated,

@@ -1,7 +1,5 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import CreateModalButton from '@/components/CreateModalButton'
-import ChartOfAccountCreateForm from '@/components/ChartOfAccountCreateForm'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -13,6 +11,9 @@ import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/ma
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { chartOfAccountsListDefinition } from '@/lib/master-data-list-definitions'
+import { loadListOptionsForSource } from '@/lib/list-source'
+import { CHART_OF_ACCOUNTS_FORM_FIELDS } from '@/lib/chart-of-accounts-form-customization'
+import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 export default async function ChartOfAccountsPage({
   searchParams,
@@ -21,15 +22,19 @@ export default async function ChartOfAccountsPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const fieldMetaById = Object.fromEntries(
+    CHART_OF_ACCOUNTS_FORM_FIELDS.map((field) => [field.id, field])
+  ) as Record<(typeof CHART_OF_ACCOUNTS_FORM_FIELDS)[number]['id'], (typeof CHART_OF_ACCOUNTS_FORM_FIELDS)[number]>
 
   const where = query
     ? {
         OR: [
-          { accountId: { contains: query } },
-          { name: { contains: query } },
-          { accountType: { contains: query } },
-          { description: { contains: query } },
+          { accountId: { contains: query, mode: 'insensitive' as const } },
+          { accountNumber: { contains: query, mode: 'insensitive' as const } },
+          { name: { contains: query, mode: 'insensitive' as const } },
+          { accountType: { contains: query, mode: 'insensitive' as const } },
+          { description: { contains: query, mode: 'insensitive' as const } },
         ],
       }
     : {}
@@ -37,7 +42,7 @@ export default async function ChartOfAccountsPage({
   const total = await prisma.chartOfAccounts.count({ where })
   const pagination = getPagination(total, params.page)
 
-  const [accounts, subsidiaries, accountOptions, companyLogoPages] = await Promise.all([
+  const [accounts, accountOptions, accountTypeOptions, normalBalanceOptions, companyLogoPages] = await Promise.all([
     prisma.chartOfAccounts.findMany({
       where,
       include: {
@@ -48,22 +53,26 @@ export default async function ChartOfAccountsPage({
         },
       },
       orderBy:
-        sort === 'oldest'
+        sort === 'id'
+          ? [{ accountId: 'asc' as const }, { accountNumber: 'asc' as const }, { createdAt: 'desc' as const }]
+          : sort === 'oldest'
           ? [{ createdAt: 'asc' as const }]
-          : sort === 'account'
-            ? [{ accountId: 'asc' as const }]
+          : sort === 'name'
+            ? [{ name: 'asc' as const }]
             : [{ createdAt: 'desc' as const }],
       skip: pagination.skip,
       take: pagination.pageSize,
     }),
-    prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
-    prisma.chartOfAccounts.findMany({ orderBy: { accountId: 'asc' }, select: { id: true, accountId: true, name: true } }),
+    prisma.chartOfAccounts.findMany({ orderBy: [{ accountId: 'asc' }, { accountNumber: 'asc' }], select: { id: true, accountId: true, accountNumber: true, name: true } }),
+    loadListOptionsForSource(fieldMetaById.accountType),
+    loadListOptionsForSource(fieldMetaById.normalBalance),
     loadCompanyPageLogo(),
   ])
 
   const buildPageHref = (nextPage: number) => {
     const search = new URLSearchParams()
     if (params.q) search.set('q', params.q)
+    if (sort) search.set('sort', sort)
     search.set('page', String(nextPage))
     return `/chart-of-accounts?${search.toString()}`
   }
@@ -75,9 +84,14 @@ export default async function ChartOfAccountsPage({
         total={total}
         logoUrl={companyLogoPages?.url}
         actions={
-          <CreateModalButton buttonLabel="New Account" title="New Chart Account" modalWidthClassName="max-w-3xl">
-            <ChartOfAccountCreateForm subsidiaries={subsidiaries} accountOptions={accountOptions} />
-          </CreateModalButton>
+          <Link
+            href="/chart-of-accounts/new"
+            className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            <span className="mr-1.5 text-lg leading-none">+</span>
+            New Account
+          </Link>
         }
       />
 
@@ -94,15 +108,19 @@ export default async function ChartOfAccountsPage({
           <thead>
             <tr style={MASTER_DATA_TABLE_DIVIDER_STYLE}>
               <MasterDataHeaderCell columnId="account-id">Account Id</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="account-number">Account Number</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="name">Name</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="description">Description</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="type">Account Type</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="normal-balance">Normal Balance</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="fs-section">FS Section</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="fs-group">FS Group</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="posting">Posting</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="control">Control</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="inventory">Inventory</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="summary">Summary</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="subsidiaries">Subsidiaries</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="include-children">Include Children</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="created">Created</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="actions">Actions</MasterDataHeaderCell>
             </tr>
@@ -118,9 +136,12 @@ export default async function ChartOfAccountsPage({
                       {account.accountId}
                     </Link>
                   </MasterDataBodyCell>
+                  <MasterDataMutedCell columnId="account-number">{account.accountNumber}</MasterDataMutedCell>
                   <MasterDataBodyCell columnId="name" className="px-4 py-2 text-sm text-white">{account.name}</MasterDataBodyCell>
+                  <MasterDataMutedCell columnId="description">{account.description ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="type">{account.accountType}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="normal-balance">{account.normalBalance ?? '-'}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="fs-section">{account.financialStatementSection ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="fs-group">{account.financialStatementGroup ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="posting">{account.isPosting ? 'Yes' : 'No'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="control">{account.isControlAccount ? 'Yes' : 'No'}</MasterDataMutedCell>
@@ -128,11 +149,12 @@ export default async function ChartOfAccountsPage({
                   <MasterDataMutedCell columnId="summary">{account.summary ? 'Yes' : 'No'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="subsidiaries">
                     {account.parentSubsidiary
-                      ? `${account.parentSubsidiary.subsidiaryId}${account.includeChildren ? ' (+children)' : ''}`
+                      ? account.parentSubsidiary.subsidiaryId
                       : account.subsidiaryAssignments.length > 0
                         ? account.subsidiaryAssignments.map((entry) => entry.subsidiary.subsidiaryId).join(', ')
                         : '-'}
                   </MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="include-children">{account.includeChildren ? 'Yes' : 'No'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="created">{formatMasterDataDate(account.createdAt)}</MasterDataMutedCell>
                   <MasterDataBodyCell columnId="actions">
                     <div className="flex items-center gap-2">
@@ -141,6 +163,7 @@ export default async function ChartOfAccountsPage({
                         id={account.id}
                         fields={[
                           { name: 'accountId', label: 'Account Id', value: account.accountId },
+                          { name: 'accountNumber', label: 'Account Number', value: account.accountNumber },
                           { name: 'name', label: 'Name', value: account.name },
                           { name: 'description', label: 'Description', value: account.description ?? '' },
                           {
@@ -148,16 +171,9 @@ export default async function ChartOfAccountsPage({
                             label: 'Account Type',
                             value: account.accountType,
                             type: 'select',
-                            options: [
-                              { value: 'Asset', label: 'Asset' },
-                              { value: 'Liability', label: 'Liability' },
-                              { value: 'Equity', label: 'Equity' },
-                              { value: 'Revenue', label: 'Revenue' },
-                              { value: 'Expense', label: 'Expense' },
-                              { value: 'Other', label: 'Other' },
-                            ],
+                            options: accountTypeOptions,
                           },
-                          { name: 'normalBalance', label: 'Normal Balance', value: account.normalBalance ?? '', type: 'select', options: [{ value: 'debit', label: 'Debit' }, { value: 'credit', label: 'Credit' }] },
+                          { name: 'normalBalance', label: 'Normal Balance', value: account.normalBalance ?? '', type: 'select', options: normalBalanceOptions },
                           { name: 'financialStatementSection', label: 'FS Section', value: account.financialStatementSection ?? '' },
                           { name: 'financialStatementGroup', label: 'FS Group', value: account.financialStatementGroup ?? '' },
                           { name: 'isPosting', label: 'Posting Account', value: String(account.isPosting), type: 'checkbox' },
@@ -165,8 +181,8 @@ export default async function ChartOfAccountsPage({
                           { name: 'allowsManualPosting', label: 'Allow Manual Posting', value: String(account.allowsManualPosting), type: 'checkbox' },
                           { name: 'requiresSubledgerType', label: 'Requires Subledger Type', value: account.requiresSubledgerType ?? '' },
                           { name: 'cashFlowCategory', label: 'Cash Flow Category', value: account.cashFlowCategory ?? '' },
-                          { name: 'parentAccountId', label: 'Parent Account', value: account.parentAccountId ?? '', type: 'select', placeholder: 'Select parent account', options: accountOptions.filter((option) => option.id !== account.id).map((option) => ({ value: option.id, label: `${option.accountId} - ${option.name}` })) },
-                          { name: 'closeToAccountId', label: 'Close To Account', value: account.closeToAccountId ?? '', type: 'select', placeholder: 'Select close-to account', options: accountOptions.filter((option) => option.id !== account.id).map((option) => ({ value: option.id, label: `${option.accountId} - ${option.name}` })) },
+                          { name: 'parentAccountId', label: 'Parent Account', value: account.parentAccountId ?? '', type: 'select', placeholder: 'Select parent account', options: accountOptions.filter((option) => option.id !== account.id).map((option) => ({ value: option.id, label: `${option.accountId} - ${option.accountNumber} - ${option.name}` })) },
+                          { name: 'closeToAccountId', label: 'Close To Account', value: account.closeToAccountId ?? '', type: 'select', placeholder: 'Select close-to account', options: accountOptions.filter((option) => option.id !== account.id).map((option) => ({ value: option.id, label: `${option.accountId} - ${option.accountNumber} - ${option.name}` })) },
                           { name: 'inventory', label: 'Inventory', value: String(account.inventory), type: 'checkbox' },
                           { name: 'revalueOpenBalance', label: 'Revalue Open Balance', value: String(account.revalueOpenBalance), type: 'checkbox' },
                           { name: 'eliminateIntercoTransactions', label: 'Eliminate Interco Transactions', value: String(account.eliminateIntercoTransactions), type: 'checkbox' },

@@ -12,9 +12,11 @@ import { fmtCurrency } from '@/lib/format'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
+import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
+import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 
 const COLS = [
-  { id: 'number', label: 'Purchase Req #' },
+  { id: 'number', label: 'Purchase Req Id' },
   { id: 'title', label: 'Title' },
   { id: 'status', label: 'Status' },
   { id: 'priority', label: 'Priority' },
@@ -26,8 +28,6 @@ const COLS = [
   { id: 'actions', label: 'Actions', locked: true },
 ]
 
-const PRIORITY_LABELS: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' }
-
 export default async function PurchaseRequisitionsPage({
   searchParams,
 }: {
@@ -35,7 +35,12 @@ export default async function PurchaseRequisitionsPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'newest'
+  const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
+  const sortOptions = prependIdSortOption([
+    { value: 'newest', label: 'Newest' },
+    { value: 'oldest', label: 'Oldest' },
+    { value: 'name', label: 'Name A-Z' },
+  ])
   const statusFilter = params.status ?? 'all'
 
   const where = {
@@ -58,8 +63,10 @@ export default async function PurchaseRequisitionsPage({
     await Promise.all([
       prisma.requisition.findMany({
         where,
-        include: { vendor: true, department: true, entity: true, currency: true },
-        orderBy: sort === 'oldest'
+        include: { vendor: true, department: true, subsidiary: true, currency: true },
+        orderBy: sort === 'id'
+      ? [{ number: 'asc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'oldest'
       ? [{ createdAt: 'asc' as const }]
       : sort === 'name'
         ? [{ title: 'asc' as const }]
@@ -69,8 +76,8 @@ export default async function PurchaseRequisitionsPage({
       }),
       prisma.vendor.findMany({ orderBy: { name: 'asc' }, where: { inactive: false } }),
       prisma.department.findMany({ orderBy: { name: 'asc' }, where: { active: true } }),
-      prisma.entity.findMany({ orderBy: { subsidiaryId: 'asc' }, where: { active: true } }),
-      prisma.currency.findMany({ orderBy: { currencyId: 'asc' }, where: { active: true } }),
+      prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, where: { active: true } }),
+      prisma.currency.findMany({ orderBy: { code: 'asc' }, where: { active: true } }),
       prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
       loadCompanyInformationSettings(),
       loadCompanyCabinetFiles(),
@@ -83,6 +90,7 @@ export default async function PurchaseRequisitionsPage({
     const s = new URLSearchParams()
     if (params.q) s.set('q', params.q)
     if (statusFilter !== 'all') s.set('status', statusFilter)
+    if (sort) s.set('sort', sort)
     s.set('page', String(p))
     return `/purchase-requisitions?${s.toString()}`
   }
@@ -108,11 +116,11 @@ export default async function PurchaseRequisitionsPage({
         </div>
                   <CreateModalButton buttonLabel="New Requisition" title="New Purchase Requisition" modalWidthClassName="max-w-2xl">
           <RequisitionCreateForm
-          userId={adminUser.id}
+          userId={adminUser?.id ?? ''}
           vendors={vendors}
           departments={departments}
           entities={entities.map(({ id, subsidiaryId, name }) => ({ id, subsidiaryId, name }))}
-          currencies={currencies.map(({ id, currencyId, name }) => ({ id, currencyId, name }))}
+          currencies={currencies.map(({ id, currencyId, code, name }) => ({ id, currencyId, code, name }))}
           />
           </CreateModalButton>
       </div>
@@ -146,41 +154,31 @@ export default async function PurchaseRequisitionsPage({
             <input
               name="q"
               defaultValue={params.q ?? ''}
-              placeholder="Search purchase req #, title, description…"
+              placeholder="Search purchase req id, title, description…"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
             <input type="hidden" name="status" value={statusFilter} />
             <input type="hidden" name="page" value="1" />
             <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="name">Name A-Z</option>
-            </select>
-            <select name="sort" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }}>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="name">Name A-Z</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
             <ExportButton tableId="requisitions-list" fileName="purchase_requisitions" />
             <ColumnSelector tableId="requisitions-list" columns={COLS} />
           </form>
         </div>
 
-        <div className="overflow-x-auto" data-column-selector-table="requisitions-list">
+        <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="requisitions-list">
           <table className="min-w-full" id="requisitions-list">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th data-column="number"    className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Purchase Req #</th>
-                <th data-column="title"     className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Title</th>
-                <th data-column="status"    className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Status</th>
-                <th data-column="priority"  className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Priority</th>
-                <th data-column="department" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Department</th>
-                <th data-column="vendor"    className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Preferred Vendor</th>
-                <th data-column="total"     className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Total</th>
-                <th data-column="needed-by" className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Needed By</th>
-                <th data-column="created"   className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Created</th>
-                <th data-column="actions"   className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Actions</th>
+                {COLS.map((column) => (
+                  <th key={column.id} data-column={column.id} className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>
+                    <RecordListHeaderLabel label={column.label} tooltip={'tooltip' in column ? column.tooltip : undefined} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -295,4 +293,3 @@ function PriorityBadge({ priority }: { priority: string }) {
     </span>
   )
 }
-

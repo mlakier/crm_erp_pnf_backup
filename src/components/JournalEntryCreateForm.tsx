@@ -3,15 +3,17 @@
 import { useState } from 'react'
 
 type EntityOption = { id: string; subsidiaryId: string; name: string }
-type CurrencyOption = { id: string; currencyId: string; name: string }
+type CurrencyOption = { id: string; currencyId: string; code?: string; name: string }
 type PeriodOption = { id: string; name: string }
 type EmployeeOption = { id: string; employeeId: string | null; firstName: string; lastName: string }
+type SelectOption = { value: string; label: string }
 
 export default function JournalEntryCreateForm({
   entities,
   currencies,
   accountingPeriods,
   employees,
+  statusOptions,
   onSuccess,
   onCancel,
 }: {
@@ -19,6 +21,7 @@ export default function JournalEntryCreateForm({
   currencies: CurrencyOption[]
   accountingPeriods: PeriodOption[]
   employees: EmployeeOption[]
+  statusOptions: SelectOption[]
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -26,8 +29,8 @@ export default function JournalEntryCreateForm({
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [description, setDescription] = useState('')
   const [total, setTotal] = useState('')
-  const [status, setStatus] = useState('draft')
-  const [entityId, setEntityId] = useState('')
+  const [status, setStatus] = useState(statusOptions[0]?.value ?? '')
+  const [subsidiaryId, setSubsidiaryId] = useState('')
   const [currencyId, setCurrencyId] = useState('')
   const [accountingPeriodId, setAccountingPeriodId] = useState('')
   const [sourceType, setSourceType] = useState('')
@@ -51,7 +54,7 @@ export default function JournalEntryCreateForm({
         description: description || null,
         total,
         status,
-        entityId,
+        subsidiaryId,
         currencyId,
         accountingPeriodId,
         sourceType,
@@ -74,9 +77,9 @@ export default function JournalEntryCreateForm({
       <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} style={inputStyle} required /></div>
       <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Description</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} style={inputStyle} rows={2} /></div>
       <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Total</label><input type="number" step="0.01" value={total} onChange={(e) => setTotal(e.target.value)} className={inputClass} style={inputStyle} /></div>
-      <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} style={inputStyle}><option>draft</option><option>posted</option><option>void</option></select></div>
-      <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Subsidiary</label><select value={entityId} onChange={(e) => setEntityId(e.target.value)} className={inputClass} style={inputStyle}><option value="">None</option>{entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.subsidiaryId} - {entity.name}</option>)}</select></div>
-      <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Currency</label><select value={currencyId} onChange={(e) => setCurrencyId(e.target.value)} className={inputClass} style={inputStyle}><option value="">None</option>{currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.currencyId} - {currency.name}</option>)}</select></div>
+      <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} style={inputStyle}>{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+      <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Subsidiary</label><select value={subsidiaryId} onChange={(e) => setSubsidiaryId(e.target.value)} className={inputClass} style={inputStyle}><option value="">None</option>{entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.subsidiaryId} - {entity.name}</option>)}</select></div>
+      <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Currency</label><select value={currencyId} onChange={(e) => setCurrencyId(e.target.value)} className={inputClass} style={inputStyle}><option value="">None</option>{currencies.map((currency) => <option key={currency.id} value={currency.id}>{currency.code ?? currency.currencyId} - {currency.name}</option>)}</select></div>
       <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Accounting Period</label><select value={accountingPeriodId} onChange={(e) => setAccountingPeriodId(e.target.value)} className={inputClass} style={inputStyle}><option value="">None</option>{accountingPeriods.map((period) => <option key={period.id} value={period.id}>{period.name}</option>)}</select></div>
       <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Source Type</label><input type="text" value={sourceType} onChange={(e) => setSourceType(e.target.value)} className={inputClass} style={inputStyle} /></div>
       <div><label className="mb-1 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Source Id</label><input type="text" value={sourceId} onChange={(e) => setSourceId(e.target.value)} className={inputClass} style={inputStyle} /></div>
