@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isFieldRequired } from '@/lib/form-requirements'
+import { fmtCurrency, roundMoney } from '@/lib/format'
 import type { SelectOption } from '@/lib/list-source'
+import { calcLineTotal, parseMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
 
 type ItemOption = { id: string; name: string; listPrice: number; itemId: string | null }
 
@@ -21,11 +23,11 @@ function emptyLine(key: number): LineItemDraft {
 }
 
 function calculateLinesTotal(lines: LineItemDraft[]): number {
-  return lines.reduce((sum, line) => {
-    const qty = Math.max(1, parseInt(line.quantity, 10) || 1)
-    const price = parseFloat(line.unitPrice.replace(/,/g, '')) || 0
-    return sum + qty * price
-  }, 0)
+  return sumMoney(lines.map((line) => calcLineTotal(line.quantity, line.unitPrice)))
+}
+
+function formatMoneyInput(value: number): string {
+  return roundMoney(value).toFixed(2)
 }
 
 export default function OpportunityCreateForm({
@@ -36,6 +38,7 @@ export default function OpportunityCreateForm({
   fullPage,
   onSuccess,
   onCancel,
+  initialValues,
 }: {
   userId: string
   customers: Array<{ id: string; name: string }>
@@ -44,14 +47,36 @@ export default function OpportunityCreateForm({
   fullPage?: boolean
   onSuccess?: () => void
   onCancel?: () => void
+  initialValues?: {
+    name?: string
+    amount?: string
+    stage?: string
+    closeDate?: string
+    customerId?: string
+    lineItems?: Array<{
+      itemId: string | null
+      description: string
+      quantity: number
+      unitPrice: number
+      notes: string | null
+    }>
+  }
 }) {
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
-  const [stage, setStage] = useState('prospecting')
-  const [closeDate, setCloseDate] = useState('')
-  const [customerId, setCustomerId] = useState('')
-  const [lineItems, setLineItems] = useState<LineItemDraft[]>([])
-  const [nextKey, setNextKey] = useState(1)
+  const initialLineItems = (initialValues?.lineItems ?? []).map((line, index) => ({
+    key: index + 1,
+    itemId: line.itemId ?? '',
+    description: line.description,
+    quantity: String(line.quantity),
+    unitPrice: formatMoneyInput(line.unitPrice),
+    notes: line.notes ?? '',
+  }))
+  const [name, setName] = useState(initialValues?.name ?? '')
+  const [amount, setAmount] = useState(initialValues?.amount ?? '')
+  const [stage, setStage] = useState(initialValues?.stage ?? 'prospecting')
+  const [closeDate, setCloseDate] = useState(initialValues?.closeDate ?? '')
+  const [customerId, setCustomerId] = useState(initialValues?.customerId ?? '')
+  const [lineItems, setLineItems] = useState<LineItemDraft[]>(initialLineItems)
+  const [nextKey, setNextKey] = useState(initialLineItems.length + 1)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [runtimeRequirements, setRuntimeRequirements] = useState<Record<string, boolean> | null>(null)
@@ -95,7 +120,8 @@ export default function OpportunityCreateForm({
   const addLine = () => {
     setLineItems((prev) => {
       const nextLines = [...prev, emptyLine(nextKey)]
-      setAmount(calculateLinesTotal(nextLines) ? String(calculateLinesTotal(nextLines)) : '')
+      const nextTotal = calculateLinesTotal(nextLines)
+      setAmount(nextTotal ? formatMoneyInput(nextTotal) : '')
       return nextLines
     })
     setNextKey((k) => k + 1)
@@ -104,7 +130,8 @@ export default function OpportunityCreateForm({
   const removeLine = (key: number) => {
     setLineItems((prev) => {
       const nextLines = prev.filter((line) => line.key !== key)
-      setAmount(calculateLinesTotal(nextLines) ? String(calculateLinesTotal(nextLines)) : '')
+      const nextTotal = calculateLinesTotal(nextLines)
+      setAmount(nextTotal ? formatMoneyInput(nextTotal) : '')
       return nextLines
     })
   }
@@ -115,17 +142,18 @@ export default function OpportunityCreateForm({
         const nextLines = prev.map((l) => {
           if (l.key !== key) return l
           const updated = { ...l, [field]: value }
-        // Auto-fill from item catalog
+          // Auto-fill from item catalog
           if (field === 'itemId' && value) {
             const item = items.find((i) => i.id === value)
             if (item) {
               if (!l.description) updated.description = item.name
-              updated.unitPrice = item.listPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              updated.unitPrice = formatMoneyInput(item.listPrice)
             }
           }
           return updated
         })
-        setAmount(calculateLinesTotal(nextLines) ? String(calculateLinesTotal(nextLines)) : '')
+        const nextTotal = calculateLinesTotal(nextLines)
+        setAmount(nextTotal ? formatMoneyInput(nextTotal) : '')
         return nextLines
       },
     )
@@ -153,7 +181,7 @@ export default function OpportunityCreateForm({
         },
         body: JSON.stringify({
           name,
-          amount: parseFloat(amount) || 0,
+          amount: parseMoneyValue(amount),
           stage,
           closeDate: closeDate || null,
           customerId,
@@ -161,8 +189,8 @@ export default function OpportunityCreateForm({
           lineItems: lineItems.map((l) => ({
             itemId: l.itemId || null,
             description: l.description,
-            quantity: Math.max(1, parseInt(l.quantity, 10) || 1),
-            unitPrice: parseFloat(l.unitPrice.replace(/,/g, '')) || 0,
+            quantity: parseQuantity(l.quantity),
+            unitPrice: parseMoneyValue(l.unitPrice),
             notes: l.notes || null,
           })),
         }),
@@ -246,7 +274,7 @@ export default function OpportunityCreateForm({
             <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{requiredLabel('Total Amount', req('amount'))}</label>
             {lineItems.length > 0 ? (
               <p className="mt-1 px-3 py-2 text-sm font-medium text-white">
-                ${(parseFloat(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {fmtCurrency(parseMoneyValue(amount))}
               </p>
             ) : (
               <div className="relative mt-1">
@@ -307,7 +335,7 @@ export default function OpportunityCreateForm({
                 </thead>
                 <tbody>
                   {lineItems.map((line) => {
-                    const lineTotal = (Math.max(1, parseInt(line.quantity, 10) || 1)) * (parseFloat(line.unitPrice.replace(/,/g, '')) || 0)
+                    const lineTotal = calcLineTotal(line.quantity, line.unitPrice)
                     return (
                       <tr key={line.key} style={{ borderBottom: '1px solid var(--border-muted)' }}>
                         {items.length > 0 && (
@@ -362,8 +390,8 @@ export default function OpportunityCreateForm({
                               }}
                               onBlur={() => {
                                 // Format on blur
-                                const num = parseFloat(line.unitPrice) || 0
-                                updateLine(line.key, 'unitPrice', num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                                const num = parseMoneyValue(line.unitPrice)
+                                updateLine(line.key, 'unitPrice', formatMoneyInput(num))
                               }}
                               onChange={(e) => updateLine(line.key, 'unitPrice', e.target.value)}
                               className="w-full rounded-md border bg-transparent pl-6 pr-2 py-1.5 text-sm text-white"
@@ -372,7 +400,7 @@ export default function OpportunityCreateForm({
                           </div>
                         </td>
                         <td className="px-2 py-1.5 text-right text-sm font-medium text-white whitespace-nowrap">
-                          ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {fmtCurrency(lineTotal)}
                         </td>
                         <td className="px-2 py-1.5">
                           <input
@@ -402,7 +430,7 @@ export default function OpportunityCreateForm({
                       Total
                     </td>
                     <td className="px-2 py-2 text-right text-sm font-semibold text-white whitespace-nowrap">
-                      ${linesTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {fmtCurrency(linesTotal)}
                     </td>
                     <td colSpan={2} />
                   </tr>

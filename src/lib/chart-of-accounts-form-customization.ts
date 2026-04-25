@@ -9,6 +9,7 @@ export type ChartOfAccountsFormFieldKey =
   | 'normalBalance'
   | 'financialStatementSection'
   | 'financialStatementGroup'
+  | 'financialStatementCategory'
   | 'subsidiaryIds'
   | 'includeChildren'
   | 'parentAccountId'
@@ -56,6 +57,7 @@ export const CHART_OF_ACCOUNTS_FORM_FIELDS: ChartOfAccountsFormFieldMeta[] = [
   { id: 'normalBalance', label: 'Normal Balance', fieldType: 'list', sourceType: 'system', sourceKey: 'normalBalance', source: getListSourceText({ sourceType: 'system', sourceKey: 'normalBalance' }), description: 'Default debit or credit orientation for the account.' },
   { id: 'financialStatementSection', label: 'FS Section', fieldType: 'text', description: 'Financial statement section used for rollups and presentation.' },
   { id: 'financialStatementGroup', label: 'FS Group', fieldType: 'text', description: 'More granular reporting group under the statement section.' },
+  { id: 'financialStatementCategory', label: 'FS Category', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-COA-FS-CATEGORY', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-COA-FS-CATEGORY' }), description: 'Detailed reporting category such as Cash, AR, Inventory, AP, or FX.' },
   { id: 'subsidiaryIds', label: 'Subsidiaries', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Subsidiaries where this GL account is available.' },
   { id: 'includeChildren', label: 'Include Children', fieldType: 'boolean', description: 'If enabled, child subsidiaries under selected subsidiaries also inherit account availability.' },
   { id: 'parentAccountId', label: 'Parent Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Rollup parent for hierarchical reporting.' },
@@ -88,6 +90,7 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     normalBalance: 'Reporting',
     financialStatementSection: 'Reporting',
     financialStatementGroup: 'Reporting',
+    financialStatementCategory: 'Reporting',
     cashFlowCategory: 'Reporting',
     subsidiaryIds: 'Structure',
     includeChildren: 'Structure',
@@ -112,7 +115,8 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     normalBalance: 1,
     financialStatementSection: 2,
     financialStatementGroup: 1,
-    cashFlowCategory: 2,
+    financialStatementCategory: 2,
+    cashFlowCategory: 1,
     subsidiaryIds: 1,
     includeChildren: 2,
     parentAccountId: 1,
@@ -136,7 +140,8 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     normalBalance: 0,
     financialStatementSection: 0,
     financialStatementGroup: 1,
-    cashFlowCategory: 1,
+    financialStatementCategory: 1,
+    cashFlowCategory: 2,
     subsidiaryIds: 0,
     includeChildren: 0,
     parentAccountId: 1,
@@ -156,7 +161,7 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     sections: [...DEFAULT_CHART_OF_ACCOUNTS_FORM_SECTIONS],
     sectionRows: {
       Core: 3,
-      Reporting: 2,
+      Reporting: 3,
       Structure: 3,
       Controls: 4,
     },

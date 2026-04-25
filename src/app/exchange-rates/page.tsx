@@ -11,6 +11,8 @@ import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
+import { fmtDocumentDate } from '@/lib/format'
 
 const COLS = [
   { id: 'pair', label: 'Currency Pair' },
@@ -57,7 +59,8 @@ export default async function ExchangeRatesPage({
           ? [{ rate: 'desc' as const }]
           : [{ effectiveDate: 'desc' as const }, { createdAt: 'desc' as const }]
 
-  const [total, currencies, latestSyncLog, companySettings, cabinetFiles, rateTypeValues] = await Promise.all([
+  const [{ moneySettings }, total, currencies, latestSyncLog, companySettings, cabinetFiles, rateTypeValues] = await Promise.all([
+    loadCompanyDisplaySettings(),
     prisma.exchangeRate.count({ where }),
     prisma.currency.findMany({ orderBy: { code: 'asc' } }),
     prisma.integrationLog.findFirst({
@@ -127,7 +130,7 @@ export default async function ExchangeRatesPage({
           </div>
           <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {latestSyncLog
-              ? `Last run: ${new Date(latestSyncLog.createdAt).toLocaleString()} • ${latestSyncLog.status}`
+              ? `Last run: ${fmtDocumentDate(latestSyncLog.createdAt, moneySettings)} - ${latestSyncLog.status}`
               : 'Last run: none yet'}
           </div>
         </div>
@@ -209,7 +212,7 @@ export default async function ExchangeRatesPage({
                       {row.baseCurrency.code}/{row.quoteCurrency.code}
                     </td>
                     <td data-column="effective-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(row.effectiveDate).toLocaleDateString()}
+                      {fmtDocumentDate(row.effectiveDate, moneySettings)}
                     </td>
                     <td data-column="rate" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {row.rate.toFixed(6)}
@@ -224,10 +227,10 @@ export default async function ExchangeRatesPage({
                       {row.active ? 'Yes' : 'No'}
                     </td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(row.createdAt).toLocaleDateString()}
+                      {fmtDocumentDate(row.createdAt, moneySettings)}
                     </td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(row.updatedAt).toLocaleDateString()}
+                      {fmtDocumentDate(row.updatedAt, moneySettings)}
                     </td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
                       <div className="flex items-center gap-2">
@@ -267,3 +270,4 @@ export default async function ExchangeRatesPage({
     </div>
   )
 }
+

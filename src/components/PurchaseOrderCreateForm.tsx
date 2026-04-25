@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { parseMoneyValue } from '@/lib/money'
 
 export default function PurchaseOrderCreateForm({
   userId,
@@ -36,7 +37,7 @@ export default function PurchaseOrderCreateForm({
         },
         body: JSON.stringify({
           status,
-          total: parseFloat(total) || 0,
+          total: parseMoneyValue(total),
           vendorId,
           userId,
         }),

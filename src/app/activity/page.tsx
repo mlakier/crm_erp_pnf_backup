@@ -4,6 +4,8 @@ import ColumnSelector from '@/components/ColumnSelector'
 import PaginationFooter from '@/components/PaginationFooter'
 import ExportButton from '@/components/ExportButton'
 import { getPagination } from '@/lib/pagination'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
+import { fmtDocumentDate } from '@/lib/format'
 
 const ACTIVITY_COLUMNS = [
   { id: 'when', label: 'When' },
@@ -31,6 +33,7 @@ export default async function ActivityPage({
   searchParams: Promise<{ entity?: string; action?: string; page?: string }>
 }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const entity = params.entity ?? 'all'
   const action = params.action ?? 'all'
 
@@ -123,7 +126,7 @@ export default async function ActivityPage({
 
                   return (
                     <tr key={item.id} style={index < activities.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                      <td data-column="when" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(item.createdAt).toLocaleString()}</td>
+                      <td data-column="when" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(item.createdAt, moneySettings)}</td>
                       <td data-column="entity" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{item.entityType}</td>
                       <td data-column="action" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{item.action}</td>
                       <td data-column="summary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{item.summary}</td>

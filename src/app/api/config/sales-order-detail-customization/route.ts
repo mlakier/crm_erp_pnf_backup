@@ -3,9 +3,12 @@ import {
   defaultSalesOrderDetailCustomization,
   SALES_ORDER_DETAIL_FIELDS,
   SALES_ORDER_LINE_COLUMNS,
+  SALES_ORDER_STAT_CARDS,
   type SalesOrderDetailCustomizationConfig,
   type SalesOrderDetailFieldKey,
   type SalesOrderLineColumnKey,
+  type SalesOrderStatCardKey,
+  type SalesOrderStatCardSlot,
 } from '@/lib/sales-order-detail-customization'
 import {
   loadSalesOrderDetailCustomization,
@@ -96,6 +99,28 @@ function sanitizeInput(input: unknown): SalesOrderDetailCustomizationConfig {
     SalesOrderDetailCustomizationConfig['lineColumns'][SalesOrderLineColumnKey]
   >
 
+  const validStatIds = new Set(SALES_ORDER_STAT_CARDS.map((card) => card.id))
+  const statCardsInput = Array.isArray(root.statCards) ? root.statCards : defaults.statCards
+  const statCards = statCardsInput
+    .filter((card): card is Record<string, unknown> => Boolean(card) && typeof card === 'object')
+    .map((card, index) => {
+      const metric = String(card.metric ?? '') as SalesOrderStatCardKey
+      return {
+        id: String(card.id ?? `slot-${index + 1}`).trim() || `slot-${index + 1}`,
+        metric: validStatIds.has(metric) ? metric : defaults.statCards[Math.min(index, defaults.statCards.length - 1)]?.metric ?? 'total',
+        visible: card.visible === undefined ? true : card.visible === true,
+        order:
+          typeof card.order === 'number' && Number.isFinite(card.order)
+            ? Math.max(0, Math.trunc(card.order))
+            : index,
+      }
+    })
+    .sort((left, right) => left.order - right.order)
+    .map((card, index) => ({
+      ...card,
+      order: index,
+    })) as SalesOrderStatCardSlot[]
+
   const finalSections = sections.length > 0 ? Array.from(new Set(sections)) : defaults.sections
 
   return {
@@ -111,6 +136,7 @@ function sanitizeInput(input: unknown): SalesOrderDetailCustomizationConfig {
     ),
     fields,
     lineColumns,
+    statCards: statCards.length > 0 ? statCards : defaults.statCards,
   }
 }
 
@@ -121,6 +147,7 @@ export async function GET() {
       config,
       fields: SALES_ORDER_DETAIL_FIELDS,
       lineColumns: SALES_ORDER_LINE_COLUMNS,
+      statCards: SALES_ORDER_STAT_CARDS,
     })
   } catch {
     return NextResponse.json(
@@ -141,6 +168,7 @@ export async function POST(request: NextRequest) {
       config: saved,
       fields: SALES_ORDER_DETAIL_FIELDS,
       lineColumns: SALES_ORDER_LINE_COLUMNS,
+      statCards: SALES_ORDER_STAT_CARDS,
     })
   } catch {
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
+import { fmtDocumentDate } from '@/lib/format'
 import ColumnSelector from '@/components/ColumnSelector'
 import ExportButton from '@/components/ExportButton'
 import PaginationFooter from '@/components/PaginationFooter'
@@ -13,6 +14,7 @@ import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { buildReceiptDisplayNumberMap } from '@/lib/receipt-display-number'
 import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 
 const RECEIPT_COLUMNS = [
   { id: 'receipt-number', label: 'Receipts Id' },
@@ -32,6 +34,7 @@ export default async function ReceiptsPage({
   searchParams: Promise<{ status?: string; q?: string; sort?: string; page?: string }>
 }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const statusFilter = params.status ?? 'all'
   const query = (params.q ?? '').trim()
   const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -238,7 +241,7 @@ export default async function ReceiptsPage({
                       {receipt.quantity}
                     </td>
                     <td data-column="date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(receipt.date).toLocaleDateString()}
+                      {fmtDocumentDate(receipt.date, moneySettings)}
                     </td>
                     <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {receipt.status}
@@ -247,10 +250,10 @@ export default async function ReceiptsPage({
                       {receipt.notes ?? '—'}
                     </td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(receipt.createdAt).toLocaleDateString()}
+                      {fmtDocumentDate(receipt.createdAt, moneySettings)}
                     </td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(receipt.updatedAt).toLocaleDateString()}
+                      {fmtDocumentDate(receipt.updatedAt, moneySettings)}
                     </td>
                   </tr>
                 ))

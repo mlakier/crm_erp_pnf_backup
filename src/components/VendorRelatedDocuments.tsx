@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { fmtCurrency } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
 
 type Tab = 'purchase-requisitions' | 'purchase-orders' | 'receipts' | 'bills' | 'bill-payments'
 
@@ -161,7 +161,7 @@ export default function VendorRelatedDocuments({
                         {requisition.number}
                       </Link>
                     </Td>
-                    <Td>{new Date(requisition.createdAt).toLocaleDateString()}</Td>
+                    <Td>{fmtDocumentDate(requisition.createdAt)}</Td>
                     <Td><StatusBadge status={requisition.status} /></Td>
                     <Td>{fmtCurrency(requisition.total)}</Td>
                     <Td className="capitalize">{requisition.priority ?? '-'}</Td>
@@ -196,7 +196,7 @@ export default function VendorRelatedDocuments({
                     </Td>
                     <Td><StatusBadge status={purchaseOrder.status} /></Td>
                     <Td>{fmtCurrency(purchaseOrder.total)}</Td>
-                    <Td>{new Date(purchaseOrder.createdAt).toLocaleDateString()}</Td>
+                    <Td>{fmtDocumentDate(purchaseOrder.createdAt)}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -227,7 +227,7 @@ export default function VendorRelatedDocuments({
                         {receipt.number}
                       </Link>
                     </Td>
-                    <Td>{new Date(receipt.date).toLocaleDateString()}</Td>
+                    <Td>{fmtDocumentDate(receipt.date)}</Td>
                     <Td><StatusBadge status={receipt.status} /></Td>
                     <Td>{receipt.quantity}</Td>
                     <Td>{receipt.purchaseOrderNumber}</Td>
@@ -261,8 +261,8 @@ export default function VendorRelatedDocuments({
                         {bill.number}
                       </Link>
                     </Td>
-                    <Td>{new Date(bill.date).toLocaleDateString()}</Td>
-                    <Td>{bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '-'}</Td>
+                    <Td>{fmtDocumentDate(bill.date)}</Td>
+                    <Td>{bill.dueDate ? fmtDocumentDate(bill.dueDate) : '-'}</Td>
                     <Td><StatusBadge status={bill.status} /></Td>
                     <Td>{fmtCurrency(bill.total)}</Td>
                   </tr>
@@ -296,7 +296,7 @@ export default function VendorRelatedDocuments({
                         {payment.number}
                       </Link>
                     </Td>
-                    <Td>{new Date(payment.date).toLocaleDateString()}</Td>
+                    <Td>{fmtDocumentDate(payment.date)}</Td>
                     <Td><StatusBadge status={payment.status} /></Td>
                     <Td>{fmtCurrency(payment.amount)}</Td>
                     <Td>{payment.method ?? '-'}</Td>

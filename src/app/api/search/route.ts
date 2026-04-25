@@ -19,6 +19,7 @@ const PAGES = [
   { label: 'Subsidiaries',          href: '/subsidiaries' },
   { label: 'Currencies',            href: '/currencies' },
   { label: 'Locations',             href: '/locations' },
+  { label: 'Accounting Periods',    href: '/accounting-periods' },
   { label: 'Items',                 href: '/items' },
   { label: 'Chart of Accounts',     href: '/chart-of-accounts' },
   { label: 'Departments',           href: '/departments' },
@@ -39,6 +40,7 @@ const PAGES = [
   { label: 'Bills',                 href: '/bills' },
   { label: 'Bill Payments',         href: '/bill-payments' },
   { label: 'Journals',              href: '/journals' },
+  { label: 'Intercompany Journals', href: '/intercompany-journals' },
 ]
 
 /* ── Record search helpers ─────────────────────────────────────────────── */
@@ -46,7 +48,7 @@ type Hit = { type: 'page' | 'record' | 'list' | 'listValue' | 'field' | 'fieldVa
 
 async function searchRecords(q: string, limit: number): Promise<Hit[]> {
   const hits: Hit[] = []
-  const [customers, contacts, vendors, leads, items, employees, departments, locations, opportunities] = await Promise.all([
+  const [customers, contacts, vendors, leads, items, employees, departments, locations, accountingPeriods, opportunities] = await Promise.all([
     prisma.customer.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { customerId: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, customerId: true } }),
     prisma.contact.findMany({ where: { OR: [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, firstName: true, lastName: true, email: true } }),
     prisma.vendor.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { vendorNumber: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, vendorNumber: true } }),
@@ -67,6 +69,18 @@ async function searchRecords(q: string, limit: number): Promise<Hit[]> {
       take: limit,
       select: { id: true, locationId: true, code: true, name: true, subsidiary: { select: { subsidiaryId: true } } },
     }),
+    prisma.accountingPeriod.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { status: { contains: q, mode: 'insensitive' } },
+          { subsidiary: { is: { subsidiaryId: { contains: q, mode: 'insensitive' } } } },
+          { subsidiary: { is: { name: { contains: q, mode: 'insensitive' } } } },
+        ],
+      },
+      take: limit,
+      select: { id: true, name: true, status: true, subsidiary: { select: { subsidiaryId: true } } },
+    }),
     prisma.opportunity.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { opportunityNumber: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, opportunityNumber: true } }),
   ])
 
@@ -78,6 +92,7 @@ async function searchRecords(q: string, limit: number): Promise<Hit[]> {
   for (const r of employees) hits.push({ type: 'record', label: `${r.firstName} ${r.lastName}`, href: `/employees/${r.id}`, detail: 'Employee' })
   for (const r of departments) hits.push({ type: 'record', label: r.name, href: `/departments/${r.id}`, detail: 'Department' })
   for (const r of locations) hits.push({ type: 'record', label: r.name, href: '/locations', detail: `${r.locationId} - ${r.code}${r.subsidiary ? ` - ${r.subsidiary.subsidiaryId}` : ''}` })
+  for (const r of accountingPeriods) hits.push({ type: 'record', label: r.name, href: `/accounting-periods/${r.id}`, detail: `${r.status}${r.subsidiary ? ` - ${r.subsidiary.subsidiaryId}` : ''}` })
   for (const r of opportunities) hits.push({ type: 'record', label: r.name, href: `/opportunities/${r.id}`, detail: `Opportunity ${r.opportunityNumber || ''}` })
 
   return hits

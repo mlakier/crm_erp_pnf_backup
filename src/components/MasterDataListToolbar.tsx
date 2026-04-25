@@ -20,6 +20,7 @@ export type MasterDataListToolbarProps = {
   searchPlaceholder: string
   tableId: string
   exportFileName: string
+  exportAllUrl?: string
   columns: MasterDataListColumn[]
   sort?: string
   sortOptions?: MasterDataListSortOption[]
@@ -33,6 +34,7 @@ export default function MasterDataListToolbar({
   searchPlaceholder,
   tableId,
   exportFileName,
+  exportAllUrl,
   columns,
   resetHref,
   compactExport = false,
@@ -50,13 +52,6 @@ export default function MasterDataListToolbar({
           style={{ borderColor: 'var(--border-muted)' }}
         />
         <input type="hidden" name="page" value="1" />
-        <button
-          type="submit"
-          className="shrink-0 rounded-md border px-3 py-2 text-sm font-medium transition"
-          style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-        >
-          Search
-        </button>
         {resetHref ? (
           <Link
             href={resetHref}
@@ -67,7 +62,7 @@ export default function MasterDataListToolbar({
           </Link>
         ) : null}
         {extraControls}
-        <ExportButton tableId={tableId} fileName={exportFileName} compact={compactExport} />
+        <ExportButton tableId={tableId} fileName={exportFileName} compact={compactExport} exportAllUrl={exportAllUrl} />
         <ColumnSelector tableId={tableId} columns={columns} />
       </div>
     </form>

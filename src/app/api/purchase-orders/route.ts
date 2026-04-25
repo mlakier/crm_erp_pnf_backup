@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity, logCommunicationActivity, logFieldChangeActivities } from '@/lib/activity'
 import { generateNextPurchaseOrderNumber } from '@/lib/purchase-order-number'
+import { calcLineTotal, moneyEquals, parseMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
+import { resolveVendorTransactionSnapshot } from '@/lib/transaction-snapshot-defaults'
 
 export async function GET() {
   try {
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    const { number, status, total, vendorId, entityId, subsidiaryId, userId, lineItems } = body
+    const { number, status, total, vendorId, entityId, subsidiaryId, currencyId, userId, lineItems } = body
     const requestSubsidiaryId = subsidiaryId ?? entityId
 
     if (!vendorId || !userId) {
@@ -85,8 +87,8 @@ export async function POST(request: NextRequest) {
               lineTotal?: number | string
               displayOrder?: number
             }
-            const quantity = Math.max(1, Number(row.quantity ?? 0) || 1)
-            const unitPrice = Math.max(0, Number(row.unitPrice ?? 0) || 0)
+            const quantity = parseQuantity(row.quantity)
+            const unitPrice = Math.max(0, parseMoneyValue(row.unitPrice))
             const description = String(row.description ?? '').trim()
             return {
               itemId: row.itemId || null,
@@ -95,8 +97,8 @@ export async function POST(request: NextRequest) {
               unitPrice,
               lineTotal:
                 row.lineTotal != null && row.lineTotal !== ''
-                  ? Math.max(0, Number(row.lineTotal) || 0)
-                  : quantity * unitPrice,
+                  ? Math.max(0, parseMoneyValue(row.lineTotal))
+                  : calcLineTotal(quantity, unitPrice),
               displayOrder:
                 typeof row.displayOrder === 'number' && Number.isFinite(row.displayOrder)
                   ? Math.max(0, Math.trunc(row.displayOrder))
@@ -107,8 +109,12 @@ export async function POST(request: NextRequest) {
       : []
     const normalizedTotal =
       normalizedLineItems.length > 0
-        ? normalizedLineItems.reduce((sum, line) => sum + line.lineTotal, 0)
-        : Number(total ?? 0) || 0
+        ? sumMoney(normalizedLineItems.map((line) => line.lineTotal))
+        : parseMoneyValue(total)
+    const snapshot = await resolveVendorTransactionSnapshot(vendorId, {
+      subsidiaryId: requestSubsidiaryId,
+      currencyId,
+    })
 
     const purchaseOrder = await prisma.purchaseOrder.create({
       data: {
@@ -116,7 +122,8 @@ export async function POST(request: NextRequest) {
         status,
         total: normalizedTotal,
         vendorId,
-        subsidiaryId: requestSubsidiaryId || null,
+        subsidiaryId: snapshot.subsidiaryId,
+        currencyId: snapshot.currencyId,
         userId,
         ...(normalizedLineItems.length > 0
           ? {
@@ -180,7 +187,7 @@ export async function PUT(request: NextRequest) {
     const normalizedVendorId = vendorId || existing.vendorId
     const normalizedEntityId = requestSubsidiaryId || null
     const normalizedStatus = status || null
-    const normalizedTotal = total !== '' && total != null ? parseFloat(total) : 0
+    const normalizedTotal = total !== '' && total != null ? parseMoneyValue(total) : 0
 
     const vendorIds = Array.from(new Set([existing.vendorId, normalizedVendorId].filter(Boolean)))
     const vendors = vendorIds.length
@@ -243,7 +250,7 @@ export async function PUT(request: NextRequest) {
             newValue: normalizedStatus ?? '-',
           }
         : null,
-      existing.total !== normalizedTotal
+      !moneyEquals(existing.total, normalizedTotal)
         ? {
             fieldName: 'Total',
             oldValue: existing.total.toString(),

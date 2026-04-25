@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency, normalizePhone } from '@/lib/format'
+import { fmtCurrency, normalizePhone, toNumericValue } from '@/lib/format'
 import DeleteButton from '@/components/DeleteButton'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
 import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
@@ -13,6 +13,7 @@ import VendorRelatedDocuments from '@/components/VendorRelatedDocuments'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import SystemNotesSection from '@/components/SystemNotesSection'
 import { RecordDetailStatCard } from '@/components/RecordDetailPanels'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import { loadVendorFormCustomization } from '@/lib/vendor-form-customization-store'
 import { VENDOR_FORM_FIELDS, type VendorFormFieldKey } from '@/lib/vendor-form-customization'
 import { buildConfiguredInlineSections, buildCustomizePreviewFields } from '@/lib/detail-page-helpers'
@@ -30,6 +31,7 @@ export default async function VendorDetailPage({
   searchParams: Promise<{ edit?: string; customize?: string }>
 }) {
   const { id } = await params
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
@@ -67,14 +69,14 @@ export default async function VendorDetailPage({
 
   if (!vendor) notFound()
 
-  const totalSpend = vendor.purchaseOrders.reduce((sum, purchaseOrder) => sum + (purchaseOrder.total ?? 0), 0)
+  const totalSpend = vendor.purchaseOrders.reduce((sum, purchaseOrder) => sum + toNumericValue(purchaseOrder.total), 0)
   const openInvoices = vendor.bills.filter((bill) => bill.status !== 'paid' && bill.status !== 'void')
   const detailHref = `/vendors/${vendor.id}`
   const relatedPurchaseOrders = vendor.purchaseOrders.map((purchaseOrder) => ({
     id: purchaseOrder.id,
     number: purchaseOrder.number,
     status: purchaseOrder.status,
-    total: purchaseOrder.total ?? 0,
+    total: toNumericValue(purchaseOrder.total, 0),
     createdAt: purchaseOrder.createdAt.toISOString(),
   }))
   const relatedRequisitionMap = new Map<string, {
@@ -91,7 +93,7 @@ export default async function VendorDetailPage({
       id: requisition.id,
       number: requisition.number,
       status: requisition.status,
-      total: requisition.total ?? 0,
+      total: toNumericValue(requisition.total, 0),
       priority: requisition.priority,
       title: requisition.title,
       createdAt: requisition.createdAt.toISOString(),
@@ -103,7 +105,7 @@ export default async function VendorDetailPage({
       id: purchaseOrder.requisition.id,
       number: purchaseOrder.requisition.number,
       status: purchaseOrder.requisition.status,
-      total: purchaseOrder.requisition.total ?? 0,
+      total: toNumericValue(purchaseOrder.requisition.total, 0),
       priority: purchaseOrder.requisition.priority,
       title: purchaseOrder.requisition.title,
       createdAt: purchaseOrder.requisition.createdAt.toISOString(),
@@ -114,7 +116,7 @@ export default async function VendorDetailPage({
     id: bill.id,
     number: bill.number,
     status: bill.status,
-    total: bill.total ?? 0,
+    total: toNumericValue(bill.total, 0),
     date: bill.date.toISOString(),
     dueDate: bill.dueDate?.toISOString() ?? null,
   }))
@@ -133,7 +135,7 @@ export default async function VendorDetailPage({
     bill.billPayments.map((payment) => ({
       id: payment.id,
       number: payment.number,
-      amount: payment.amount,
+      amount: toNumericValue(payment.amount, 0),
       date: payment.date.toISOString(),
       method: payment.method,
       reference: payment.reference,
@@ -305,7 +307,7 @@ export default async function VendorDetailPage({
         <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <RecordDetailStatCard label="Contacts" value={vendor.contacts.length} />
           <RecordDetailStatCard label="Purchase orders" value={vendor.purchaseOrders.length} />
-          <RecordDetailStatCard label="Total spend" value={fmtCurrency(totalSpend)} accent="teal" />
+          <RecordDetailStatCard label="Total spend" value={fmtCurrency(totalSpend, undefined, moneySettings)} accent="teal" />
           <RecordDetailStatCard label="Open AP invoices" value={openInvoices.length} accent={openInvoices.length > 0 ? 'yellow' : undefined} />
         </div>
 

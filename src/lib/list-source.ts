@@ -14,9 +14,11 @@ export type SelectOption = {
 }
 
 const MANAGED_LIST_LABELS: Record<string, string> = {
+  'ACCOUNTING-PERIOD-STATUS': 'Accounting Period Status',
   'BILL-STATUS': 'Bill Status',
   'BILL-PAYMENT-STATUS': 'Bill Payment Status',
   'COA-CASH-FLOW-CATEGORY': 'Cash Flow Category',
+  'COA-FS-CATEGORY': 'Financial Statement Category',
   'COA-FS-GROUP': 'Financial Statement Group',
   'COA-FS-SECTION': 'Financial Statement Section',
   'COA-SUBLEDGER-TYPE': 'Required Subledger Type',
@@ -30,10 +32,12 @@ const MANAGED_LIST_LABELS: Record<string, string> = {
   'INV-RECEIPT-STATUS': 'Invoice Receipt Status',
   'INV-STATUS': 'Invoice Status',
   'JOURNAL-STATUS': 'Journal Status',
+  'JOURNAL-SOURCE-TYPE': 'Journal Source Type',
   'ITEM-TYPE': 'Item Type',
   'ITEM-BILLING-TYPE': 'Billing Type',
+  'ITEM-BILLING-TRIGGER': 'Billing Trigger',
   'ITEM-FORECAST-PLAN-TRIGGER': 'Create Forecast Plan On',
-  'ITEM-LINE': 'Line',
+  'ITEM-BUSINESS-LINE': 'Business Line',
   'ITEM-PERFORMANCE-OBLIGATION-TYPE': 'Performance Obligation Type',
   'ITEM-PRIMARY-PURCHASE-UNIT': 'Primary Purchase Unit',
   'ITEM-PRIMARY-SALE-UNIT': 'Primary Sales Unit',
@@ -86,6 +90,11 @@ const SYSTEM_SOURCE_LABELS: Record<string, string> = {
 }
 
 const MANAGED_LIST_DEFAULT_OPTIONS: Record<string, SelectOption[]> = {
+  'ACCOUNTING-PERIOD-STATUS': [
+    { value: 'Open', label: 'Open' },
+    { value: 'Closed', label: 'Closed' },
+    { value: 'Locked', label: 'Locked' },
+  ],
   'BILL-PAYMENT-STATUS': [
     { value: 'Pending', label: 'Pending' },
     { value: 'Processed', label: 'Processed' },
@@ -108,6 +117,14 @@ const MANAGED_LIST_DEFAULT_OPTIONS: Record<string, SelectOption[]> = {
     { value: 'Draft', label: 'Draft' },
     { value: 'Posted', label: 'Posted' },
     { value: 'Void', label: 'Void' },
+  ],
+  'JOURNAL-SOURCE-TYPE': [
+    { value: 'Manual', label: 'Manual' },
+    { value: 'Allocation', label: 'Allocation' },
+    { value: 'Accrual', label: 'Accrual' },
+    { value: 'Reclass', label: 'Reclass' },
+    { value: 'Elimination', label: 'Elimination' },
+    { value: 'Recurring', label: 'Recurring' },
   ],
   'PAYMENT-METHOD': [
     { value: 'Check', label: 'Check' },
@@ -160,6 +177,14 @@ const MANAGED_LIST_DEFAULT_OPTIONS: Record<string, SelectOption[]> = {
     { value: 'Recurring', label: 'Recurring' },
     { value: 'Usage', label: 'Usage' },
     { value: 'Milestone', label: 'Milestone' },
+  ],
+  'ITEM-BILLING-TRIGGER': [
+    { value: 'Sales Order Approval', label: 'Sales Order Approval' },
+    { value: 'Fulfillment', label: 'Fulfillment' },
+    { value: 'Delivery', label: 'Delivery' },
+    { value: 'Acceptance', label: 'Acceptance' },
+    { value: 'Milestone Completion', label: 'Milestone Completion' },
+    { value: 'Manual', label: 'Manual' },
   ],
   'ITEM-UOM': [
     { value: 'Each', label: 'Each' },

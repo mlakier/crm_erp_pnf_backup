@@ -47,7 +47,7 @@ model User {
   defaultSubsidiaryId     String?
   defaultSubsidiary       Subsidiary?     @relation("UserDefaultSubsidiary", fields: [defaultSubsidiaryId], references: [id], onDelete: SetNull)
   includeChildren         Boolean     @default(false)
-  approvalLimit           Float?
+  approvalLimit           Decimal?  @db.Decimal(18, 2)
   approvalCurrencyId      String?
   approvalCurrency        Currency?   @relation("UserApprovalCurrency", fields: [approvalCurrencyId], references: [id], onDelete: SetNull)
   delegatedApproverUserId String?
@@ -123,6 +123,7 @@ model SavedListView {
 model Customer {
   id         String   @id @default(cuid())
   customerId String?  @unique
+  // Add locale here when customer-facing document formatting expands beyond company-level defaults.
   name       String
   email      String?
   phone      String?
@@ -365,6 +366,7 @@ model ChartOfAccounts {
   normalBalance                String?
   financialStatementSection    String?
   financialStatementGroup      String?
+  financialStatementCategory   String?
   inventory                    Boolean  @default(false)
   revalueOpenBalance           Boolean  @default(false)
   eliminateIntercoTransactions Boolean  @default(false)
@@ -488,7 +490,7 @@ model Lead {
   source          String?
   rating          String?
   notes           String?
-  expectedValue   Float?
+  expectedValue   Decimal? @db.Decimal(18, 2)
   qualifiedAt     DateTime?
   convertedAt     DateTime?
   lastContactedAt DateTime?
@@ -524,7 +526,7 @@ model Opportunity {
   id                String    @id @default(cuid())
   opportunityNumber String?   @unique
   name              String
-  amount            Float?
+  amount            Decimal? @db.Decimal(18, 2)
   stage             String    @default("prospecting")
   closeDate         DateTime?
   probability       Float?
@@ -556,8 +558,8 @@ model OpportunityLineItem {
   id          String   @id @default(cuid())
   description String
   quantity    Int      @default(1)
-  unitPrice   Float    @default(0)
-  lineTotal   Float    @default(0)
+  unitPrice   Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal  @default(0) @db.Decimal(18, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -576,7 +578,7 @@ model Quote {
   id         String    @id @default(cuid())
   number     String    @unique
   status     String    @default("draft")
-  total      Float
+  total      Decimal   @db.Decimal(18, 2)
   validUntil DateTime?
   notes      String?
   subsidiaryId String?
@@ -607,7 +609,7 @@ model SalesOrder {
   id         String   @id @default(cuid())
   number     String   @unique
   status     String   @default("draft")
-  total      Float
+  total      Decimal   @db.Decimal(18, 2)
   subsidiaryId String?
   currencyId String?
   createdAt  DateTime @default(now())
@@ -637,7 +639,7 @@ model Invoice {
   id         String    @id @default(cuid())
   number     String    @unique
   status     String    @default("draft")
-  total      Float
+  total      Decimal   @db.Decimal(18, 2)
   dueDate    DateTime?
   paidDate   DateTime?
   subsidiaryId String?
@@ -669,7 +671,7 @@ model Invoice {
 model CashReceipt {
   id        String   @id @default(cuid())
   number    String?  @unique
-  amount    Float
+  amount    Decimal   @db.Decimal(18, 2)
   date      DateTime
   method    String // check, wire, etc.
   reference String?
@@ -693,7 +695,7 @@ model Requisition {
   priority     String    @default("medium")
   neededByDate DateTime?
   notes        String?
-  total        Float     @default(0)
+  total        Decimal   @default(0) @db.Decimal(18, 2)
   subsidiaryId String?
   currencyId   String?
   createdAt    DateTime  @default(now())
@@ -724,8 +726,8 @@ model RequisitionLineItem {
   id          String   @id @default(cuid())
   description String
   quantity    Int      @default(1)
-  unitPrice   Float    @default(0)
-  lineTotal   Float    @default(0)
+  unitPrice   Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal  @default(0) @db.Decimal(18, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -744,7 +746,7 @@ model PurchaseOrder {
   id         String   @id @default(cuid())
   number     String   @unique
   status     String   @default("draft")
-  total      Float
+  total      Decimal   @db.Decimal(18, 2)
   subsidiaryId String?
   currencyId String?
   createdAt  DateTime @default(now())
@@ -774,8 +776,8 @@ model PurchaseOrderLineItem {
   id           String   @id @default(cuid())
   description  String
   quantity     Int
-  unitPrice    Float
-  lineTotal    Float
+  unitPrice    Decimal  @db.Decimal(18, 2)
+  lineTotal    Decimal  @db.Decimal(18, 2)
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -794,8 +796,8 @@ model QuoteLineItem {
   id          String   @id @default(cuid())
   description String
   quantity    Int      @default(1)
-  unitPrice   Float    @default(0)
-  lineTotal   Float    @default(0)
+  unitPrice   Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal  @default(0) @db.Decimal(18, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -814,8 +816,8 @@ model SalesOrderLineItem {
   id          String   @id @default(cuid())
   description String
   quantity    Int      @default(1)
-  unitPrice   Float    @default(0)
-  lineTotal   Float    @default(0)
+  unitPrice   Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal  @default(0) @db.Decimal(18, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -835,8 +837,8 @@ model InvoiceLineItem {
   id                        String    @id @default(cuid())
   description               String
   quantity                  Int       @default(1)
-  unitPrice                 Float     @default(0)
-  lineTotal                 Float     @default(0)
+  unitPrice                 Decimal   @default(0) @db.Decimal(18, 2)
+  lineTotal                 Decimal   @default(0) @db.Decimal(18, 2)
   notes                     String?
   departmentId              String?
   locationId                String?
@@ -845,8 +847,8 @@ model InvoiceLineItem {
   serviceEndDate            DateTime?
   revRecTemplateId          String?
   performanceObligationCode String?
-  standaloneSellingPrice    Float?
-  allocatedAmount           Float?
+  standaloneSellingPrice    Decimal?  @db.Decimal(18, 2)
+  allocatedAmount           Decimal?  @db.Decimal(18, 2)
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -872,8 +874,8 @@ model BillLineItem {
   id                        String    @id @default(cuid())
   description               String
   quantity                  Int       @default(1)
-  unitPrice                 Float     @default(0)
-  lineTotal                 Float     @default(0)
+  unitPrice                 Decimal   @default(0) @db.Decimal(18, 2)
+  lineTotal                 Decimal   @default(0) @db.Decimal(18, 2)
   notes                     String?
   departmentId              String?
   locationId                String?
@@ -882,8 +884,8 @@ model BillLineItem {
   serviceEndDate            DateTime?
   revRecTemplateId          String?
   performanceObligationCode String?
-  standaloneSellingPrice    Float?
-  allocatedAmount           Float?
+  standaloneSellingPrice    Decimal?  @db.Decimal(18, 2)
+  allocatedAmount           Decimal?  @db.Decimal(18, 2)
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -909,7 +911,7 @@ model CreditMemo {
   id         String   @id @default(cuid())
   number     String   @unique
   status     String   @default("draft")
-  total      Float
+  total      Decimal   @db.Decimal(18, 2)
   date       DateTime @default(now())
   reason     String?
   notes      String?
@@ -941,8 +943,8 @@ model CreditMemoLineItem {
   id          String   @id @default(cuid())
   description String
   quantity    Int      @default(1)
-  unitPrice   Float    @default(0)
-  lineTotal   Float    @default(0)
+  unitPrice   Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal  @default(0) @db.Decimal(18, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -961,7 +963,7 @@ model BillCredit {
   id         String   @id @default(cuid())
   number     String   @unique
   status     String   @default("draft")
-  total      Float
+  total      Decimal   @db.Decimal(18, 2)
   date       DateTime @default(now())
   reason     String?
   notes      String?
@@ -993,8 +995,8 @@ model BillCreditLineItem {
   id          String   @id @default(cuid())
   description String
   quantity    Int      @default(1)
-  unitPrice   Float    @default(0)
-  lineTotal   Float    @default(0)
+  unitPrice   Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal   Decimal  @default(0) @db.Decimal(18, 2)
   notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1011,9 +1013,10 @@ model BillCreditLineItem {
 
 model JournalEntryLineItem {
   id          String   @id @default(cuid())
+  displayOrder Int     @default(0)
   description String?
-  debit       Float    @default(0)
-  credit      Float    @default(0)
+  debit       Decimal  @default(0) @db.Decimal(18, 2)
+  credit      Decimal  @default(0) @db.Decimal(18, 2)
   memo        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1022,6 +1025,8 @@ model JournalEntryLineItem {
   journalEntry   JournalEntry    @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
   accountId      String
   account        ChartOfAccounts @relation(fields: [accountId], references: [id])
+  subsidiaryId   String?
+  subsidiary     Subsidiary?     @relation(fields: [subsidiaryId], references: [id])
   departmentId   String?
   department     Department?     @relation(fields: [departmentId], references: [id])
   locationId     String?
@@ -1085,7 +1090,7 @@ model Bill {
   id         String    @id @default(cuid())
   number     String    @unique
   vendorId   String
-  total      Float     @map("amount")
+  total      Decimal   @map("amount") @db.Decimal(18, 2)
   date       DateTime
   dueDate    DateTime?
   status     String    @default("received")
@@ -1122,8 +1127,9 @@ model JournalEntry {
   number             String   @unique
   date               DateTime
   description        String?
+  journalType        String   @default("standard")
   status             String   @default("draft")
-  total              Float
+  total              Decimal  @db.Decimal(18, 2)
   accountingPeriodId String?
   sourceType         String?
   sourceId           String?
@@ -1289,7 +1295,7 @@ model Currency {
 model ExchangeRate {
   id              String   @id @default(cuid())
   effectiveDate   DateTime
-  rate            Float
+  rate            Decimal  @db.Decimal(18, 8)
   rateType        String   @default("spot")
   source          String?
   notes           String?
@@ -1368,6 +1374,7 @@ model Subsidiary {
   billCredits                 BillCredit[]
   requisitions                Requisition[]
   journalEntries              JournalEntry[]
+  journalEntryLineItems       JournalEntryLineItem[]
   accountingPeriods           AccountingPeriod[]
   chartOfAccountsAsParent     ChartOfAccounts[]          @relation("ChartOfAccountParentSubsidiary")
   chartOfAccountAssignments   ChartOfAccountSubsidiary[] @relation("ChartOfAccountSubsidiaryAssignment")
@@ -1388,6 +1395,7 @@ model Subsidiary {
 model Item {
   id                              String   @id @default(cuid())
   itemId                          String?  @unique @map("itemNumber")
+  externalId                      String?  @unique
   sku                             String?  @unique
   name                            String
   description                     String?
@@ -1406,16 +1414,17 @@ model Item {
   allocationEligible              Boolean  @default(true)
   performanceObligationType       String?
   isDistinctPerformanceObligation Boolean  @default(true)
-  standaloneSellingPrice          Float?
+  standaloneSellingPrice          Decimal?  @db.Decimal(18, 2)
   billingType                     String?
+  billingTrigger                  String?
   taxCode                         String?
   uom                             String? // unit of measure
   primaryPurchaseUnit             String?
   primarySaleUnit                 String?
   primaryUnitsType                String?
-  listPrice                       Float    @default(0)
-  standardCost                    Float?
-  averageCost                     Float?
+  listPrice                       Decimal   @default(0) @db.Decimal(18, 2)
+  standardCost                    Decimal?  @db.Decimal(18, 2)
+  averageCost                     Decimal?  @db.Decimal(18, 2)
   includeChildren                 Boolean  @default(false)
   line                            String?
   productLine                     String?
@@ -1529,8 +1538,8 @@ model Employee {
   expenseApproverEmployeeId String?
   billableFlag              Boolean   @default(false)
   laborType                 String?
-  laborCostRate             Float?
-  billingRate               Float?
+  laborCostRate             Decimal? @db.Decimal(18, 2)
+  billingRate               Decimal? @db.Decimal(18, 2)
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -1616,7 +1625,7 @@ model FulfillmentLine {
 model BillPayment {
   id        String   @id @default(cuid())
   number    String   @unique
-  amount    Float    @default(0)
+  amount    Decimal  @default(0) @db.Decimal(18, 2)
   date      DateTime @default(now())
   method    String?
   reference String?

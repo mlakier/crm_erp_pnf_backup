@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
 import { generateNextBillNumber } from '@/lib/bill-number'
+import { parseMoneyValue } from '@/lib/money'
+import { resolveVendorTransactionSnapshot } from '@/lib/transaction-snapshot-defaults'
 
 const INCLUDE = {
   vendor: true,
@@ -39,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { vendorId, total, date, dueDate, status, notes } = body
+    const { vendorId, total, date, dueDate, status, notes, subsidiaryId, currencyId, userId } = body
 
     if (!vendorId || total === undefined || !date) {
       return NextResponse.json({ error: 'vendorId, total, and bill date are required' }, { status: 400 })
@@ -47,16 +49,23 @@ export async function POST(request: NextRequest) {
 
     const number = await generateNextBillNumber()
     const nextStatus = status || 'received'
+    const snapshot = await resolveVendorTransactionSnapshot(vendorId, {
+      subsidiaryId,
+      currencyId,
+    })
 
     const bill = await prisma.bill.create({
       data: {
         number,
         vendorId,
-        total: Number.parseFloat(String(total)) || 0,
+        total: parseMoneyValue(total),
         date: new Date(date),
         dueDate: dueDate ? new Date(dueDate) : null,
         status: nextStatus,
         notes: notes || null,
+        subsidiaryId: snapshot.subsidiaryId,
+        currencyId: snapshot.currencyId,
+        userId: userId || null,
       },
       include: INCLUDE,
     })
@@ -97,7 +106,7 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: {
         ...(vendorId !== undefined ? { vendorId: String(vendorId).trim() } : {}),
-        ...(total !== undefined ? { total: Number.parseFloat(String(total)) || 0 } : {}),
+        ...(total !== undefined ? { total: parseMoneyValue(total) } : {}),
         ...(date !== undefined ? { date: new Date(String(date)) } : {}),
         ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
         ...(status !== undefined ? { status: status || 'received' } : {}),

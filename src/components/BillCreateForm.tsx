@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { parseMoneyValue } from '@/lib/money'
 
 export default function BillCreateForm({
   vendors,
@@ -35,7 +36,7 @@ export default function BillCreateForm({
         },
         body: JSON.stringify({
           vendorId,
-          total: Number.parseFloat(total) || 0,
+          total: parseMoneyValue(total),
           date,
           dueDate: dueDate || null,
           status,

@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
 import { generateNextCurrencyId } from '@/lib/currency-number'
 import { generateNextLocationId } from '@/lib/location-number'
+import { normalizeItemOrderFlags, validateItemOrderFlags } from '@/lib/item-business-rules'
 import { getRequiredHeaders, isSupportedEntity } from '@/lib/master-data-import-schema'
 
 export const runtime = 'nodejs'
@@ -621,10 +622,13 @@ async function importItems(rows: Array<Record<string, string>>, mode: ImportMode
     const row = rows[index]
     const rowNumber = index + 2
     const name = row.name ?? ''
-    const itemId = (row.itemnumber ?? '').trim() || null
+    const itemId = (row.itemid ?? row.itemnumber ?? '').trim() || null
+    const externalId = (row.externalid ?? '').trim() || null
     const sku = (row.sku ?? '').trim() || null
     const currencyCode = (row.currencycode ?? '').toUpperCase()
     const subsidiaryCode = (row.subsidiarycode ?? '').toUpperCase()
+    const parsedDropShipItem = parseBoolean(row.dropshipitem, false)
+    const parsedSpecialOrderItem = parseBoolean(row.specialorderitem, false)
 
     if (!name) {
       errors.push({ row: rowNumber, message: 'name is required (cannot be empty)' })
@@ -654,6 +658,17 @@ async function importItems(rows: Array<Record<string, string>>, mode: ImportMode
       continue
     }
 
+    const orderFlagError = validateItemOrderFlags({ dropShipItem: parsedDropShipItem, specialOrderItem: parsedSpecialOrderItem })
+    if (orderFlagError) {
+      errors.push({ row: rowNumber, message: orderFlagError })
+      continue
+    }
+
+    const { dropShipItem, specialOrderItem } = normalizeItemOrderFlags({
+      dropShipItem: parsedDropShipItem,
+      specialOrderItem: parsedSpecialOrderItem,
+    })
+
     if (!dryRun) {
       // Check if record exists for mode validation
       let exists = false
@@ -680,12 +695,26 @@ async function importItems(rows: Array<Record<string, string>>, mode: ImportMode
       if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
         const updateData = {
           name,
+          externalId,
           description: row.description || null,
+          salesDescription: row.salesdescription || null,
+          purchaseDescription: row.purchasedescription || null,
           itemType: row.itemtype || 'service',
+          itemCategory: row.itemcategory || null,
           uom: row.uom || null,
+          primaryPurchaseUnit: row.primarypurchaseunit || null,
+          primarySaleUnit: row.primarysaleunit || null,
+          primaryUnitsType: row.primaryunitstype || null,
           listPrice: parseNumber(row.listprice, 0),
           currencyId: currencyCode ? currencyMap.get(currencyCode) ?? null : null,
           subsidiaryId: subsidiaryCode ? subsidiaryMap.get(subsidiaryCode) ?? null : null,
+          includeChildren: parseBoolean(row.includechildren, false),
+          line: row.line || null,
+          productLine: row.productline || null,
+          dropShipItem,
+          specialOrderItem,
+          canBeFulfilled: parseBoolean(row.canbefulfilled, false),
+          taxCode: row.taxcode || null,
           active: parseBoolean(row.active, true),
         }
 

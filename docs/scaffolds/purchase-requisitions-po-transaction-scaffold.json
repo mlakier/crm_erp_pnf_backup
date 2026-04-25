@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-04-24T05:48:09.932Z",
+  "entity": {
+    "name": "purchase-requisitions",
+    "slug": "purchase-requisitions",
+    "singularSlug": "purchase-requisition",
+    "pascal": "PurchaseRequisition",
+    "routePascal": "PurchaseRequisitions",
+    "constant": "PURCHASE_REQUISITION",
+    "routeConstant": "PURCHASE_REQUISITIONS",
+    "singularDisplayName": "Purchase Requisition",
+    "pluralDisplayName": "Purchase Requisitions",
+    "formKey": "purchaseRequisitionCreate",
+    "flow": "PTP",
+    "flowLabel": "Procure to Pay"
+  },
+  "purchaseOrderPattern": {
+    "referenceRoute": "src/app/purchase-orders/[id]/page.tsx",
+    "referenceNewRoute": "src/app/purchase-orders/new/page.tsx",
+    "referenceCreateClient": "src/components/PurchaseOrderCreatePageClient.tsx",
+    "referenceCustomizeMode": "src/components/PurchaseOrderDetailCustomizeMode.tsx",
+    "referenceCustomizationLib": "src/lib/purchase-order-detail-customization.ts",
+    "referenceCustomizationStore": "src/lib/purchase-order-detail-customization-store.ts"
+  },
+  "targetFiles": [
+    "src/lib/purchase-requisitions-detail-customization.ts",
+    "src/lib/purchase-requisitions-detail-customization-store.ts",
+    "src/app/api/config/purchase-requisitions-detail-customization/route.ts",
+    "src/components/PurchaseRequisitionDetailCustomizeMode.tsx",
+    "src/components/PurchaseRequisitionCreatePageClient.tsx",
+    "src/components/PurchaseRequisitionPageActions.tsx",
+    "src/app/purchase-requisitions/new/page.tsx",
+    "src/app/purchase-requisitions/[id]/page.tsx"
+  ]
+}

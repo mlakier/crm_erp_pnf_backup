@@ -1,0 +1,72 @@
+{
+  "entity": "framework-safe-update-sample",
+  "generatedAt": "2026-04-24T21:08:43.564Z",
+  "mode": "audit-and-write-safe-updates",
+  "checks": [
+    {
+      "id": "detail-shared-shell",
+      "label": "Detail page uses shared transaction detail framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-safe-update-sample\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "id": "new-shared-shell",
+      "label": "+ New uses shared transaction create framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-safe-update-sample\\new\\page.tsx",
+      "ok": true
+    },
+    {
+      "id": "customize-component",
+      "label": "Customize component exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSafeUpdateSampleDetailCustomizeMode.tsx",
+      "ok": true
+    },
+    {
+      "id": "customization-lib",
+      "label": "Customization lib exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-safe-update-sample-detail-customization.ts",
+      "ok": true
+    },
+    {
+      "id": "customization-store",
+      "label": "Customization store exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-safe-update-sample-detail-customization-store.ts",
+      "ok": true
+    },
+    {
+      "id": "customization-route",
+      "label": "Customization API route exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\api\\config\\framework-safe-update-sample-detail-customization\\route.ts",
+      "ok": true
+    },
+    {
+      "id": "customize-shared-engine",
+      "label": "Customize flow uses shared transaction customize engine",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSafeUpdateSampleDetailCustomizeMode.tsx",
+      "ok": true
+    },
+    {
+      "id": "detail-customize-wired",
+      "label": "Detail page recognizes customize mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-safe-update-sample\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "id": "detail-edit-wired",
+      "label": "Detail page recognizes edit mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-safe-update-sample\\[id]\\page.tsx",
+      "ok": true
+    }
+  ],
+  "missingFiles": [],
+  "needsUpdate": [],
+  "writes": [],
+  "updates": [],
+  "summary": {
+    "passed": 9,
+    "failed": 0,
+    "touched": 0,
+    "updated": 0,
+    "untouched": true
+  }
+}

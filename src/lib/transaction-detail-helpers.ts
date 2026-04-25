@@ -35,7 +35,7 @@ type SectionField = {
   fieldType?: TransactionFieldType
   sourceText?: string
   editable?: boolean
-  type?: 'text' | 'number' | 'select'
+  type?: 'text' | 'number' | 'select' | 'date' | 'email'
   options?: Array<{ value: string; label: string }>
   column?: number
   order?: number

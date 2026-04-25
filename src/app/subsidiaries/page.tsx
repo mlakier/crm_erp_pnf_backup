@@ -13,6 +13,7 @@ import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-help
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import SubsidiaryHierarchyModal from '@/components/SubsidiaryHierarchyModal'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { SUBSIDIARY_FORM_FIELDS } from '@/lib/subsidiary-form-customization'
 import { loadSubsidiaryFormCustomization } from '@/lib/subsidiary-form-customization-store'
 import { subsidiaryListDefinition } from '@/lib/master-data-list-definitions'
@@ -106,6 +107,7 @@ export default async function SubsidiariesPage({
         searchPlaceholder={subsidiaryListDefinition.searchPlaceholder}
         tableId={subsidiaryListDefinition.tableId}
         exportFileName={subsidiaryListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('subsidiaries', params.q, sort)}
         columns={subsidiaryListDefinition.columns}
         sort={sort}
         sortOptions={subsidiaryListDefinition.sortOptions}

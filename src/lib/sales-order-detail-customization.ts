@@ -1,4 +1,6 @@
 export type SalesOrderDetailFieldKey =
+  | 'id'
+  | 'customerId'
   | 'customerName'
   | 'customerNumber'
   | 'customerEmail'
@@ -8,13 +10,17 @@ export type SalesOrderDetailFieldKey =
   | 'customerPrimaryCurrency'
   | 'customerInactive'
   | 'number'
+  | 'userId'
+  | 'quoteId'
   | 'createdBy'
   | 'createdFrom'
-  | 'opportunity'
+  | 'opportunityId'
   | 'subsidiaryId'
   | 'currencyId'
   | 'status'
   | 'total'
+  | 'createdAt'
+  | 'updatedAt'
 
 export type SalesOrderLineColumnKey =
   | 'line'
@@ -25,6 +31,21 @@ export type SalesOrderLineColumnKey =
   | 'open-qty'
   | 'unit-price'
   | 'line-total'
+
+export type SalesOrderStatCardKey =
+  | 'total'
+  | 'createdFrom'
+  | 'lineCount'
+  | 'status'
+  | 'customerId'
+  | 'userId'
+  | 'quoteId'
+  | 'opportunityId'
+  | 'subsidiaryId'
+  | 'currencyId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'dbId'
 
 export type SalesOrderDetailFieldMeta = {
   id: SalesOrderDetailFieldKey
@@ -52,15 +73,36 @@ export type SalesOrderLineColumnCustomization = {
   order: number
 }
 
+export type SalesOrderStatCardSlot = {
+  id: string
+  metric: SalesOrderStatCardKey
+  visible: boolean
+  order: number
+}
+
 export type SalesOrderDetailCustomizationConfig = {
   formColumns: number
   sections: string[]
   sectionRows: Record<string, number>
   fields: Record<SalesOrderDetailFieldKey, SalesOrderDetailFieldCustomization>
   lineColumns: Record<SalesOrderLineColumnKey, SalesOrderLineColumnCustomization>
+  statCards: SalesOrderStatCardSlot[]
 }
 
 export const SALES_ORDER_DETAIL_FIELDS: SalesOrderDetailFieldMeta[] = [
+  {
+    id: 'id',
+    label: 'DB Id',
+    fieldType: 'text',
+    description: 'Internal database identifier for the sales order record.',
+  },
+  {
+    id: 'customerId',
+    label: 'Customer Id',
+    fieldType: 'text',
+    source: 'Customers master data',
+    description: 'Customer identifier linked to this sales order.',
+  },
   {
     id: 'customerName',
     label: 'Customer Name',
@@ -124,6 +166,20 @@ export const SALES_ORDER_DETAIL_FIELDS: SalesOrderDetailFieldMeta[] = [
     description: 'Unique sales order number used across OTC workflows.',
   },
   {
+    id: 'userId',
+    label: 'User Id',
+    fieldType: 'text',
+    source: 'Users master data',
+    description: 'User identifier for the creator/owner of the sales order.',
+  },
+  {
+    id: 'quoteId',
+    label: 'Quote Id',
+    fieldType: 'text',
+    source: 'Source transaction',
+    description: 'Quote identifier linked to this sales order.',
+  },
+  {
     id: 'createdBy',
     label: 'Created By',
     fieldType: 'text',
@@ -138,11 +194,11 @@ export const SALES_ORDER_DETAIL_FIELDS: SalesOrderDetailFieldMeta[] = [
     description: 'Source transaction that created this sales order.',
   },
   {
-    id: 'opportunity',
-    label: 'Opportunity',
+    id: 'opportunityId',
+    label: 'Opportunity Id',
     fieldType: 'text',
     source: 'Opportunities',
-    description: 'Opportunity linked through the source quote.',
+    description: 'Opportunity identifier linked through the source quote.',
   },
   {
     id: 'subsidiaryId',
@@ -171,6 +227,34 @@ export const SALES_ORDER_DETAIL_FIELDS: SalesOrderDetailFieldMeta[] = [
     fieldType: 'currency',
     description: 'Document total based on all sales order line amounts.',
   },
+  {
+    id: 'createdAt',
+    label: 'Created',
+    fieldType: 'date',
+    description: 'Date/time the sales order record was created.',
+  },
+  {
+    id: 'updatedAt',
+    label: 'Last Modified',
+    fieldType: 'date',
+    description: 'Date/time the sales order record was last modified.',
+  },
+]
+
+export const SALES_ORDER_STAT_CARDS: Array<{ id: SalesOrderStatCardKey; label: string }> = [
+  { id: 'total', label: 'Sales Order Total' },
+  { id: 'createdFrom', label: 'Created From' },
+  { id: 'lineCount', label: 'Sales Order Lines' },
+  { id: 'status', label: 'Status' },
+  { id: 'customerId', label: 'Customer Id' },
+  { id: 'userId', label: 'User Id' },
+  { id: 'quoteId', label: 'Quote Id' },
+  { id: 'opportunityId', label: 'Opportunity Id' },
+  { id: 'subsidiaryId', label: 'Subsidiary Id' },
+  { id: 'currencyId', label: 'Currency Id' },
+  { id: 'createdAt', label: 'Created' },
+  { id: 'updatedAt', label: 'Last Modified' },
+  { id: 'dbId', label: 'DB Id' },
 ]
 
 export const SALES_ORDER_LINE_COLUMNS: SalesOrderLineColumnMeta[] = [
@@ -186,8 +270,17 @@ export const SALES_ORDER_LINE_COLUMNS: SalesOrderLineColumnMeta[] = [
 
 export const DEFAULT_SALES_ORDER_DETAIL_SECTIONS = ['Customer', 'Sales Order Details'] as const
 
+export const DEFAULT_SALES_ORDER_STAT_CARD_METRICS: SalesOrderStatCardKey[] = [
+  'total',
+  'createdFrom',
+  'lineCount',
+  'status',
+]
+
 export function defaultSalesOrderDetailCustomization(): SalesOrderDetailCustomizationConfig {
   const sectionMap: Record<SalesOrderDetailFieldKey, string> = {
+    id: 'Sales Order Details',
+    customerId: 'Sales Order Details',
     customerName: 'Customer',
     customerNumber: 'Customer',
     customerEmail: 'Customer',
@@ -197,16 +290,22 @@ export function defaultSalesOrderDetailCustomization(): SalesOrderDetailCustomiz
     customerPrimaryCurrency: 'Customer',
     customerInactive: 'Customer',
     number: 'Sales Order Details',
+    userId: 'Sales Order Details',
+    quoteId: 'Sales Order Details',
     createdBy: 'Sales Order Details',
     createdFrom: 'Sales Order Details',
-    opportunity: 'Sales Order Details',
+    opportunityId: 'Sales Order Details',
     subsidiaryId: 'Sales Order Details',
     currencyId: 'Sales Order Details',
     status: 'Sales Order Details',
     total: 'Sales Order Details',
+    createdAt: 'Sales Order Details',
+    updatedAt: 'Sales Order Details',
   }
 
   const columnMap: Record<SalesOrderDetailFieldKey, number> = {
+    id: 1,
+    customerId: 2,
     customerName: 1,
     customerNumber: 1,
     customerEmail: 2,
@@ -215,17 +314,23 @@ export function defaultSalesOrderDetailCustomization(): SalesOrderDetailCustomiz
     customerPrimarySubsidiary: 1,
     customerPrimaryCurrency: 2,
     customerInactive: 3,
+    userId: 1,
+    quoteId: 3,
     number: 1,
     createdBy: 3,
     createdFrom: 2,
-    opportunity: 3,
+    opportunityId: 2,
     subsidiaryId: 1,
     currencyId: 2,
-    status: 1,
-    total: 2,
+    status: 3,
+    total: 1,
+    createdAt: 1,
+    updatedAt: 2,
   }
 
   const rowMap: Record<SalesOrderDetailFieldKey, number> = {
+    id: 0,
+    customerId: 0,
     customerName: 0,
     customerNumber: 1,
     customerEmail: 0,
@@ -234,14 +339,18 @@ export function defaultSalesOrderDetailCustomization(): SalesOrderDetailCustomiz
     customerPrimarySubsidiary: 2,
     customerPrimaryCurrency: 2,
     customerInactive: 1,
-    number: 0,
-    createdBy: 0,
-    createdFrom: 0,
-    opportunity: 1,
-    subsidiaryId: 1,
-    currencyId: 1,
-    status: 2,
-    total: 2,
+    userId: 2,
+    quoteId: 0,
+    number: 1,
+    createdBy: 1,
+    createdFrom: 1,
+    opportunityId: 2,
+    subsidiaryId: 3,
+    currencyId: 3,
+    status: 3,
+    total: 4,
+    createdAt: 2,
+    updatedAt: 4,
   }
 
   return {
@@ -249,7 +358,7 @@ export function defaultSalesOrderDetailCustomization(): SalesOrderDetailCustomiz
     sections: [...DEFAULT_SALES_ORDER_DETAIL_SECTIONS],
     sectionRows: {
       Customer: 3,
-      'Sales Order Details': 3,
+      'Sales Order Details': 5,
     },
     fields: Object.fromEntries(
       SALES_ORDER_DETAIL_FIELDS.map((field) => [
@@ -271,5 +380,11 @@ export function defaultSalesOrderDetailCustomization(): SalesOrderDetailCustomiz
         },
       ])
     ) as Record<SalesOrderLineColumnKey, SalesOrderLineColumnCustomization>,
+    statCards: DEFAULT_SALES_ORDER_STAT_CARD_METRICS.map((metric, index) => ({
+      id: `slot-${index + 1}`,
+      metric,
+      visible: true,
+      order: index,
+    })),
   }
 }

@@ -1,4 +1,4 @@
-export type FormKey = 'customerCreate' | 'contactCreate' | 'vendorCreate' | 'opportunityCreate' | 'itemCreate' | 'currencyCreate' | 'locationCreate' | 'chartOfAccountCreate' | 'departmentCreate' | 'employeeCreate' | 'subsidiaryCreate' | 'roleCreate' | 'userCreate'
+export type FormKey = 'customerCreate' | 'contactCreate' | 'vendorCreate' | 'opportunityCreate' | 'itemCreate' | 'currencyCreate' | 'accountingPeriodCreate' | 'locationCreate' | 'chartOfAccountCreate' | 'departmentCreate' | 'employeeCreate' | 'subsidiaryCreate' | 'roleCreate' | 'userCreate'
 
 export type FormRequirements = Record<string, boolean>
 export type FormRequirementsMap = Record<FormKey, FormRequirements>
@@ -60,6 +60,7 @@ export const FORM_REQUIREMENTS: FormRequirementsMap = {
   itemCreate: {
     name: true,
     itemId: false,
+    externalId: false,
     sku: false,
     salesDescription: false,
     purchaseDescription: false,
@@ -82,6 +83,7 @@ export const FORM_REQUIREMENTS: FormRequirementsMap = {
     performanceObligationType: false,
     standaloneSellingPrice: false,
     billingType: false,
+    billingTrigger: false,
     standardCost: false,
     averageCost: false,
     subsidiaryIds: false,
@@ -110,6 +112,17 @@ export const FORM_REQUIREMENTS: FormRequirementsMap = {
     isBase: false,
     inactive: false,
   },
+  accountingPeriodCreate: {
+    name: true,
+    startDate: true,
+    endDate: true,
+    subsidiaryId: false,
+    status: false,
+    closed: false,
+    arLocked: false,
+    apLocked: false,
+    inventoryLocked: false,
+  },
   locationCreate: {
     locationId: true,
     code: true,
@@ -130,6 +143,7 @@ export const FORM_REQUIREMENTS: FormRequirementsMap = {
     normalBalance: false,
     financialStatementSection: false,
     financialStatementGroup: false,
+    financialStatementCategory: false,
     subsidiaryIds: false,
     includeChildren: false,
     parentAccountId: false,
@@ -235,6 +249,7 @@ export const FORM_LABELS: Record<FormKey, string> = {
   opportunityCreate: 'Opportunity',
   itemCreate: 'Item',
   currencyCreate: 'Currency',
+  accountingPeriodCreate: 'Accounting Period',
   locationCreate: 'Location',
   chartOfAccountCreate: 'Chart Of Account',
   departmentCreate: 'Department',
@@ -297,6 +312,7 @@ export const FORM_FIELD_LABELS: Record<FormKey, Record<string, string>> = {
   itemCreate: {
     name: 'Item name',
     itemId: 'Item ID',
+    externalId: 'External ID',
     sku: 'SKU',
     salesDescription: 'Sales description',
     purchaseDescription: 'Purchase description',
@@ -319,13 +335,14 @@ export const FORM_FIELD_LABELS: Record<FormKey, Record<string, string>> = {
     performanceObligationType: 'Performance obligation type',
     standaloneSellingPrice: 'Standalone selling price',
     billingType: 'Billing type',
+    billingTrigger: 'Billing trigger',
     standardCost: 'Standard cost',
     averageCost: 'Average cost',
     subsidiaryIds: 'Subsidiaries',
     includeChildren: 'Include Children',
     departmentId: 'Department Id',
     locationId: 'Location Id',
-    line: 'Line',
+    line: 'Business Line',
     productLine: 'Product Line',
     dropShipItem: 'Drop Ship Item',
     specialOrderItem: 'Special Order Item',
@@ -347,6 +364,17 @@ export const FORM_FIELD_LABELS: Record<FormKey, Record<string, string>> = {
     isBase: 'Base currency',
     inactive: 'Inactive',
   },
+  accountingPeriodCreate: {
+    name: 'Name',
+    startDate: 'Start Date',
+    endDate: 'End Date',
+    subsidiaryId: 'Subsidiary',
+    status: 'Status',
+    closed: 'Closed',
+    arLocked: 'AR Locked',
+    apLocked: 'AP Locked',
+    inventoryLocked: 'Inventory Locked',
+  },
   locationCreate: {
     locationId: 'Location ID',
     code: 'Code',
@@ -367,6 +395,7 @@ export const FORM_FIELD_LABELS: Record<FormKey, Record<string, string>> = {
     normalBalance: 'Normal balance',
     financialStatementSection: 'Financial statement section',
     financialStatementGroup: 'Financial statement group',
+    financialStatementCategory: 'Financial statement category',
     subsidiaryIds: 'Subsidiaries',
     includeChildren: 'Include children',
     parentAccountId: 'Parent account',

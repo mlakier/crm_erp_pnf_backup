@@ -20,6 +20,7 @@ import {
   departmentColumnLabels,
   departmentListDefinition,
 } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 function joinSubsidiaryLabels(
@@ -165,6 +166,7 @@ export default async function DepartmentsPage({
         searchPlaceholder={departmentListDefinition.searchPlaceholder}
         tableId={departmentListDefinition.tableId}
         exportFileName={departmentListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('departments', params.q, sort)}
         columns={departmentListDefinition.columns}
         sort={sort}
         sortOptions={departmentListDefinition.sortOptions}

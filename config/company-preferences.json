@@ -2,87 +2,175 @@
   "idSettings": {
     "user": {
       "prefix": "USER-",
-      "digits": 5
+      "startingNumber": 1,
+      "digits": 5,
+      "autoIncrement": true,
+      "locked": true
     },
     "chartOfAccount": {
       "prefix": "GL-",
-      "digits": 5
+      "startingNumber": 1,
+      "digits": 5,
+      "autoIncrement": true,
+      "locked": true
     },
     "department": {
       "prefix": "DEPT-",
-      "digits": 5
+      "startingNumber": 1,
+      "digits": 5,
+      "autoIncrement": true,
+      "locked": true
     },
     "item": {
       "prefix": "ITEM-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 6,
+      "autoIncrement": true,
+      "locked": true
     },
     "contact": {
       "prefix": "CONT-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 6,
+      "autoIncrement": true,
+      "locked": true
     },
     "customer": {
       "prefix": "CUST-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 6,
+      "autoIncrement": true,
+      "locked": true
     },
     "vendor": {
       "prefix": "VEND-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 6,
+      "autoIncrement": true,
+      "locked": true
     },
     "subsidiary": {
       "prefix": "SUB-",
-      "digits": 3
+      "startingNumber": 1,
+      "digits": 3,
+      "autoIncrement": true,
+      "locked": true
     },
     "currency": {
       "prefix": "CUR-",
-      "digits": 5
+      "startingNumber": 1,
+      "digits": 5,
+      "autoIncrement": true,
+      "locked": true
     },
     "location": {
       "prefix": "LOC-",
-      "digits": 5
+      "startingNumber": 1,
+      "digits": 5,
+      "autoIncrement": true,
+      "locked": true
     },
     "lead": {
       "prefix": "LEAD-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 6,
+      "autoIncrement": true,
+      "locked": true
     },
     "opportunity": {
       "prefix": "OPP-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 6,
+      "autoIncrement": true,
+      "locked": true
     },
     "quote": {
       "prefix": "QUO-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "salesOrder": {
       "prefix": "SO-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "purchaseRequisition": {
       "prefix": "PR-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "purchaseOrder": {
       "prefix": "PO-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "invoice": {
       "prefix": "INV-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "invoiceReceipt": {
       "prefix": "IR-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "bill": {
       "prefix": "BILL-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
+    },
+    "journal": {
+      "prefix": "JE-",
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
+    },
+    "intercompanyJournal": {
+      "prefix": "IJE-",
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "fulfillment": {
       "prefix": "FUL-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     },
     "billPayment": {
       "prefix": "BP-",
-      "digits": 6
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     }
+  },
+  "moneySettings": {
+    "locale": "en-US",
+    "fallbackCurrencyCode": "USD",
+    "currencyDisplay": "code",
+    "negativeNumberFormat": "parentheses",
+    "decimalPlaces": 2,
+    "zeroFormat": "zero",
+    "showCurrencyOn": "all",
+    "negativeColor": "default",
+    "documentDateFormat": "locale"
   }
 }

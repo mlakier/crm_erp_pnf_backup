@@ -1,13 +1,4 @@
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-
-function getFileTimestamp() {
-  const now = new Date()
-  const pad = (value: number) => String(value).padStart(2, '0')
-  const datePart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  const timePart = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`
-  return `${datePart}_${timePart}`
-}
+import { exportDataToPDF } from '@/lib/export-data'
 
 export async function exportTableToPDF(tableId: string, fileName: string = 'export') {
   const table = document.querySelector<HTMLTableElement>(`table[id="${tableId}"]`)
@@ -38,34 +29,7 @@ export async function exportTableToPDF(tableId: string, fileName: string = 'expo
     })
 
   try {
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4',
-    })
-
-    autoTable(pdf, {
-      head: [headers],
-      body: rows,
-      startY: 10,
-      theme: 'striped',
-      styles: {
-        fontSize: 8,
-        cellPadding: 2,
-      },
-      headStyles: {
-        fillColor: [41, 128, 185],
-        textColor: [255, 255, 255],
-      },
-      margin: { top: 10, right: 8, bottom: 10, left: 8 },
-    })
-
-    // Generate filename with timestamp
-    const timestamp = getFileTimestamp()
-    const finalFileName = `${fileName.replace(/\.pdf$/, '')}_${timestamp}.pdf`
-
-    // Save PDF
-    pdf.save(finalFileName)
+    exportDataToPDF({ headers, rows }, fileName)
   } catch (error) {
     console.error('Error generating PDF:', error)
   }

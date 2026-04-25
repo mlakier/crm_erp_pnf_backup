@@ -11,7 +11,8 @@ import MasterDataSystemInfoSection from '@/components/MasterDataSystemInfoSectio
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import SystemNotesSection from '@/components/SystemNotesSection'
 import { RecordDetailStatCard } from '@/components/RecordDetailPanels'
-import { fmtCurrency, normalizePhone } from '@/lib/format'
+import { fmtCurrency, normalizePhone, toNumericValue } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import CustomerDetailCustomizeMode from '@/components/CustomerDetailCustomizeMode'
 import { loadCustomerFormCustomization } from '@/lib/customer-form-customization-store'
 import { CUSTOMER_FORM_FIELDS, type CustomerFormFieldKey } from '@/lib/customer-form-customization'
@@ -30,6 +31,7 @@ export default async function CustomerDetailPage({
   searchParams: Promise<{ edit?: string; customize?: string }>
 }) {
   const { id } = await params
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
@@ -66,7 +68,7 @@ export default async function CustomerDetailPage({
 
   if (!customer) notFound()
 
-  const pipelineValue = customer.opportunities.reduce((sum, opportunity) => sum + (opportunity.amount ?? 0), 0)
+  const pipelineValue = customer.opportunities.reduce((sum, opportunity) => sum + toNumericValue(opportunity.amount), 0)
   const detailHref = `/customers/${customer.id}`
   const sectionDescriptions: Record<string, string> = {
     Core: 'Primary identity fields for the customer record.',
@@ -237,7 +239,7 @@ export default async function CustomerDetailPage({
         <div className="mb-8 grid gap-4 sm:grid-cols-3">
           <RecordDetailStatCard label="Contacts" value={customer.contacts.length} />
           <RecordDetailStatCard label="Opportunities" value={customer.opportunities.length} />
-          <RecordDetailStatCard label="Pipeline value" value={fmtCurrency(pipelineValue)} accent />
+          <RecordDetailStatCard label="Pipeline value" value={fmtCurrency(pipelineValue, undefined, moneySettings)} accent />
         </div>
 
         <CustomerContactsSection
@@ -263,14 +265,14 @@ export default async function CustomerDetailPage({
             id: opportunity.id,
             name: opportunity.name,
             stage: opportunity.stage,
-            amount: opportunity.amount,
+            amount: toNumericValue(opportunity.amount, 0),
             closeDate: opportunity.closeDate ? opportunity.closeDate.toISOString() : null,
           }))}
           quotes={customer.quotes.map((quote) => ({
             id: quote.id,
             number: quote.number,
             status: quote.status,
-            total: quote.total,
+            total: toNumericValue(quote.total, 0),
             validUntil: quote.validUntil ? quote.validUntil.toISOString() : null,
             createdAt: quote.createdAt.toISOString(),
           }))}
@@ -278,7 +280,7 @@ export default async function CustomerDetailPage({
             id: salesOrder.id,
             number: salesOrder.number,
             status: salesOrder.status,
-            total: salesOrder.total,
+            total: toNumericValue(salesOrder.total, 0),
             createdAt: salesOrder.createdAt.toISOString(),
           }))}
           fulfillments={customer.salesOrders.flatMap((salesOrder) =>
@@ -295,7 +297,7 @@ export default async function CustomerDetailPage({
             id: invoice.id,
             number: invoice.number,
             status: invoice.status,
-            total: invoice.total,
+            total: toNumericValue(invoice.total, 0),
             dueDate: invoice.dueDate ? invoice.dueDate.toISOString() : null,
             paidDate: invoice.paidDate ? invoice.paidDate.toISOString() : null,
             createdAt: invoice.createdAt.toISOString(),
@@ -304,7 +306,7 @@ export default async function CustomerDetailPage({
             invoice.cashReceipts.map((receipt) => ({
               id: receipt.id,
               number: receipt.number,
-              amount: receipt.amount,
+              amount: toNumericValue(receipt.amount, 0),
               date: receipt.date.toISOString(),
               method: receipt.method,
               reference: receipt.reference,

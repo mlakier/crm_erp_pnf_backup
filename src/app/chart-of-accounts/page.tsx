@@ -11,6 +11,7 @@ import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/ma
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { chartOfAccountsListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { loadListOptionsForSource } from '@/lib/list-source'
 import { CHART_OF_ACCOUNTS_FORM_FIELDS } from '@/lib/chart-of-accounts-form-customization'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
@@ -34,6 +35,7 @@ export default async function ChartOfAccountsPage({
           { accountNumber: { contains: query, mode: 'insensitive' as const } },
           { name: { contains: query, mode: 'insensitive' as const } },
           { accountType: { contains: query, mode: 'insensitive' as const } },
+          { financialStatementCategory: { contains: query, mode: 'insensitive' as const } },
           { description: { contains: query, mode: 'insensitive' as const } },
         ],
       }
@@ -42,10 +44,11 @@ export default async function ChartOfAccountsPage({
   const total = await prisma.chartOfAccounts.count({ where })
   const pagination = getPagination(total, params.page)
 
-  const [accounts, accountOptions, accountTypeOptions, normalBalanceOptions, companyLogoPages] = await Promise.all([
+  const [accounts, accountOptions, accountTypeOptions, normalBalanceOptions, financialStatementCategoryOptions, companyLogoPages] = await Promise.all([
     prisma.chartOfAccounts.findMany({
       where,
       include: {
+        parentAccount: { select: { id: true, accountId: true, accountNumber: true, name: true } },
         parentSubsidiary: { select: { id: true, subsidiaryId: true, name: true } },
         subsidiaryAssignments: {
           include: { subsidiary: { select: { id: true, subsidiaryId: true, name: true } } },
@@ -66,6 +69,7 @@ export default async function ChartOfAccountsPage({
     prisma.chartOfAccounts.findMany({ orderBy: [{ accountId: 'asc' }, { accountNumber: 'asc' }], select: { id: true, accountId: true, accountNumber: true, name: true } }),
     loadListOptionsForSource(fieldMetaById.accountType),
     loadListOptionsForSource(fieldMetaById.normalBalance),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-COA-FS-CATEGORY' }),
     loadCompanyPageLogo(),
   ])
 
@@ -100,6 +104,7 @@ export default async function ChartOfAccountsPage({
         searchPlaceholder={chartOfAccountsListDefinition.searchPlaceholder}
         tableId={chartOfAccountsListDefinition.tableId}
         exportFileName={chartOfAccountsListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('chart-of-accounts', params.q, sort)}
         columns={chartOfAccountsListDefinition.columns}
         sort={sort}
         sortOptions={chartOfAccountsListDefinition.sortOptions}
@@ -115,6 +120,8 @@ export default async function ChartOfAccountsPage({
               <MasterDataHeaderCell columnId="normal-balance">Normal Balance</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="fs-section">FS Section</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="fs-group">FS Group</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="fs-category">FS Category</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="parent-account">Parent Account</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="posting">Posting</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="control">Control</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="inventory">Inventory</MasterDataHeaderCell>
@@ -143,6 +150,12 @@ export default async function ChartOfAccountsPage({
                   <MasterDataMutedCell columnId="normal-balance">{account.normalBalance ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="fs-section">{account.financialStatementSection ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="fs-group">{account.financialStatementGroup ?? '-'}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="fs-category">{account.financialStatementCategory ?? '-'}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="parent-account">
+                    {account.parentAccount
+                      ? `${account.parentAccount.accountId} - ${account.parentAccount.name}`
+                      : '-'}
+                  </MasterDataMutedCell>
                   <MasterDataMutedCell columnId="posting">{account.isPosting ? 'Yes' : 'No'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="control">{account.isControlAccount ? 'Yes' : 'No'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="inventory">{account.inventory ? 'Yes' : 'No'}</MasterDataMutedCell>
@@ -176,6 +189,7 @@ export default async function ChartOfAccountsPage({
                           { name: 'normalBalance', label: 'Normal Balance', value: account.normalBalance ?? '', type: 'select', options: normalBalanceOptions },
                           { name: 'financialStatementSection', label: 'FS Section', value: account.financialStatementSection ?? '' },
                           { name: 'financialStatementGroup', label: 'FS Group', value: account.financialStatementGroup ?? '' },
+                          { name: 'financialStatementCategory', label: 'FS Category', value: account.financialStatementCategory ?? '', type: 'select', options: financialStatementCategoryOptions },
                           { name: 'isPosting', label: 'Posting Account', value: String(account.isPosting), type: 'checkbox' },
                           { name: 'isControlAccount', label: 'Control Account', value: String(account.isControlAccount), type: 'checkbox' },
                           { name: 'allowsManualPosting', label: 'Allow Manual Posting', value: String(account.allowsManualPosting), type: 'checkbox' },

@@ -10,10 +10,14 @@ type SalesOrderOption = {
 
 export default function InvoiceCreateFromSalesOrderForm({
   salesOrders,
+  formId,
+  showInlineActions = true,
   onSuccess,
   onCancel,
 }: {
   salesOrders: SalesOrderOption[]
+  formId?: string
+  showInlineActions?: boolean
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -43,6 +47,10 @@ export default function InvoiceCreateFromSalesOrderForm({
 
       setSaving(false)
       onSuccess?.()
+      if (body?.id) {
+        router.push(`/invoices/${body.id}`)
+        return
+      }
       router.refresh()
     } catch {
       setError('Unable to create invoice')
@@ -51,7 +59,7 @@ export default function InvoiceCreateFromSalesOrderForm({
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form id={formId} className="space-y-4" onSubmit={handleSubmit}>
       <div>
         <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Sales Order</label>
         <select
@@ -72,24 +80,26 @@ export default function InvoiceCreateFromSalesOrderForm({
 
       {error ? <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p> : null}
 
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border px-4 py-2 text-sm font-medium"
-          style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving || salesOrders.length === 0}
-          className="rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
-          style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
-        >
-          {saving ? 'Creating...' : 'Create Invoice'}
-        </button>
-      </div>
+      {showInlineActions ? (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border px-4 py-2 text-sm font-medium"
+            style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving || salesOrders.length === 0}
+            className="rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            {saving ? 'Creating...' : 'Create Invoice'}
+          </button>
+        </div>
+      ) : null}
     </form>
   )
 }

@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import CreateModalButton from '@/components/CreateModalButton'
 import BillPaymentCreateForm from '@/components/BillPaymentCreateForm'
 import ColumnSelector from '@/components/ColumnSelector'
@@ -33,6 +34,7 @@ const BP_COLUMNS = [
 
 export default async function BillPaymentsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; sort?: string; page?: string }> }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
   const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -122,14 +124,14 @@ export default async function BillPaymentsPage({ searchParams }: { searchParams:
                   <td data-column="number" className="px-4 py-2 text-sm font-medium" style={{ color: 'var(--accent-primary-strong)' }}>{row.number}</td>
                   <td data-column="bill" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.bill?.number ?? '\u2014'}</td>
                   <td data-column="vendor" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.bill?.vendor?.name ?? '\u2014'}</td>
-                  <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(row.amount)}</td>
-                  <td data-column="date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(row.date).toLocaleDateString()}</td>
+                  <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(row.amount, undefined, moneySettings)}</td>
+                  <td data-column="date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.date, moneySettings)}</td>
                   <td data-column="method" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.method ?? '\u2014'}</td>
                   <td data-column="reference" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.reference ?? '\u2014'}</td>
                   <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.status}</td>
                   <td data-column="notes" className="px-4 py-2 text-sm truncate max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>{row.notes ?? '\u2014'}</td>
-                  <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(row.createdAt).toLocaleDateString()}</td>
-                  <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(row.updatedAt).toLocaleDateString()}</td>
+                  <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.createdAt, moneySettings)}</td>
+                  <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.updatedAt, moneySettings)}</td>
                   <td data-column="actions" className="px-4 py-2 text-sm"><span className="flex items-center gap-2">
                     <EditButton id={row.id} endpoint="/api/bill-payments" fields={[{ name: 'status', label: 'Status', type: 'select', value: row.status, options: statusOptions }, { name: 'amount', label: 'Amount', type: 'number', value: String(row.amount) }, { name: 'notes', label: 'Notes', type: 'text', value: row.notes ?? '' }]} />
                     <DeleteButton id={row.id} endpoint="/api/bill-payments" label={row.number} />
@@ -144,3 +146,4 @@ export default async function BillPaymentsPage({ searchParams }: { searchParams:
     </div>
   )
 }
+

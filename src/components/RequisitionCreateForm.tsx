@@ -14,6 +14,10 @@ export default function RequisitionCreateForm({
   departments,
   entities,
   currencies,
+  formId,
+  fullPage,
+  showFooterActions = true,
+  redirectBasePath,
   onSuccess,
   onCancel,
 }: {
@@ -22,6 +26,10 @@ export default function RequisitionCreateForm({
   departments: Department[]
   entities: Subsidiary[]
   currencies: Currency[]
+  formId?: string
+  fullPage?: boolean
+  showFooterActions?: boolean
+  redirectBasePath?: string
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -38,13 +46,13 @@ export default function RequisitionCreateForm({
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
     setError('')
     setSaving(true)
 
     try {
-      const res = await fetch('/api/purchase-requisitions', {
+      const response = await fetch('/api/purchase-requisitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,10 +69,16 @@ export default function RequisitionCreateForm({
         }),
       })
 
-      const body = await res.json()
-      if (!res.ok) {
+      const body = await response.json()
+      if (!response.ok) {
         setError(body.error || 'Unable to create requisition')
         setSaving(false)
+        return
+      }
+
+      if ((fullPage || redirectBasePath) && body?.id) {
+        router.push(`${redirectBasePath ?? '/purchase-requisitions'}/${body.id}`)
+        router.refresh()
         return
       }
 
@@ -76,60 +90,77 @@ export default function RequisitionCreateForm({
     }
   }
 
-  const inputCls = 'mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white focus:outline-none'
-  const labelCls = 'block text-sm font-medium'
+  const inputClassName =
+    'mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white focus:outline-none'
+  const labelClassName = 'block text-sm font-medium'
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form id={formId} className="space-y-4" onSubmit={handleSubmit}>
       <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
         Requisition number is generated automatically.
       </p>
 
       <div>
-        <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Title</label>
+        <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+          Title
+        </label>
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(event) => setTitle(event.target.value)}
           placeholder="Brief description of what is needed"
-          className={inputCls}
+          className={inputClassName}
           style={{ borderColor: 'var(--border-muted)' }}
         />
       </div>
 
       <div>
-        <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Description</label>
+        <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+          Description
+        </label>
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(event) => setDescription(event.target.value)}
           rows={3}
-          className={inputCls}
+          className={inputClassName}
           style={{ borderColor: 'var(--border-muted)', resize: 'vertical' }}
         />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Priority</label>
+          <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+            Priority
+          </label>
           <select
             value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-            className={inputCls}
+            onChange={(event) => setPriority(event.target.value)}
+            className={inputClassName}
             style={{ borderColor: 'var(--border-muted)' }}
           >
-            <option value="low" style={{ backgroundColor: 'var(--card-elevated)' }}>Low</option>
-            <option value="medium" style={{ backgroundColor: 'var(--card-elevated)' }}>Medium</option>
-            <option value="high" style={{ backgroundColor: 'var(--card-elevated)' }}>High</option>
-            <option value="urgent" style={{ backgroundColor: 'var(--card-elevated)' }}>Urgent</option>
+            <option value="low" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              Low
+            </option>
+            <option value="medium" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              Medium
+            </option>
+            <option value="high" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              High
+            </option>
+            <option value="urgent" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              Urgent
+            </option>
           </select>
         </div>
         <div>
-          <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Needed by date</label>
+          <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+            Needed by date
+          </label>
           <input
             type="date"
             value={neededByDate}
-            onChange={(e) => setNeededByDate(e.target.value)}
-            className={inputCls}
+            onChange={(event) => setNeededByDate(event.target.value)}
+            className={inputClassName}
             style={{ borderColor: 'var(--border-muted)' }}
           />
         </div>
@@ -137,33 +168,45 @@ export default function RequisitionCreateForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Department</label>
+          <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+            Department
+          </label>
           <select
             value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
-            className={inputCls}
+            onChange={(event) => setDepartmentId(event.target.value)}
+            className={inputClassName}
             style={{ borderColor: 'var(--border-muted)' }}
           >
-            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select department —</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {d.departmentId} – {d.name}
+            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              - Select department -
+            </option>
+            {departments.map((department) => (
+              <option
+                key={department.id}
+                value={department.id}
+                style={{ backgroundColor: 'var(--card-elevated)' }}
+              >
+                {department.departmentId} - {department.name}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Preferred vendor</label>
+          <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+            Preferred vendor
+          </label>
           <select
             value={vendorId}
-            onChange={(e) => setVendorId(e.target.value)}
-            className={inputCls}
+            onChange={(event) => setVendorId(event.target.value)}
+            className={inputClassName}
             style={{ borderColor: 'var(--border-muted)' }}
           >
-            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select vendor —</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {v.name}
+            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              - Select vendor -
+            </option>
+            {vendors.map((vendor) => (
+              <option key={vendor.id} value={vendor.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
+                {vendor.name}
               </option>
             ))}
           </select>
@@ -172,33 +215,41 @@ export default function RequisitionCreateForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Subsidiary</label>
+          <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+            Subsidiary
+          </label>
           <select
             value={subsidiaryId}
-            onChange={(e) => setSubsidiaryId(e.target.value)}
-            className={inputCls}
+            onChange={(event) => setSubsidiaryId(event.target.value)}
+            className={inputClassName}
             style={{ borderColor: 'var(--border-muted)' }}
           >
-            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select subsidiary —</option>
-            {entities.map((e) => (
-              <option key={e.id} value={e.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {e.subsidiaryId} – {e.name}
+            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              - Select subsidiary -
+            </option>
+            {entities.map((entity) => (
+              <option key={entity.id} value={entity.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
+                {entity.subsidiaryId} - {entity.name}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Currency</label>
+          <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+            Currency
+          </label>
           <select
             value={currencyId}
-            onChange={(e) => setCurrencyId(e.target.value)}
-            className={inputCls}
+            onChange={(event) => setCurrencyId(event.target.value)}
+            className={inputClassName}
             style={{ borderColor: 'var(--border-muted)' }}
           >
-            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>— Select currency —</option>
-            {currencies.map((c) => (
-              <option key={c.id} value={c.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
-                {c.code ?? c.currencyId} – {c.name}
+            <option value="" style={{ backgroundColor: 'var(--card-elevated)' }}>
+              - Select currency -
+            </option>
+            {currencies.map((currency) => (
+              <option key={currency.id} value={currency.id} style={{ backgroundColor: 'var(--card-elevated)' }}>
+                {currency.code ?? currency.currencyId} - {currency.name}
               </option>
             ))}
           </select>
@@ -206,36 +257,55 @@ export default function RequisitionCreateForm({
       </div>
 
       <div>
-        <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>Notes</label>
+        <label className={labelClassName} style={{ color: 'var(--text-secondary)' }}>
+          Notes
+        </label>
         <textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(event) => setNotes(event.target.value)}
           rows={2}
-          className={inputCls}
+          className={inputClassName}
           style={{ borderColor: 'var(--border-muted)', resize: 'vertical' }}
         />
       </div>
 
-      {error ? <p className="text-xs" style={{ color: 'var(--danger)' }}>{error}</p> : null}
+      {error ? (
+        <p className="text-xs" style={{ color: 'var(--danger)' }}>
+          {error}
+        </p>
+      ) : null}
 
-      <div className="flex justify-end gap-2 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border px-3 py-1.5 text-sm font-medium"
-          style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
-          style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-        >
-          {saving ? 'Creating…' : 'Create requisition'}
-        </button>
-      </div>
+      {showFooterActions ? (
+        <div className="flex justify-end gap-2 pt-2">
+          {fullPage ? (
+            <button
+              type="button"
+              onClick={() => router.push('/purchase-requisitions')}
+              className="rounded-md border px-3 py-1.5 text-sm font-medium"
+              style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-md border px-3 py-1.5 text-sm font-medium"
+              style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+          >
+            {saving ? 'Creating...' : 'Create requisition'}
+          </button>
+        </div>
+      ) : null}
     </form>
   )
 }

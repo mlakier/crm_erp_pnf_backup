@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import CreateModalButton from '@/components/CreateModalButton'
 import BillCreateForm from '@/components/BillCreateForm'
 import DeleteButton from '@/components/DeleteButton'
@@ -32,6 +33,7 @@ export default async function BillsPage({
   searchParams: Promise<{ q?: string; status?: string; sort?: string; page?: string }>
 }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
   const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -121,7 +123,7 @@ export default async function BillsPage({
         <div>
           <h1 className="text-xl font-semibold text-white">Bills</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {totalBills} total, {fmtCurrency(totalAmountAgg._sum.total ?? 0)} total payable
+            {totalBills} total, {fmtCurrency(totalAmountAgg._sum.total ?? 0, undefined, moneySettings)} total payable
           </p>
         </div>
         {vendors.length > 0 ? (
@@ -204,10 +206,10 @@ export default async function BillsPage({
                     </td>
                     <td data-column="vendor" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{bill.vendor.name}</td>
                     <td data-column="status" className="px-4 py-2 text-sm"><BillStatusBadge status={bill.status} /></td>
-                    <td data-column="total" className="px-4 py-2 text-sm text-white">{fmtCurrency(bill.total)}</td>
-                    <td data-column="bill-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(bill.date).toLocaleDateString()}</td>
-                    <td data-column="due-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '—'}</td>
-                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(bill.createdAt).toLocaleDateString()}</td>
+                    <td data-column="total" className="px-4 py-2 text-sm text-white">{fmtCurrency(bill.total, undefined, moneySettings)}</td>
+                    <td data-column="bill-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(bill.date, moneySettings)}</td>
+                    <td data-column="due-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '—'}</td>
+                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(bill.createdAt, moneySettings)}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         <EditButton
@@ -283,3 +285,4 @@ function BillStatusBadge({ status }: { status: string }) {
     </span>
   )
 }
+

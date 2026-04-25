@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency, fmtPhone, normalizePhone } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate, fmtPhone, normalizePhone } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import DeleteButton from '@/components/DeleteButton'
 import InlineRecordDetails, { type InlineRecordSection } from '@/components/InlineRecordDetails'
 import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
@@ -33,6 +34,7 @@ export default async function ContactDetailPage({
   searchParams: Promise<{ edit?: string; customize?: string }>
 }) {
   const { id } = await params
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
@@ -291,8 +293,8 @@ export default async function ContactDetailPage({
                             </Link>
                           </RecordDetailCell>
                           <RecordDetailCell>{opportunity.stage}</RecordDetailCell>
-                          <RecordDetailCell>{fmtCurrency(opportunity.amount)}</RecordDetailCell>
-                          <RecordDetailCell>{opportunity.closeDate ? new Date(opportunity.closeDate).toLocaleDateString() : '-'}</RecordDetailCell>
+                          <RecordDetailCell>{fmtCurrency(opportunity.amount, undefined, moneySettings)}</RecordDetailCell>
+                          <RecordDetailCell>{opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate, moneySettings) : '-'}</RecordDetailCell>
                         </tr>
                       ))}
                     </tbody>
@@ -343,8 +345,8 @@ export default async function ContactDetailPage({
                             </Link>
                           </RecordDetailCell>
                           <RecordDetailCell>{purchaseOrder.status}</RecordDetailCell>
-                          <RecordDetailCell>{fmtCurrency(purchaseOrder.total)}</RecordDetailCell>
-                          <RecordDetailCell>{new Date(purchaseOrder.createdAt).toLocaleDateString()}</RecordDetailCell>
+                          <RecordDetailCell>{fmtCurrency(purchaseOrder.total, undefined, moneySettings)}</RecordDetailCell>
+                          <RecordDetailCell>{fmtDocumentDate(purchaseOrder.createdAt, moneySettings)}</RecordDetailCell>
                         </tr>
                       ))}
                     </tbody>

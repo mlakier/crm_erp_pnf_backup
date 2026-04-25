@@ -10,10 +10,18 @@ type OpportunityOption = {
 
 export default function QuoteCreateFromOpportunityForm({
   opportunities,
+  formId,
+  fullPage,
+  showFooterActions = true,
+  redirectBasePath,
   onSuccess,
   onCancel,
 }: {
   opportunities: OpportunityOption[]
+  formId?: string
+  fullPage?: boolean
+  showFooterActions?: boolean
+  redirectBasePath?: string
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -41,6 +49,12 @@ export default function QuoteCreateFromOpportunityForm({
         return
       }
 
+      if ((fullPage || redirectBasePath) && body?.id) {
+        router.push(`${redirectBasePath ?? '/quotes'}/${body.id}`)
+        router.refresh()
+        return
+      }
+
       setSaving(false)
       onSuccess?.()
       router.refresh()
@@ -51,7 +65,11 @@ export default function QuoteCreateFromOpportunityForm({
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form id={formId} className="space-y-4" onSubmit={handleSubmit}>
+      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        Quote number is generated automatically from the selected opportunity.
+      </p>
+
       <div>
         <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Opportunity</label>
         <select
@@ -72,24 +90,37 @@ export default function QuoteCreateFromOpportunityForm({
 
       {error ? <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p> : null}
 
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border px-4 py-2 text-sm font-medium"
-          style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving || opportunities.length === 0}
-          className="rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
-          style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
-        >
-          {saving ? 'Creating...' : 'Create Quote'}
-        </button>
-      </div>
+      {showFooterActions ? (
+        <div className="grid grid-cols-2 gap-3">
+          {fullPage ? (
+            <button
+              type="button"
+              onClick={() => router.push('/quotes')}
+              className="rounded-md border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-md border px-4 py-2 text-sm font-medium"
+              style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={saving || opportunities.length === 0}
+            className="rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+          >
+            {saving ? 'Creating...' : 'Create Quote'}
+          </button>
+        </div>
+      ) : null}
     </form>
   )
 }

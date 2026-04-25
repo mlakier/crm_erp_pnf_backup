@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import DeleteButton from '@/components/DeleteButton'
 import EditButton from '@/components/EditButton'
 
 export default async function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const [bill, vendors] = await Promise.all([
     prisma.bill.findUnique({
       where: { id },
@@ -74,9 +76,9 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3 mb-8">
-          <StatCard label="Bill total" value={fmtCurrency(bill.total)} accent />
+          <StatCard label="Bill total" value={fmtCurrency(bill.total, undefined, moneySettings)} accent />
           <StatCard label="Status" value={bill.status} />
-          <StatCard label="Due date" value={bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '—'} />
+          <StatCard label="Due date" value={bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '—'} />
         </div>
 
         <div className="rounded-xl border p-6" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
@@ -84,11 +86,11 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
           <dl className="grid gap-4 sm:grid-cols-2">
             <Field label="Bill Id" value={bill.number} />
             <Field label="Vendor" value={bill.vendor.name} />
-            <Field label="Bill Date" value={new Date(bill.date).toLocaleDateString()} />
-            <Field label="Due Date" value={bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '—'} />
+            <Field label="Bill Date" value={fmtDocumentDate(bill.date, moneySettings)} />
+            <Field label="Due Date" value={bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '—'} />
             <Field label="Status" value={bill.status} />
-            <Field label="Created" value={new Date(bill.createdAt).toLocaleDateString()} />
-            <Field label="Last Modified" value={new Date(bill.updatedAt).toLocaleDateString()} />
+            <Field label="Created" value={fmtDocumentDate(bill.createdAt, moneySettings)} />
+            <Field label="Last Modified" value={fmtDocumentDate(bill.updatedAt, moneySettings)} />
             <Field label="Notes" value={bill.notes ?? '—'} />
           </dl>
         </div>
@@ -132,3 +134,4 @@ function BillStatusBadge({ status }: { status: string }) {
     </span>
   )
 }
+

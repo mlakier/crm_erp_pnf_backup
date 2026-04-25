@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import ColumnSelector from '@/components/ColumnSelector'
 import DeleteButton from '@/components/DeleteButton'
 import { fmtCurrency } from '@/lib/format'
+import { calcLineTotal, parseMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
 import type { PurchaseOrderLineColumnKey } from '@/lib/purchase-order-detail-customization'
 
 type PurchaseOrderLineItemRow = {
@@ -46,10 +47,9 @@ type DraftRowState = EditableRowState & {
 declare global {
   interface Window {
     __purchaseOrderLineItemSavers?: Record<string, () => Promise<{ ok: boolean; error?: string }>>
+    __transactionLineItemSavers?: Record<string, () => Promise<{ ok: boolean; error?: string }>>
   }
 }
-
-const TABLE_ID = 'purchase-order-line-items'
 
 const COLUMN_DEFINITIONS = [
   { id: 'line', label: 'Line', locked: true },
@@ -111,6 +111,13 @@ export default function PurchaseOrderLineItemsSection({
   lineColumns,
   draftMode,
   onDraftRowsChange,
+  lineItemApiBasePath = '/api/purchase-order-line-items',
+  deleteResource = 'purchase-order-line-items',
+  parentIdFieldName = 'purchaseOrderId',
+  sectionTitle = 'Line Items',
+  emptyMessage = 'No line items yet.',
+  tableId = 'purchase-order-line-items',
+  allowAddLines = editing,
 }: {
   rows: PurchaseOrderLineItemRow[]
   editing: boolean
@@ -129,6 +136,13 @@ export default function PurchaseOrderLineItemsSection({
       displayOrder: number
     }>
   ) => void
+  lineItemApiBasePath?: string
+  deleteResource?: string
+  parentIdFieldName?: string
+  sectionTitle?: string
+  emptyMessage?: string
+  tableId?: string
+  allowAddLines?: boolean
 }) {
   const [editableRows, setEditableRows] = useState<Record<string, EditableRowState>>({})
   const [draftRows, setDraftRows] = useState<DraftRowState[]>([])
@@ -168,9 +182,9 @@ export default function PurchaseOrderLineItemsSection({
         const state = editableRows[row.id]
         if (!editing) return row
 
-        const quantity = Math.max(0, Number((state?.quantity ?? String(row.quantity)) || 0))
-        const unitPrice = Math.max(0, Number((state?.unitPrice ?? String(row.unitPrice)) || 0))
-        const lineTotal = quantity * unitPrice
+        const quantity = parseQuantity(state?.quantity ?? row.quantity, 1, 1)
+        const unitPrice = parseMoneyValue(state?.unitPrice ?? row.unitPrice)
+        const lineTotal = calcLineTotal(quantity, unitPrice)
         const selectedItem =
           state?.itemRecordId != null ? itemOptions.find((item) => item.id === state.itemRecordId) : null
 
@@ -193,20 +207,20 @@ export default function PurchaseOrderLineItemsSection({
   const draftRowsForSave = useMemo(
     () =>
       draftRows.map((row, index) => {
-        const quantity = Math.max(0, Number(row.quantity || 0))
-        const unitPrice = Math.max(0, Number(row.unitPrice || 0))
+        const quantity = parseQuantity(row.quantity, 1, 1)
+        const unitPrice = parseMoneyValue(row.unitPrice)
         return {
           itemId: row.itemRecordId,
           description: row.description,
           quantity,
           unitPrice,
-          lineTotal: quantity * unitPrice,
+          lineTotal: calcLineTotal(quantity, unitPrice),
           displayOrder: rows.length + index,
         }
       }),
     [draftRows, rows.length]
   )
-  const total = [...displayRows, ...draftRowsForSave].reduce((sum, row) => sum + row.lineTotal, 0)
+  const total = sumMoney([...displayRows, ...draftRowsForSave].map((row) => row.lineTotal))
   const totalCount = rows.length + draftRows.length
 
   function getExistingRowState(row: PurchaseOrderLineItemRow): EditableRowState {
@@ -238,7 +252,7 @@ export default function PurchaseOrderLineItemsSection({
 
   const persistExistingRow = useCallback(async (row: PurchaseOrderLineItemRow, state: EditableRowState, displayOrder: number) => {
     try {
-      const response = await fetch(`/api/purchase-order-line-items?id=${encodeURIComponent(row.id)}`, {
+      const response = await fetch(`${lineItemApiBasePath}?id=${encodeURIComponent(row.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -276,7 +290,7 @@ export default function PurchaseOrderLineItemsSection({
       }))
       return { ok: false as const, error }
     }
-  }, [userId])
+  }, [lineItemApiBasePath, userId])
 
   function addDraftRow() {
     setDraftRows((prev) => [
@@ -299,11 +313,11 @@ export default function PurchaseOrderLineItemsSection({
 
   const persistDraftRow = useCallback(async (state: DraftRowState, displayOrder: number) => {
     try {
-      const response = await fetch('/api/purchase-order-line-items', {
+      const response = await fetch(lineItemApiBasePath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          purchaseOrderId,
+          [parentIdFieldName]: purchaseOrderId,
           itemId: state.itemRecordId,
           description: state.description,
           quantity: state.quantity,
@@ -326,7 +340,7 @@ export default function PurchaseOrderLineItemsSection({
       updateDraftRow(state.id, { error })
       return { ok: false as const, error }
     }
-  }, [purchaseOrderId, userId])
+  }, [lineItemApiBasePath, parentIdFieldName, purchaseOrderId, userId])
 
   function cancelDraftRow(draftId: string) {
     setDraftRows((prev) => prev.filter((row) => row.id !== draftId))
@@ -369,10 +383,15 @@ export default function PurchaseOrderLineItemsSection({
 
     window.__purchaseOrderLineItemSavers = window.__purchaseOrderLineItemSavers ?? {}
     window.__purchaseOrderLineItemSavers[purchaseOrderId] = saveAllLineItems
+    window.__transactionLineItemSavers = window.__transactionLineItemSavers ?? {}
+    window.__transactionLineItemSavers[purchaseOrderId] = saveAllLineItems
 
     return () => {
       if (window.__purchaseOrderLineItemSavers) {
         delete window.__purchaseOrderLineItemSavers[purchaseOrderId]
+      }
+      if (window.__transactionLineItemSavers) {
+        delete window.__transactionLineItemSavers[purchaseOrderId]
       }
     }
   }, [draftMode, draftRows, editableRows, editing, orderedRows, persistDraftRow, persistExistingRow, purchaseOrderId])
@@ -392,7 +411,7 @@ export default function PurchaseOrderLineItemsSection({
         style={{ borderColor: 'var(--border-muted)' }}
       >
         <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-white">Line Items</h2>
+          <h2 className="text-base font-semibold text-white">{sectionTitle}</h2>
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
@@ -404,7 +423,7 @@ export default function PurchaseOrderLineItemsSection({
           </button>
         </div>
         <div className="flex items-center gap-3">
-          {editing ? (
+          {editing && allowAddLines ? (
             <button
               type="button"
               onClick={addDraftRow}
@@ -424,17 +443,17 @@ export default function PurchaseOrderLineItemsSection({
           >
             {totalCount}
           </span>
-          <ColumnSelector tableId={TABLE_ID} columns={columns.map((column) => ({ ...column }))} />
+          <ColumnSelector tableId={tableId} columns={columns.map((column) => ({ ...column }))} />
         </div>
       </div>
 
       {!expanded ? null : rows.length === 0 && draftRows.length === 0 ? (
         <p className="px-6 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-          No line items yet.
+          {emptyMessage}
         </p>
       ) : (
         <>
-          <div id={TABLE_ID} className="overflow-x-auto overflow-y-visible" data-column-selector-table={TABLE_ID}>
+          <div id={tableId} className="overflow-x-auto overflow-y-visible" data-column-selector-table={tableId}>
             <table className="min-w-[1200px] w-full" data-disable-filter-sort="true">
               <thead>
                 <tr>
@@ -514,7 +533,7 @@ export default function PurchaseOrderLineItemsSection({
                             >
                               {'\u2630'}
                             </button>
-                            {!draftMode ? <DeleteButton resource="purchase-order-line-items" id={row.id} /> : null}
+                            {!draftMode ? <DeleteButton resource={deleteResource} id={row.id} /> : null}
                           </div>
                         </BodyCell>
                       ) : null}
@@ -523,8 +542,8 @@ export default function PurchaseOrderLineItemsSection({
                 })}
                 {editing
                   ? draftRows.map((draftRow, draftIndex) => {
-                      const quantity = Math.max(0, Number(draftRow.quantity || 0))
-                      const lineTotal = quantity * Math.max(0, Number(draftRow.unitPrice || 0))
+                      const quantity = parseQuantity(draftRow.quantity, 1, 1)
+                      const lineTotal = calcLineTotal(quantity, draftRow.unitPrice)
                       const lineNumber = rows.length + draftIndex + 1
 
                       return (

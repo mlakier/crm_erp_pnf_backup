@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { calcLineTotal, parseMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
 
 async function recalcOpportunityAmount(opportunityId: string) {
   const all = await prisma.opportunityLineItem.findMany({ where: { opportunityId } })
-  const total = all.reduce((sum, line) => sum + line.lineTotal, 0)
+  const total = sumMoney(all.map((line) => line.lineTotal))
   await prisma.opportunity.update({ where: { id: opportunityId }, data: { amount: total } })
 }
 
@@ -16,9 +17,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'opportunityId and description are required' }, { status: 400 })
     }
 
-    const qty = Math.max(1, Number.parseInt(String(quantity ?? '1'), 10) || 1)
-    const price = Number.parseFloat(String(unitPrice ?? '0')) || 0
-    const lineTotal = qty * price
+    const qty = parseQuantity(quantity)
+    const price = parseMoneyValue(unitPrice)
+    const lineTotal = calcLineTotal(qty, price)
 
     const lineItem = await prisma.opportunityLineItem.create({
       data: {

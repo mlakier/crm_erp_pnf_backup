@@ -97,6 +97,15 @@ function mergeWithDefaults(overrides: Partial<ItemFormCustomizationConfig>): Ite
     merged.sections = Array.from(new Set(inputSections))
   }
 
+  if (!merged.sections.includes('Billing')) {
+    const revenueRecognitionIndex = merged.sections.indexOf('Revenue Recognition')
+    if (revenueRecognitionIndex >= 0) {
+      merged.sections.splice(revenueRecognitionIndex + 1, 0, 'Billing')
+    } else {
+      merged.sections.push('Billing')
+    }
+  }
+
   const sectionRowsInput = overrides.sectionRows && typeof overrides.sectionRows === 'object'
     ? overrides.sectionRows as Record<string, unknown>
     : {}
@@ -119,6 +128,37 @@ function mergeWithDefaults(overrides: Partial<ItemFormCustomizationConfig>): Ite
       section: section ?? merged.fields[field.id].section,
       order: typeof override.order === 'number' && Number.isFinite(override.order) ? override.order : merged.fields[field.id].order,
       column: normalizeColumnCount(override.column, merged.fields[field.id].column),
+    }
+  }
+
+  for (const billingFieldId of ['billingType', 'billingTrigger'] as const) {
+    merged.fields[billingFieldId] = {
+      ...merged.fields[billingFieldId],
+      section: 'Billing',
+    }
+  }
+
+  merged.fields.directRevenuePosting = {
+    ...merged.fields.directRevenuePosting,
+    section: 'Revenue Recognition',
+    order: 3,
+    column: Math.min(merged.formColumns, 2),
+  }
+
+  const billingRowDefaults: Record<'billingType' | 'billingTrigger', number> = {
+    billingType: 0,
+    billingTrigger: 0,
+  }
+  const billingColumnDefaults: Record<'billingType' | 'billingTrigger', number> = {
+    billingType: 1,
+    billingTrigger: 2,
+  }
+
+  for (const billingFieldId of ['billingType', 'billingTrigger'] as const) {
+    const fieldConfig = merged.fields[billingFieldId]
+    if (fieldConfig.section === 'Billing') {
+      fieldConfig.order = billingRowDefaults[billingFieldId]
+      fieldConfig.column = Math.min(merged.formColumns, billingColumnDefaults[billingFieldId])
     }
   }
 

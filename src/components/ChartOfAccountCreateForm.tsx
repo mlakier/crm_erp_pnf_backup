@@ -34,6 +34,7 @@ export type ChartOfAccountCreateInitialValues = {
   normalBalance?: string | null
   financialStatementSection?: string | null
   financialStatementGroup?: string | null
+  financialStatementCategory?: string | null
   isPosting?: boolean
   isControlAccount?: boolean
   allowsManualPosting?: boolean
@@ -54,6 +55,7 @@ export default function ChartOfAccountCreateForm({
   accountOptions,
   accountTypeOptions,
   normalBalanceOptions,
+  financialStatementCategoryOptions,
   nextAccountId,
   redirectBasePath,
   initialValues,
@@ -66,6 +68,7 @@ export default function ChartOfAccountCreateForm({
   accountOptions: Array<{ id: string; accountId: string; accountNumber: string; name: string }>
   accountTypeOptions: SelectOption[]
   normalBalanceOptions: SelectOption[]
+  financialStatementCategoryOptions: SelectOption[]
   nextAccountId?: string
   redirectBasePath?: string
   initialValues?: ChartOfAccountCreateInitialValues
@@ -84,6 +87,7 @@ export default function ChartOfAccountCreateForm({
   const [normalBalance, setNormalBalance] = useState(initialValues?.normalBalance ?? '')
   const [financialStatementSection, setFinancialStatementSection] = useState(initialValues?.financialStatementSection ?? '')
   const [financialStatementGroup, setFinancialStatementGroup] = useState(initialValues?.financialStatementGroup ?? '')
+  const [financialStatementCategory, setFinancialStatementCategory] = useState(initialValues?.financialStatementCategory ?? '')
   const [isPosting, setIsPosting] = useState(initialValues?.isPosting ?? true)
   const [isControlAccount, setIsControlAccount] = useState(initialValues?.isControlAccount ?? false)
   const [allowsManualPosting, setAllowsManualPosting] = useState(initialValues?.allowsManualPosting ?? true)
@@ -273,6 +277,18 @@ export default function ChartOfAccountCreateForm({
             <input value={financialStatementGroup} onChange={(event) => setFinancialStatementGroup(event.target.value)} required={req('financialStatementGroup')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
+      case 'financialStatementCategory':
+        return (
+          <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <span>{fieldLabel('financialStatementCategory', 'FS Category')}</span>
+            <select value={financialStatementCategory} onChange={(event) => setFinancialStatementCategory(event.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+              <option value="">None</option>
+              {financialStatementCategoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        )
       case 'parentAccountId':
         return (
           <label key={fieldId} className="space-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -370,6 +386,7 @@ export default function ChartOfAccountCreateForm({
       ['normalBalance', normalBalance],
       ['financialStatementSection', financialStatementSection],
       ['financialStatementGroup', financialStatementGroup],
+      ['financialStatementCategory', financialStatementCategory],
       ['subsidiaryIds', selectedSubsidiaryIds.join(',')],
       ['includeChildren', includeChildren ? 'true' : 'false'],
       ['parentAccountId', parentAccountId],
@@ -407,6 +424,7 @@ export default function ChartOfAccountCreateForm({
           normalBalance,
           financialStatementSection,
           financialStatementGroup,
+          financialStatementCategory,
           isPosting,
           isControlAccount,
           allowsManualPosting,
@@ -441,6 +459,7 @@ export default function ChartOfAccountCreateForm({
       setNormalBalance('')
       setFinancialStatementSection('')
       setFinancialStatementGroup('')
+      setFinancialStatementCategory('')
       setIsPosting(true)
       setIsControlAccount(false)
       setAllowsManualPosting(true)

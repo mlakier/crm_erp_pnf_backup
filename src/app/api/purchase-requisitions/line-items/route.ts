@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { toNumericValue } from '@/lib/format'
+import { calcLineTotal, parseMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,9 +12,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'requisitionId and description are required' }, { status: 400 })
     }
 
-    const qty = Math.max(1, parseInt(quantity) || 1)
-    const price = parseFloat(unitPrice) || 0
-    const lineTotal = qty * price
+    const qty = parseQuantity(quantity)
+    const price = parseMoneyValue(unitPrice)
+    const lineTotal = calcLineTotal(qty, price)
 
     const lineItem = await prisma.requisitionLineItem.create({
       data: {
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     // Recalculate total on the requisition
     const allItems = await prisma.requisitionLineItem.findMany({ where: { requisitionId } })
-    const total = allItems.reduce((sum, item) => sum + item.lineTotal, 0)
+    const total = sumMoney(allItems.map((item) => toNumericValue(item.lineTotal)))
     await prisma.requisition.update({ where: { id: requisitionId }, data: { total } })
 
     return NextResponse.json(lineItem, { status: 201 })
@@ -50,7 +52,7 @@ export async function DELETE(request: NextRequest) {
 
     // Recalculate total
     const allItems = await prisma.requisitionLineItem.findMany({ where: { requisitionId: lineItem.requisitionId } })
-    const total = allItems.reduce((sum, item) => sum + item.lineTotal, 0)
+    const total = sumMoney(allItems.map((item) => toNumericValue(item.lineTotal)))
     await prisma.requisition.update({ where: { id: lineItem.requisitionId }, data: { total } })
 
     return NextResponse.json({ success: true })

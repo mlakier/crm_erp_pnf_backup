@@ -10,11 +10,12 @@ export default async function NewChartOfAccountsPage({
   searchParams: Promise<{ duplicateFrom?: string }>
 }) {
   const { duplicateFrom } = await searchParams
-  const [subsidiaries, accountOptions, accountTypeOptions, normalBalanceOptions, nextAccountId, duplicateAccount] = await Promise.all([
+  const [subsidiaries, accountOptions, accountTypeOptions, normalBalanceOptions, financialStatementCategoryOptions, nextAccountId, duplicateAccount] = await Promise.all([
     prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
     prisma.chartOfAccounts.findMany({ orderBy: [{ accountId: 'asc' }, { accountNumber: 'asc' }], select: { id: true, accountId: true, accountNumber: true, name: true } }),
     loadListOptionsForSource({ sourceType: 'system', sourceKey: 'accountType' }),
     loadListOptionsForSource({ sourceType: 'system', sourceKey: 'normalBalance' }),
+    loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-COA-FS-CATEGORY' }),
     generateNextChartOfAccountId(),
     duplicateFrom
       ? prisma.chartOfAccounts.findUnique({
@@ -33,6 +34,7 @@ export default async function NewChartOfAccountsPage({
         accountOptions={accountOptions}
         accountTypeOptions={accountTypeOptions}
         normalBalanceOptions={normalBalanceOptions}
+        financialStatementCategoryOptions={financialStatementCategoryOptions}
         nextAccountId={nextAccountId}
         redirectBasePath="/chart-of-accounts"
         initialValues={duplicateAccount ? {
@@ -47,6 +49,7 @@ export default async function NewChartOfAccountsPage({
           normalBalance: duplicateAccount.normalBalance,
           financialStatementSection: duplicateAccount.financialStatementSection,
           financialStatementGroup: duplicateAccount.financialStatementGroup,
+          financialStatementCategory: duplicateAccount.financialStatementCategory,
           isPosting: duplicateAccount.isPosting,
           isControlAccount: duplicateAccount.isControlAccount,
           allowsManualPosting: duplicateAccount.allowsManualPosting,

@@ -120,6 +120,7 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
     label: 'Items',
     fields: [
       { key: 'itemId', required: false },
+      { key: 'externalId', required: false },
       { key: 'sku', required: false },
       { key: 'name', required: true },
       { key: 'description', required: false },
@@ -147,9 +148,9 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
       { key: 'active', required: false },
     ],
     sampleRows: [
-      ['ITEM-001', 'SKU-001', 'Product A', 'Premium product variant', 'Customer-facing description', 'Vendor-facing description', 'product', 'Software', 'EA', 'EA', 'EA', 'Each', '99.99', 'USD', 'SUB-001,SUB-002', 'false', 'DEPT-00001', 'LOC-001', 'Cloud', 'Subscriptions', 'false', 'false', 'true', 'VEND-000001', 'AVATAX-SW', 'true'],
-      ['ITEM-002', 'SKU-002', 'Service B', 'Consulting services', 'Professional services', 'Contractor services', 'service', 'Services', 'HR', 'Hour', 'Hour', 'Time', '150.00', 'USD', 'SUB-001', 'false', 'DEPT-00002', 'LOC-001', 'Consulting', 'Implementation', 'false', 'false', 'false', 'VEND-000002', 'AVATAX-SVC', 'true'],
-      ['', 'SKU-003', 'Product C', 'Entry level product', 'Starter product', 'Inventory replenishment description', 'product', 'Hardware', 'EA', 'EA', 'EA', 'Each', '49.99', 'EUR', 'SUB-002', 'true', '', '', 'Devices', 'Entry', 'true', 'true', 'true', '', 'AVATAX-HW', 'true'],
+      ['ITEM-001', '', 'SKU-001', 'Product A', 'Premium product variant', 'Customer-facing description', 'Vendor-facing description', 'product', 'Software', 'EA', 'EA', 'EA', 'Each', '99.99', 'USD', 'SUB-001,SUB-002', 'false', 'DEPT-00001', 'LOC-001', 'Cloud', 'Subscriptions', 'false', 'false', 'true', 'VEND-000001', 'AVATAX-SW', 'true'],
+      ['ITEM-002', '', 'SKU-002', 'Service B', 'Consulting services', 'Professional services', 'Contractor services', 'service', 'Services', 'HR', 'Hour', 'Hour', 'Time', '150.00', 'USD', 'SUB-001', 'false', 'DEPT-00002', 'LOC-001', 'Consulting', 'Implementation', 'false', 'false', 'false', 'VEND-000002', 'AVATAX-SVC', 'true'],
+      ['', '', 'SKU-003', 'Product C', 'Entry level product', 'Starter product', 'Inventory replenishment description', 'product', 'Hardware', 'EA', 'EA', 'EA', 'Each', '49.99', 'EUR', 'SUB-002', 'true', '', '', 'Devices', 'Entry', 'true', 'false', 'false', '', 'AVATAX-HW', 'true'],
     ],
   },
   employees: {

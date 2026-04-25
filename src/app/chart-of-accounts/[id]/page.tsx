@@ -85,7 +85,7 @@ export default async function ChartOfAccountDetailPage({
         },
       },
     }),
-    loadFieldOptionsMap(fieldMetaById, ['accountType', 'normalBalance']),
+    loadFieldOptionsMap(fieldMetaById, ['accountType', 'normalBalance', 'financialStatementCategory']),
     loadChartOfAccountsFormCustomization(),
     loadFormRequirements(),
   ])
@@ -159,6 +159,15 @@ export default async function ChartOfAccountDetailPage({
       label: 'FS Group',
       value: account.financialStatementGroup ?? '',
       helpText: 'More granular reporting group under the statement section.',
+    },
+    financialStatementCategory: {
+      name: 'financialStatementCategory',
+      label: 'FS Category',
+      value: account.financialStatementCategory ?? '',
+      type: 'select',
+      options: fieldOptions.financialStatementCategory ?? [],
+      helpText: 'Detailed reporting category such as Cash, AR, Inventory, AP, or FX.',
+      sourceText: getFieldSourceText(fieldMetaById, 'financialStatementCategory'),
     },
     subsidiaryIds: {
       name: 'subsidiaryIds',

@@ -27,7 +27,9 @@ export type ManagedListDefinition = {
 const STATIC_MANAGED_LISTS: ManagedListDefinition[] = [
   { key: 'BILL-STATUS', label: 'Bill Status', whereUsed: ['Bills'] },
   { key: 'BILL-PAYMENT-STATUS', label: 'Bill Payment Status', whereUsed: ['Bill Payments'] },
+  { key: 'ACCOUNTING-PERIOD-STATUS', label: 'Accounting Period Status', whereUsed: ['Accounting Periods'] },
   { key: 'COA-CASH-FLOW-CATEGORY', label: 'Cash Flow Category', whereUsed: ['Chart of Accounts'] },
+  { key: 'COA-FS-CATEGORY', label: 'Financial Statement Category', whereUsed: ['Chart of Accounts'] },
   { key: 'COA-FS-GROUP', label: 'Financial Statement Group', whereUsed: ['Chart of Accounts'] },
   { key: 'COA-FS-SECTION', label: 'Financial Statement Section', whereUsed: ['Chart of Accounts'] },
   { key: 'COA-SUBLEDGER-TYPE', label: 'Required Subledger Type', whereUsed: ['Chart of Accounts'] },
@@ -38,6 +40,7 @@ const STATIC_MANAGED_LISTS: ManagedListDefinition[] = [
   { key: 'INV-RECEIPT-STATUS', label: 'Invoice Receipt Status', whereUsed: ['Invoice Receipts'] },
   { key: 'INV-STATUS', label: 'Invoice Status', whereUsed: ['Invoices'] },
   { key: 'JOURNAL-STATUS', label: 'Journal Status', whereUsed: ['Journals'] },
+  { key: 'JOURNAL-SOURCE-TYPE', label: 'Journal Source Type', whereUsed: ['Journals', 'Intercompany Journals'] },
   { key: 'LEAD-RAT', label: 'Lead Rating', whereUsed: ['Leads'] },
   { key: 'LEAD-SRC', label: 'Lead Source', whereUsed: ['Leads'] },
   { key: 'LEAD-STATUS', label: 'Lead Status', whereUsed: ['Leads'] },
@@ -52,8 +55,10 @@ const STATIC_MANAGED_LISTS: ManagedListDefinition[] = [
 ]
 
 const MANAGED_LIST_DEFAULT_VALUES: Record<string, string[]> = {
+  'ACCOUNTING-PERIOD-STATUS': ['Open', 'Closed', 'Locked'],
   'BILL-PAYMENT-STATUS': ['Pending', 'Processed', 'Cleared', 'Void'],
   'COA-CASH-FLOW-CATEGORY': ['Operating', 'Investing', 'Financing', 'Non-Cash'],
+  'COA-FS-CATEGORY': ['Cash', 'Accounts Receivable', 'Inventory', 'Prepaids', 'Other Current Assets', 'Fixed Assets', 'Accounts Payable', 'Accrued Liabilities', 'Deferred Revenue', 'Debt', 'Equity', 'Revenue', 'Cost of Sales', 'Operating Expenses', 'Depreciation', 'Interest', 'FX', 'Other Income', 'Other Expense'],
   'COA-FS-GROUP': ['Current Assets', 'Non-Current Assets', 'Current Liabilities', 'Non-Current Liabilities', 'Equity', 'Revenue', 'Cost of Goods Sold', 'Operating Expenses', 'Other Income and Expense'],
   'COA-FS-SECTION': ['Assets', 'Liabilities', 'Equity', 'Revenue', 'Expenses', 'Other Income and Expense'],
   'COA-SUBLEDGER-TYPE': ['Customer', 'Vendor', 'Employee', 'Item', 'Project', 'Department', 'Subsidiary'],
@@ -63,6 +68,7 @@ const MANAGED_LIST_DEFAULT_VALUES: Record<string, string[]> = {
   'EXCHANGE-RATE-TYPE': ['Spot', 'Average', 'Closing', 'Budget'],
   'FULFILL-STATUS': ['Pending', 'Shipped', 'Delivered', 'Cancelled'],
   'JOURNAL-STATUS': ['Draft', 'Posted', 'Void'],
+  'JOURNAL-SOURCE-TYPE': ['Manual', 'Allocation', 'Accrual', 'Reclass', 'Elimination', 'Recurring'],
   'ITEM-RECOGNITION-METHOD': ['Point in Time', 'Over Time'],
   'ITEM-RECOGNITION-TRIGGER': ['Sales Order Approval', 'Invoice Posting', 'Fulfillment', 'Manual'],
   'ITEM-REV-ARRANGEMENT-TRIGGER': ['Sales Order Approval', 'Invoice Posting', 'Fulfillment', 'Manual'],

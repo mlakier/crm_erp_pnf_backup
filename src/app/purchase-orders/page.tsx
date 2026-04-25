@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import DeleteButton from '@/components/DeleteButton'
 import EditButton from '@/components/EditButton'
 import ColumnSelector from '@/components/ColumnSelector'
@@ -32,6 +33,7 @@ export default async function PurchaseOrdersPage({
   searchParams: Promise<{ q?: string; status?: string; sort?: string; page?: string }>
 }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
   const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -118,7 +120,7 @@ export default async function PurchaseOrdersPage({
         <div>
           <h1 className="text-xl font-semibold text-white">Purchase Orders</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Track procurement orders, status, and supplier relationships.</p>
-          <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>{totalPurchaseOrders} orders, {fmtCurrency(totalSpend)} total spend</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>{totalPurchaseOrders} orders, {fmtCurrency(totalSpend, undefined, moneySettings)} total spend</p>
         </div>
         <Link
           href="/purchase-orders/new"
@@ -201,12 +203,12 @@ export default async function PurchaseOrdersPage({
                         </td>
                         <td data-column="vendor" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{po.vendor.name}</td>
                         <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{po.status}</td>
-                        <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(po.total)}</td>
+                        <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(po.total, undefined, moneySettings)}</td>
                         <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(po).subsidiary?.name ?? '—'}</td>
                         <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(po).currency?.code ?? '—'}</td>
                         <td data-column="requisition" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(po).requisition?.number ?? '—'}</td>
-                        <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(po.createdAt).toLocaleDateString()}</td>
-                        <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(po.updatedAt).toLocaleDateString()}</td>
+                        <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(po.createdAt, moneySettings)}</td>
+                        <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(po.updatedAt, moneySettings)}</td>
                         <td data-column="actions" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                           <div className="flex items-center gap-2">
                             <EditButton
@@ -240,3 +242,4 @@ export default async function PurchaseOrdersPage({
     </div>
   )
 }
+

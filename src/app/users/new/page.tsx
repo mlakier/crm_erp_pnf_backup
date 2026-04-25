@@ -4,6 +4,7 @@ import UserCreateForm from '@/components/UserCreateForm'
 import { loadListOptionsForSource } from '@/lib/list-source'
 import { loadFormRequirements } from '@/lib/form-requirements-store'
 import { loadUserFormCustomization } from '@/lib/user-form-customization-store'
+import { toNumericValue } from '@/lib/format'
 
 export default async function NewUserPage({
   searchParams,
@@ -68,7 +69,7 @@ export default async function NewUserPage({
           defaultSubsidiaryId: duplicateUser.defaultSubsidiaryId,
           subsidiaryIds: duplicateUser.subsidiaryAssignments.map((assignment) => assignment.subsidiaryId),
           includeChildren: duplicateUser.includeChildren,
-          approvalLimit: duplicateUser.approvalLimit,
+          approvalLimit: duplicateUser.approvalLimit == null ? null : toNumericValue(duplicateUser.approvalLimit),
           approvalCurrencyId: duplicateUser.approvalCurrencyId,
           delegatedApproverUserId: duplicateUser.delegatedApproverUserId,
           delegationStartDate: duplicateUser.delegationStartDate?.toISOString().slice(0, 10),

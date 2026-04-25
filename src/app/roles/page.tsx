@@ -12,6 +12,7 @@ import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadRoleFormCustomization } from '@/lib/role-form-customization-store'
 import { roleListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { loadListOptionsForSource } from '@/lib/list-source'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
@@ -84,6 +85,7 @@ export default async function RolesPage({
         searchPlaceholder={roleListDefinition.searchPlaceholder}
         tableId={roleListDefinition.tableId}
         exportFileName={roleListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('roles', params.q, sort)}
         columns={roleListDefinition.columns}
         sort={sort}
         sortOptions={roleListDefinition.sortOptions}

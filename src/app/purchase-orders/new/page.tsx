@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import PurchaseOrderCreatePageClient from '@/components/PurchaseOrderCreatePageClient'
 import { generateNextPurchaseOrderNumber } from '@/lib/purchase-order-number'
 import { loadPurchaseOrderDetailCustomization } from '@/lib/purchase-order-detail-customization-store'
+import { toNumericValue } from '@/lib/format'
 
 export default async function NewPurchaseOrderPage() {
   const [adminUser, vendors, subsidiaries, items, nextNumber, customization] = await Promise.all([
@@ -49,7 +50,7 @@ export default async function NewPurchaseOrderPage() {
       userLabel={userLabel}
       vendors={vendors}
       subsidiaries={subsidiaries}
-      items={items}
+      items={items.map((item) => ({ ...item, listPrice: toNumericValue(item.listPrice, 0) }))}
       customization={customization}
     />
   )

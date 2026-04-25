@@ -3,7 +3,12 @@ import { DEFAULT_ID_SETTINGS } from '@/lib/company-preferences-definitions'
 import { loadCompanyPreferencesSettings } from '@/lib/company-preferences-store'
 
 export function formatIdentifier(sequence: number, config: IdSetting) {
-  return `${config.prefix}${String(sequence).padStart(config.digits, '0')}`
+  const normalizedSequence = Math.max(config.startingNumber, Math.trunc(sequence))
+  const suffix =
+    config.digits > 0
+      ? String(normalizedSequence).padStart(config.digits, '0')
+      : String(normalizedSequence)
+  return `${config.prefix}${suffix}`
 }
 
 export function extractIdentifierSequence(value: string | null | undefined, config: IdSetting) {
@@ -15,7 +20,7 @@ export function extractIdentifierSequence(value: string | null | undefined, conf
 }
 
 export function getNextSequenceFromValues(values: Array<string | null | undefined>, config: IdSetting) {
-  let maxSequence = 0
+  let maxSequence = config.startingNumber - 1
 
   for (const value of values) {
     const sequence = extractIdentifierSequence(value, config)
@@ -24,7 +29,7 @@ export function getNextSequenceFromValues(values: Array<string | null | undefine
     }
   }
 
-  return maxSequence + 1
+  return Math.max(config.startingNumber, maxSequence + 1)
 }
 
 export async function loadIdSetting(key: IdSettingKey) {

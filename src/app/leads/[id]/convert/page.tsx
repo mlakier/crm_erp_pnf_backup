@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import LeadConvertOpportunityForm from '@/components/LeadConvertOpportunityForm'
 import { loadListOptionsForSource } from '@/lib/list-source'
+import { toNumericValue } from '@/lib/format'
 
 function leadDisplayName(lead: {
   company: string | null
@@ -82,7 +83,7 @@ export default async function LeadConvertPage({ params }: { params: Promise<{ id
             leadId={lead.id}
             defaultName={opportunityNameFromLead(lead)}
             defaultStage={defaultStage}
-            items={items}
+            items={items.map((item) => ({ ...item, listPrice: toNumericValue(item.listPrice, 0) }))}
             stageOptions={stageOptions}
           />
         </section>

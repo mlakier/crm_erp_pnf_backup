@@ -4,21 +4,23 @@
     "Core",
     "Pricing And Costing",
     "Revenue Recognition",
+    "Billing",
     "Accounting",
     "Operational"
   ],
   "sectionRows": {
-    "Core": 3,
+    "Core": 4,
     "Operational": 6,
     "Pricing And Costing": 3,
-    "Revenue Recognition": 4,
+    "Billing": 1,
+    "Revenue Recognition": 5,
     "Accounting": 3
   },
   "fields": {
     "name": {
       "visible": true,
       "section": "Core",
-      "order": 1,
+      "order": 0,
       "column": 1
     },
     "itemId": {
@@ -27,17 +29,23 @@
       "order": 0,
       "column": 2
     },
+    "externalId": {
+      "visible": true,
+      "section": "Core",
+      "order": 2,
+      "column": 3
+    },
     "sku": {
       "visible": true,
       "section": "Core",
       "order": 0,
-      "column": 1
+      "column": 3
     },
     "description": {
       "visible": true,
       "section": "Core",
-      "order": 0,
-      "column": 3
+      "order": 1,
+      "column": 1
     },
     "salesDescription": {
       "visible": true,
@@ -48,8 +56,8 @@
     "purchaseDescription": {
       "visible": true,
       "section": "Core",
-      "order": 2,
-      "column": 2
+      "order": 3,
+      "column": 1
     },
     "inactive": {
       "visible": true,
@@ -67,13 +75,13 @@
       "visible": true,
       "section": "Core",
       "order": 2,
-      "column": 3
+      "column": 2
     },
     "uom": {
       "visible": true,
       "section": "Pricing And Costing",
-      "order": 0,
-      "column": 3
+      "order": 1,
+      "column": 1
     },
     "primaryPurchaseUnit": {
       "visible": true,
@@ -102,86 +110,92 @@
     "revenueStream": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 0,
-      "column": 2
+      "order": 2,
+      "column": 3
     },
     "recognitionMethod": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 0,
-      "column": 3
+      "order": 2,
+      "column": 2
     },
     "recognitionTrigger": {
       "visible": true,
       "section": "Revenue Recognition",
       "order": 1,
-      "column": 1
+      "column": 2
     },
     "defaultRevRecTemplateId": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 1,
+      "order": 3,
       "column": 2
     },
     "defaultTermMonths": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 1,
+      "order": 3,
       "column": 3
     },
     "createRevenueArrangementOn": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 0,
+      "order": 1,
       "column": 1
     },
     "createForecastPlanOn": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 2,
+      "order": 3,
       "column": 1
     },
     "createRevenuePlanOn": {
       "visible": true,
       "section": "Revenue Recognition",
       "order": 2,
-      "column": 2
+      "column": 1
     },
     "allocationEligible": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 2,
+      "order": 4,
       "column": 3
     },
     "performanceObligationType": {
       "visible": true,
       "section": "Revenue Recognition",
-      "order": 3,
-      "column": 1
+      "order": 1,
+      "column": 3
     },
     "standaloneSellingPrice": {
       "visible": true,
       "section": "Pricing And Costing",
-      "order": 1,
+      "order": 0,
       "column": 3
     },
     "billingType": {
       "visible": true,
-      "section": "Revenue Recognition",
-      "order": 3,
+      "section": "Billing",
+      "order": 0,
+      "column": 1
+    },
+    "billingTrigger": {
+      "visible": true,
+      "section": "Billing",
+      "order": 0,
       "column": 2
     },
     "standardCost": {
       "visible": true,
       "section": "Pricing And Costing",
       "order": 1,
-      "column": 1
+      "column": 2
     },
     "averageCost": {
       "visible": true,
       "section": "Pricing And Costing",
       "order": 1,
-      "column": 2
+      "column": 3
     },
     "subsidiaryIds": {
       "visible": true,
@@ -217,12 +231,12 @@
       "visible": true,
       "section": "Operational",
       "order": 2,
-      "column": 1
+      "column": 2
     },
     "productLine": {
       "visible": true,
       "section": "Operational",
-      "order": 2,
+      "order": 3,
       "column": 2
     },
     "dropShipItem": {
@@ -246,7 +260,7 @@
     "preferredVendorId": {
       "visible": true,
       "section": "Operational",
-      "order": 3,
+      "order": 2,
       "column": 1
     },
     "incomeAccountId": {
@@ -281,9 +295,9 @@
     },
     "directRevenuePosting": {
       "visible": true,
-      "section": "Accounting",
+      "section": "Revenue Recognition",
       "order": 0,
-      "column": 2
+      "column": 1
     }
   }
 }

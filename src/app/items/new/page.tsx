@@ -43,6 +43,7 @@ export default async function NewItemPage({
       'createRevenuePlanOn',
       'performanceObligationType',
       'billingType',
+      'billingTrigger',
       'line',
       'productLine',
     ]),
@@ -75,6 +76,7 @@ export default async function NewItemPage({
         redirectBasePath="/items"
         initialValues={duplicateItem ? {
           name: `Copy of ${duplicateItem.name}`,
+          externalId: '',
           sku: duplicateItem.sku,
           description: duplicateItem.description,
           salesDescription: duplicateItem.salesDescription,
@@ -99,6 +101,7 @@ export default async function NewItemPage({
           performanceObligationType: duplicateItem.performanceObligationType,
           standaloneSellingPrice: duplicateItem.standaloneSellingPrice != null ? String(duplicateItem.standaloneSellingPrice) : '',
           billingType: duplicateItem.billingType,
+          billingTrigger: duplicateItem.billingTrigger,
           standardCost: duplicateItem.standardCost != null ? String(duplicateItem.standardCost) : '',
           averageCost: duplicateItem.averageCost != null ? String(duplicateItem.averageCost) : '',
           subsidiaryIds: duplicateItem.itemSubsidiaries.map((assignment) => assignment.subsidiaryId),

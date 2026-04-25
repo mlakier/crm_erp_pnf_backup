@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { isFieldRequired } from '@/lib/form-requirements'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown'
+import { isInventoryItemType, validateItemInventoryRules, validateItemRevenueTriggerSequence } from '@/lib/item-business-rules'
 import {
   defaultItemFormCustomization,
   ITEM_FORM_FIELDS,
@@ -27,6 +28,7 @@ type ItemFormCustomizationResponse = {
 
 export type ItemCreateInitialValues = {
   name?: string
+  externalId?: string | null
   sku?: string | null
   description?: string | null
   salesDescription?: string | null
@@ -51,6 +53,7 @@ export type ItemCreateInitialValues = {
   performanceObligationType?: string | null
   standaloneSellingPrice?: string
   billingType?: string | null
+  billingTrigger?: string | null
   standardCost?: string
   averageCost?: string
   subsidiaryIds?: string[]
@@ -114,6 +117,7 @@ export default function ItemCreateForm({
   const router = useRouter()
   const [name, setName] = useState(initialValues?.name ?? '')
   const [itemId, setItemId] = useState('')
+  const [externalId, setExternalId] = useState(initialValues?.externalId ?? '')
   const [sku, setSku] = useState(initialValues?.sku ?? '')
   const [description, setDescription] = useState(initialValues?.description ?? '')
   const [salesDescription, setSalesDescription] = useState(initialValues?.salesDescription ?? '')
@@ -138,6 +142,7 @@ export default function ItemCreateForm({
   const [performanceObligationType, setPerformanceObligationType] = useState(initialValues?.performanceObligationType ?? '')
   const [standaloneSellingPrice, setStandaloneSellingPrice] = useState(initialValues?.standaloneSellingPrice ?? '')
   const [billingType, setBillingType] = useState(initialValues?.billingType ?? '')
+  const [billingTrigger, setBillingTrigger] = useState(initialValues?.billingTrigger ?? '')
   const [standardCost, setStandardCost] = useState(initialValues?.standardCost ?? '')
   const [averageCost, setAverageCost] = useState(initialValues?.averageCost ?? '')
   const [subsidiaryIds, setSubsidiaryIds] = useState<string[]>(initialValues?.subsidiaryIds ?? [])
@@ -162,6 +167,10 @@ export default function ItemCreateForm({
   const [runtimeRequirements, setRuntimeRequirements] = useState<Record<string, boolean> | null>(null)
   const [layoutConfig, setLayoutConfig] = useState<ItemFormCustomizationConfig>(() => defaultItemFormCustomization())
   const deferredAccountsDisabled = directRevenuePosting
+  const revenueRecognitionDisabled = directRevenuePosting
+  const inventoryItemType = isInventoryItemType(itemType)
+  const dropShipDisabled = specialOrderItem || inventoryItemType
+  const specialOrderDisabled = dropShipItem || !inventoryItemType
 
   const glOptions: LookupOption[] = glAccounts.map((account) => ({
     id: account.id,
@@ -234,6 +243,11 @@ export default function ItemCreateForm({
     )
   }
 
+  function directRevenuePostingDisabledNote() {
+    if (!revenueRecognitionDisabled) return null
+    return <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>Disabled because Direct Revenue Posting is enabled.</span>
+  }
+
   const groupedVisibleFields = useMemo(() => {
     return layoutConfig.sections
       .map((section) => ({
@@ -258,6 +272,7 @@ export default function ItemCreateForm({
     Core: 'The primary identity and commercial classification for the item.',
     Operational: 'Availability, purchasing, fulfillment, and operational defaults for the item.',
     'Pricing And Costing': 'Fields used for pricing, valuation, and margin analysis.',
+    Billing: 'Defaults that drive how and when this item is billed.',
     'Revenue Recognition': 'Defaults that drive revenue timing and performance-obligation behavior.',
     Accounting: 'Accounting defaults and posting behavior for this item.',
   }
@@ -296,6 +311,13 @@ export default function ItemCreateForm({
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Item Id', req('itemId'))}</span>
             <input value={itemId} onChange={(e) => setItemId(e.target.value)} required={req('itemId')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
+          </label>
+        )
+      case 'externalId':
+        return (
+          <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
+            <span>{requiredLabel('External ID', req('externalId'))}</span>
+            <input value={externalId} onChange={(e) => setExternalId(e.target.value)} required={req('externalId')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
           </label>
         )
       case 'sku':
@@ -343,7 +365,22 @@ export default function ItemCreateForm({
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Item Type', req('itemType'))}</span>
-            <select value={itemType} required={req('itemType')} onChange={(e) => setItemType(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select
+              value={itemType}
+              required={req('itemType')}
+              onChange={(e) => {
+                const nextValue = e.target.value
+                setItemType(nextValue)
+                if (isInventoryItemType(nextValue)) {
+                  setDropShipItem(false)
+                } else {
+                  setSpecialOrderItem(false)
+                  setInventoryAccountId('')
+                }
+              }}
+              className="w-full rounded-md border bg-transparent px-3 py-2 text-white"
+              style={{ borderColor: 'var(--border-muted)' }}
+            >
               {itemTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -425,19 +462,20 @@ export default function ItemCreateForm({
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Revenue Stream', req('revenueStream'))}</span>
-            <select value={revenueStream} required={req('revenueStream')} onChange={(e) => setRevenueStream(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={revenueStream} required={req('revenueStream') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setRevenueStream(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('revenueStream').map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'recognitionMethod':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Recognition Method', req('recognitionMethod'))}</span>
-            <select value={recognitionMethod} required={req('recognitionMethod')} onChange={(e) => setRecognitionMethod(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={recognitionMethod} required={req('recognitionMethod') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setRecognitionMethod(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {recognitionMethodOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -445,25 +483,27 @@ export default function ItemCreateForm({
                 </option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'recognitionTrigger':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Recognition Trigger', req('recognitionTrigger'))}</span>
-            <select value={recognitionTrigger} required={req('recognitionTrigger')} onChange={(e) => setRecognitionTrigger(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={recognitionTrigger} required={req('recognitionTrigger') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setRecognitionTrigger(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('recognitionTrigger').map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'defaultRevRecTemplateId':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Rev Rec Template', req('defaultRevRecTemplateId'))}</span>
-            <select value={defaultRevRecTemplateId} required={req('defaultRevRecTemplateId')} onChange={(e) => setDefaultRevRecTemplateId(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={defaultRevRecTemplateId} required={req('defaultRevRecTemplateId') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setDefaultRevRecTemplateId(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {revRecTemplates.map((template) => (
                 <option key={template.id} value={template.id}>
@@ -471,20 +511,22 @@ export default function ItemCreateForm({
                 </option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'defaultTermMonths':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Default Term Months', req('defaultTermMonths'))}</span>
-            <input type="number" value={defaultTermMonths} onChange={(e) => setDefaultTermMonths(e.target.value)} required={req('defaultTermMonths')} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }} />
+            <input type="number" value={defaultTermMonths} onChange={(e) => setDefaultTermMonths(e.target.value)} required={req('defaultTermMonths') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }} />
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'createRevenueArrangementOn':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Create Revenue Arrangement On', req('createRevenueArrangementOn'))}</span>
-            <select value={createRevenueArrangementOn} required={req('createRevenueArrangementOn')} onChange={(e) => setCreateRevenueArrangementOn(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={createRevenueArrangementOn} required={req('createRevenueArrangementOn') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setCreateRevenueArrangementOn(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('createRevenueArrangementOn').map((option) => (
                 <option key={option.value} value={option.value}>
@@ -492,13 +534,14 @@ export default function ItemCreateForm({
                 </option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'createForecastPlanOn':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Create Forecast Plan On', req('createForecastPlanOn'))}</span>
-            <select value={createForecastPlanOn} required={req('createForecastPlanOn')} onChange={(e) => setCreateForecastPlanOn(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={createForecastPlanOn} required={req('createForecastPlanOn') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setCreateForecastPlanOn(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('createForecastPlanOn').map((option) => (
                 <option key={option.value} value={option.value}>
@@ -506,13 +549,14 @@ export default function ItemCreateForm({
                 </option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'createRevenuePlanOn':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Create Revenue Plan On', req('createRevenuePlanOn'))}</span>
-            <select value={createRevenuePlanOn} required={req('createRevenuePlanOn')} onChange={(e) => setCreateRevenuePlanOn(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={createRevenuePlanOn} required={req('createRevenuePlanOn') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setCreateRevenuePlanOn(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('createRevenuePlanOn').map((option) => (
                 <option key={option.value} value={option.value}>
@@ -520,20 +564,22 @@ export default function ItemCreateForm({
                 </option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'allocationEligible':
         return (
           <label key={fieldId} className={`${getFieldClasses()} flex items-center gap-2 pt-7`} style={{ color: 'var(--text-secondary)' }}>
-            <input type="checkbox" checked={allocationEligible} onChange={(e) => setAllocationEligible(e.target.checked)} className="h-4 w-4 rounded" />
+            <input type="checkbox" checked={allocationEligible} disabled={revenueRecognitionDisabled} onChange={(e) => setAllocationEligible(e.target.checked)} className="h-4 w-4 rounded disabled:cursor-not-allowed disabled:opacity-50" />
             <span>{requiredLabel('Allocation Eligible', req('allocationEligible'))}</span>
+            {revenueRecognitionDisabled ? <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>Disabled because Direct Revenue Posting is enabled.</span> : null}
           </label>
         )
       case 'performanceObligationType':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
             <span>{requiredLabel('Performance Obligation Type', req('performanceObligationType'))}</span>
-            <select value={performanceObligationType} required={req('performanceObligationType')} onChange={(e) => setPerformanceObligationType(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <select value={performanceObligationType} required={req('performanceObligationType') && !revenueRecognitionDisabled} disabled={revenueRecognitionDisabled} onChange={(e) => setPerformanceObligationType(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('performanceObligationType').map((option) => (
                 <option key={option.value} value={option.value}>
@@ -541,6 +587,7 @@ export default function ItemCreateForm({
                 </option>
               ))}
             </select>
+            {directRevenuePostingDisabledNote()}
           </label>
         )
       case 'standaloneSellingPrice':
@@ -557,6 +604,18 @@ export default function ItemCreateForm({
             <select value={billingType} required={req('billingType')} onChange={(e) => setBillingType(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('billingType').map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+        )
+      case 'billingTrigger':
+        return (
+          <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
+            <span>{requiredLabel('Billing Trigger', req('billingTrigger'))}</span>
+            <select value={billingTrigger} required={req('billingTrigger')} onChange={(e) => setBillingTrigger(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+              <option value="">None</option>
+              {optionsFor('billingTrigger').map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
@@ -642,7 +701,7 @@ export default function ItemCreateForm({
       case 'line':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Line', req('line'))}</span>
+            <span>{requiredLabel('Business Line', req('line'))}</span>
             <select value={line} required={req('line')} onChange={(e) => setLine(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {optionsFor('line').map((option) => (
@@ -666,15 +725,43 @@ export default function ItemCreateForm({
       case 'dropShipItem':
         return (
           <label key={fieldId} className={`${getFieldClasses()} flex items-center gap-2 pt-7`} style={{ color: 'var(--text-secondary)' }}>
-            <input type="checkbox" checked={dropShipItem} onChange={(e) => setDropShipItem(e.target.checked)} className="h-4 w-4 rounded" />
-            <span>{requiredLabel('Drop Ship Item', req('dropShipItem'))}</span>
+            <input
+              type="checkbox"
+              checked={dropShipItem}
+              disabled={dropShipDisabled}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setDropShipItem(checked)
+                if (checked) setSpecialOrderItem(false)
+              }}
+              className="h-4 w-4 rounded disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <span>
+              {requiredLabel('Drop Ship Item', req('dropShipItem'))}
+              {specialOrderItem ? <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>Disabled because Special Order Item is enabled.</span> : null}
+              {!specialOrderItem && inventoryItemType ? <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>Disabled for inventory items.</span> : null}
+            </span>
           </label>
         )
       case 'specialOrderItem':
         return (
           <label key={fieldId} className={`${getFieldClasses()} flex items-center gap-2 pt-7`} style={{ color: 'var(--text-secondary)' }}>
-            <input type="checkbox" checked={specialOrderItem} onChange={(e) => setSpecialOrderItem(e.target.checked)} className="h-4 w-4 rounded" />
-            <span>{requiredLabel('Special Order Item', req('specialOrderItem'))}</span>
+            <input
+              type="checkbox"
+              checked={specialOrderItem}
+              disabled={specialOrderDisabled}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setSpecialOrderItem(checked)
+                if (checked) setDropShipItem(false)
+              }}
+              className="h-4 w-4 rounded disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <span>
+              {requiredLabel('Special Order Item', req('specialOrderItem'))}
+              {dropShipItem ? <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>Disabled because Drop Ship Item is enabled.</span> : null}
+              {!dropShipItem && !inventoryItemType ? <span className="ml-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>Inventory items only.</span> : null}
+            </span>
           </label>
         )
       case 'canBeFulfilled':
@@ -730,8 +817,8 @@ export default function ItemCreateForm({
       case 'inventoryAccountId':
         return (
           <label key={fieldId} className={getFieldClasses()} style={{ color: 'var(--text-secondary)' }}>
-            <span>{requiredLabel('Asset Account', req('inventoryAccountId'))}</span>
-            <select value={inventoryAccountId} required={req('inventoryAccountId')} onChange={(e) => setInventoryAccountId(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white" style={{ borderColor: 'var(--border-muted)' }}>
+            <span>{requiredLabel('Asset Account', req('inventoryAccountId') || inventoryItemType)}</span>
+            <select value={inventoryAccountId} required={req('inventoryAccountId') || inventoryItemType} disabled={!inventoryItemType} onChange={(e) => setInventoryAccountId(e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: 'var(--border-muted)' }}>
               <option value="">None</option>
               {glOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -739,6 +826,7 @@ export default function ItemCreateForm({
                 </option>
               ))}
             </select>
+            {inventoryItemType ? <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>Required because Item Type is Inventory.</span> : <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>Disabled because Item Type is not Inventory.</span>}
           </label>
         )
       case 'cogsExpenseAccountId':
@@ -800,9 +888,23 @@ export default function ItemCreateForm({
     setError(null)
     try {
       const missing: string[] = []
+      const revenueRecognitionFieldNames = new Set([
+        'revenueStream',
+        'recognitionMethod',
+        'recognitionTrigger',
+        'defaultRevRecTemplateId',
+        'defaultTermMonths',
+        'createRevenueArrangementOn',
+        'createForecastPlanOn',
+        'createRevenuePlanOn',
+        'allocationEligible',
+        'performanceObligationType',
+      ])
+
       const requiredFields = [
         ['name', name],
         ['itemId', itemId],
+        ['externalId', externalId],
         ['sku', sku],
         ['description', description],
         ['salesDescription', salesDescription],
@@ -827,6 +929,7 @@ export default function ItemCreateForm({
         ['performanceObligationType', performanceObligationType],
         ['standaloneSellingPrice', standaloneSellingPrice],
         ['billingType', billingType],
+        ['billingTrigger', billingTrigger],
         ['standardCost', standardCost],
         ['averageCost', averageCost],
         ['subsidiaryIds', subsidiaryIds.join(',')],
@@ -846,6 +949,9 @@ export default function ItemCreateForm({
       ] as const
 
       for (const [fieldName, fieldValue] of requiredFields) {
+        if (directRevenuePosting && revenueRecognitionFieldNames.has(fieldName)) {
+          continue
+        }
         if (req(fieldName) && !String(fieldValue ?? '').trim()) {
           missing.push(fieldName)
         }
@@ -859,6 +965,35 @@ export default function ItemCreateForm({
         missing.push('deferredCostAccountId')
       }
 
+      if (inventoryItemType && !inventoryAccountId.trim()) {
+        missing.push('inventoryAccountId')
+      }
+
+      if (dropShipItem && specialOrderItem) {
+        throw new Error('Drop Ship Item and Special Order Item cannot both be checked.')
+      }
+
+      const inventoryRuleError = validateItemInventoryRules({
+        itemType,
+        dropShipItem,
+        specialOrderItem,
+        inventoryAccountId,
+      })
+      if (inventoryRuleError) {
+        throw new Error(inventoryRuleError)
+      }
+
+      const revenueTriggerError = validateItemRevenueTriggerSequence({
+        directRevenuePosting,
+        recognitionTrigger,
+        createRevenueArrangementOn,
+        createForecastPlanOn,
+        createRevenuePlanOn,
+      })
+      if (revenueTriggerError) {
+        throw new Error(revenueTriggerError)
+      }
+
       if (missing.length > 0) {
         throw new Error(`Missing required fields: ${missing.join(', ')}`)
       }
@@ -869,6 +1004,7 @@ export default function ItemCreateForm({
         body: JSON.stringify({
           name,
           itemId,
+          externalId,
           sku,
           description,
           salesDescription,
@@ -892,6 +1028,7 @@ export default function ItemCreateForm({
           performanceObligationType,
           standaloneSellingPrice,
           billingType,
+          billingTrigger,
           standardCost,
           averageCost,
           subsidiaryIds,

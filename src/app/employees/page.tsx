@@ -14,6 +14,7 @@ import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-help
 import { EMPLOYEE_FORM_FIELDS } from '@/lib/employee-form-customization'
 import { loadEmployeeFormCustomization } from '@/lib/employee-form-customization-store'
 import { employeeListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 function formatSubsidiaryIds(assignments: Array<{ subsidiary: { subsidiaryId: string } }>) {
@@ -129,6 +130,7 @@ export default async function EmployeesPage({
         searchPlaceholder={employeeListDefinition.searchPlaceholder}
         tableId={employeeListDefinition.tableId}
         exportFileName={employeeListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('employees', params.q, sort)}
         columns={employeeListDefinition.columns}
         sort={sort}
         sortOptions={employeeListDefinition.sortOptions}

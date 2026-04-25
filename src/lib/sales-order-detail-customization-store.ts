@@ -4,9 +4,12 @@ import {
   defaultSalesOrderDetailCustomization,
   SALES_ORDER_DETAIL_FIELDS,
   SALES_ORDER_LINE_COLUMNS,
+  SALES_ORDER_STAT_CARDS,
   type SalesOrderDetailCustomizationConfig,
   type SalesOrderDetailFieldKey,
   type SalesOrderLineColumnKey,
+  type SalesOrderStatCardKey,
+  type SalesOrderStatCardSlot,
 } from '@/lib/sales-order-detail-customization'
 
 const STORE_PATH = path.join(process.cwd(), 'config', 'sales-order-detail-customization.json')
@@ -42,6 +45,7 @@ function normalizeFieldPlacements(
     lineColumns: Object.fromEntries(
       SALES_ORDER_LINE_COLUMNS.map((column) => [column.id, { ...config.lineColumns[column.id] }])
     ) as SalesOrderDetailCustomizationConfig['lineColumns'],
+    statCards: [...config.statCards].map((card) => ({ ...card })),
   }
 
   for (const section of nextConfig.sections) {
@@ -114,11 +118,66 @@ function normalizeFieldPlacements(
     ])
   ) as Record<SalesOrderLineColumnKey, SalesOrderDetailCustomizationConfig['lineColumns'][SalesOrderLineColumnKey]>
 
+  const validStatIds = new Set(SALES_ORDER_STAT_CARDS.map((card) => card.id))
+  const normalizedStatCards = nextConfig.statCards
+    .filter((card) => validStatIds.has(card.metric))
+    .map((card, index) => ({
+      id: normalizeText(card.id) ?? `slot-${index + 1}`,
+      metric: card.metric,
+      visible: card.visible !== false,
+      order:
+        typeof card.order === 'number' && Number.isFinite(card.order)
+          ? Math.max(0, Math.trunc(card.order))
+          : index,
+    }))
+    .sort((left, right) => left.order - right.order)
+    .map((card, index) => ({
+      ...card,
+      order: index,
+    }))
+
+  nextConfig.statCards = normalizedStatCards.length > 0 ? normalizedStatCards : cloneDefaults().statCards
+
   return nextConfig
 }
 
+function normalizeLegacyStatCards(
+  value: unknown
+): SalesOrderStatCardSlot[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+      .map((entry, index) => ({
+        id: normalizeText(entry.id) ?? `slot-${index + 1}`,
+        metric: String(entry.metric ?? '') as SalesOrderStatCardKey,
+        visible: entry.visible !== false,
+        order:
+          typeof entry.order === 'number' && Number.isFinite(entry.order)
+            ? Math.max(0, Math.trunc(entry.order))
+            : index,
+      }))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).map(([metric, config], index) => {
+      const typedConfig = config && typeof config === 'object' ? (config as Record<string, unknown>) : {}
+      return {
+        id: `slot-${index + 1}`,
+        metric: metric as SalesOrderStatCardKey,
+        visible: typedConfig.visible !== false,
+        order:
+          typeof typedConfig.order === 'number' && Number.isFinite(typedConfig.order)
+            ? Math.max(0, Math.trunc(typedConfig.order))
+            : index,
+      }
+    })
+  }
+
+  return []
+}
+
 function mergeWithDefaults(
-  overrides: Partial<SalesOrderDetailCustomizationConfig>
+  overrides: Partial<SalesOrderDetailCustomizationConfig> & { statCards?: unknown }
 ): SalesOrderDetailCustomizationConfig {
   const merged = cloneDefaults()
   merged.formColumns = normalizeColumnCount(overrides.formColumns, merged.formColumns)
@@ -133,7 +192,7 @@ function mergeWithDefaults(
   }
 
   const sectionRowsInput =
-    overrides.sectionRows && typeof overrides.sectionRows === 'object'
+    overrides.sectionRows && typeof overrides.sectionRows === "object"
       ? (overrides.sectionRows as Record<string, unknown>)
       : {}
 
@@ -204,13 +263,18 @@ function mergeWithDefaults(
     }
   }
 
+  const normalizedStatCards = normalizeLegacyStatCards(overrides.statCards)
+  if (normalizedStatCards.length > 0) {
+    merged.statCards = normalizedStatCards
+  }
+
   return normalizeFieldPlacements(merged)
 }
 
 export async function loadSalesOrderDetailCustomization(): Promise<SalesOrderDetailCustomizationConfig> {
   try {
     const raw = await fs.readFile(STORE_PATH, 'utf8')
-    const parsed = JSON.parse(raw) as Partial<SalesOrderDetailCustomizationConfig>
+    const parsed = JSON.parse(raw) as Partial<SalesOrderDetailCustomizationConfig> & { statCards?: unknown }
     return mergeWithDefaults(parsed)
   } catch {
     return cloneDefaults()

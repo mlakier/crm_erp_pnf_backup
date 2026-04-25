@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency } from '@/lib/format'
-import CreateModalButton from '@/components/CreateModalButton'
-import QuoteCreateFromOpportunityForm from '@/components/QuoteCreateFromOpportunityForm'
+import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import ColumnSelector from '@/components/ColumnSelector'
 import ExportButton from '@/components/ExportButton'
 import PaginationFooter from '@/components/PaginationFooter'
@@ -10,7 +9,6 @@ import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
-import EditButton from '@/components/EditButton'
 import DeleteButton from '@/components/DeleteButton'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
@@ -37,6 +35,7 @@ export default async function QuotesPage({
   searchParams: Promise<{ q?: string; status?: string; sort?: string; page?: string }>
 }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
   const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -72,14 +71,8 @@ export default async function QuotesPage({
           ? [{ total: 'asc' as const }]
           : [{ createdAt: 'desc' as const }]
 
-  const [totalQuotes, opportunitiesWithoutQuote, companySettings, cabinetFiles, statusValues] = await Promise.all([
+  const [totalQuotes, companySettings, cabinetFiles, statusValues] = await Promise.all([
     prisma.quote.count({ where }),
-    prisma.opportunity.findMany({
-      where: { quote: null },
-      include: { customer: true },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
     loadListValues('QUOTE-STATUS'),
@@ -134,14 +127,14 @@ export default async function QuotesPage({
           <h1 className="text-xl font-semibold text-white">Quotes</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{totalQuotes} total</p>
         </div>
-        <CreateModalButton buttonLabel="New Quote" title="New Quote">
-          <QuoteCreateFromOpportunityForm
-            opportunities={opportunitiesWithoutQuote.map((opportunity) => ({
-              id: opportunity.id,
-              label: `${opportunity.opportunityNumber ?? opportunity.name} - ${opportunity.customer.name}`,
-            }))}
-          />
-        </CreateModalButton>
+        <Link
+          href="/quotes/new"
+          className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+          style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+        >
+          <span className="mr-1.5 text-lg leading-none">+</span>
+          New Quote
+        </Link>
       </div>
 
       {/* Status tabs */}
@@ -217,18 +210,22 @@ export default async function QuotesPage({
                     <td data-column="opportunity" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.opportunity?.name ?? '—'}</td>
                     <td data-column="sales-order" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.salesOrder?.number ?? '—'}</td>
                     <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.status}</td>
-                    <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(quote.total)}</td>
-                    <td data-column="valid-until" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : '—'}</td>
+                    <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(quote.total, undefined, moneySettings)}</td>
+                    <td data-column="valid-until" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.validUntil ? fmtDocumentDate(quote.validUntil, moneySettings) : '—'}</td>
                     <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(quote).subsidiary?.name ?? '—'}</td>
                     <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{(quote).currency?.code ?? '—'}</td>
                     <td data-column="notes" className="px-4 py-2 text-sm truncate max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>{quote.notes ?? '—'}</td>
-                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(quote.createdAt).toLocaleDateString()}</td>
-                    <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(quote.updatedAt).toLocaleDateString()}</td>
-                                      <td data-column="actions" className="px-4 py-2 text-sm">
+                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(quote.createdAt, moneySettings)}</td>
+                    <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(quote.updatedAt, moneySettings)}</td>
+                    <td data-column="actions" className="px-4 py-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <EditButton resource="quotes" id={quote.id} fields={[
-                          { name: 'status', label: 'Status', value: quote.status ?? '', type: 'select', options: statusValues.map(s => ({ value: s.toLowerCase(), label: s })) },
-                        ]} />
+                        <Link
+                          href={`/quotes/${quote.id}?edit=1`}
+                          className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                          style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+                        >
+                          Edit
+                        </Link>
                         <DeleteButton resource="quotes" id={quote.id} />
                       </div>
                     </td>
@@ -254,3 +251,4 @@ export default async function QuotesPage({
     </div>
   )
 }
+

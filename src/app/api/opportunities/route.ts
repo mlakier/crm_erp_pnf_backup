@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
 import { generateNextOpportunityNumber } from '@/lib/opportunity-number'
 import { isFieldRequiredServer } from '@/lib/form-requirements-store'
+import { calcLineTotal, parseMoneyValue, parseOptionalMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
+import { resolveCustomerTransactionSnapshot } from '@/lib/transaction-snapshot-defaults'
 
 export async function GET() {
   try {
@@ -33,17 +35,18 @@ export async function POST(request: NextRequest) {
     }
 
     const opportunityNumber = await generateNextOpportunityNumber()
+    const snapshot = await resolveCustomerTransactionSnapshot(customerId, {})
 
     // Build line item create data
     const lineItemRows = Array.isArray(lineItems)
       ? lineItems.map((li: { itemId?: string | null; description: string; quantity: number; unitPrice: number; notes?: string | null }) => {
-          const qty = Math.max(1, Number(li.quantity) || 1)
-          const price = Number(li.unitPrice) || 0
+          const qty = parseQuantity(li.quantity)
+          const price = parseMoneyValue(li.unitPrice)
           return {
             description: String(li.description || ''),
             quantity: qty,
             unitPrice: price,
-            lineTotal: qty * price,
+            lineTotal: calcLineTotal(qty, price),
             notes: li.notes || null,
             itemId: li.itemId || null,
           }
@@ -52,8 +55,8 @@ export async function POST(request: NextRequest) {
 
     // If line items provided, compute amount from them; otherwise use submitted amount
     const computedAmount = lineItemRows.length > 0
-      ? lineItemRows.reduce((sum: number, li: { lineTotal: number }) => sum + li.lineTotal, 0)
-      : (amount ?? 0)
+      ? sumMoney(lineItemRows.map((li: { lineTotal: number }) => li.lineTotal))
+      : parseMoneyValue(amount)
 
     const opportunity = await prisma.opportunity.create({
       data: {
@@ -64,6 +67,8 @@ export async function POST(request: NextRequest) {
         closeDate: closeDate ? new Date(closeDate) : null,
         customerId,
         userId,
+        subsidiaryId: snapshot.subsidiaryId,
+        currencyId: snapshot.currencyId,
         ...(lineItemRows.length > 0 ? { lineItems: { create: lineItemRows } } : {}),
       },
       include: { lineItems: true },
@@ -98,7 +103,7 @@ export async function PUT(request: NextRequest) {
       data: {
         name,
         stage: stage || null,
-        amount: amount !== '' && amount != null ? parseFloat(amount) : null,
+        amount: parseOptionalMoneyValue(amount),
         closeDate: closeDate ? new Date(closeDate) : null,
       },
     })

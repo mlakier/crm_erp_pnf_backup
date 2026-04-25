@@ -45,7 +45,6 @@ const SEEDED_ITEM_LIST_VIEWS = [
       'allocationEligible',
       'performanceObligationType',
       'standaloneSellingPrice',
-      'billingType',
       'directRevenuePosting',
       'incomeAccountId',
       'deferredRevenueAccountId',

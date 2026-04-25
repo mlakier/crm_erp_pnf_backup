@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { fmtCurrency } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
 
 type Tab = 'opportunities' | 'quotes' | 'sales-orders' | 'fulfillments' | 'invoices' | 'invoice-receipts'
 
@@ -162,7 +162,7 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
                     </Td>
                     <Td>{o.stage}</Td>
                     <Td>{fmtCurrency(o.amount)}</Td>
-                    <Td>{o.closeDate ? new Date(o.closeDate).toLocaleDateString() : '—'}</Td>
+                    <Td>{o.closeDate ? fmtDocumentDate(o.closeDate) : '—'}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -194,8 +194,8 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
                     </Td>
                     <Td><StatusBadge status={q.status} /></Td>
                     <Td>{fmtCurrency(q.total)}</Td>
-                    <Td>{q.validUntil ? new Date(q.validUntil).toLocaleDateString() : '—'}</Td>
-                    <Td>{new Date(q.createdAt).toLocaleDateString()}</Td>
+                    <Td>{q.validUntil ? fmtDocumentDate(q.validUntil) : '—'}</Td>
+                    <Td>{fmtDocumentDate(q.createdAt)}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -226,7 +226,7 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
                     </Td>
                     <Td><StatusBadge status={so.status} /></Td>
                     <Td>{fmtCurrency(so.total)}</Td>
-                    <Td>{new Date(so.createdAt).toLocaleDateString()}</Td>
+                    <Td>{fmtDocumentDate(so.createdAt)}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -258,8 +258,8 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
                     </Td>
                     <Td><StatusBadge status={inv.status} /></Td>
                     <Td>{fmtCurrency(inv.total)}</Td>
-                    <Td>{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</Td>
-                    <Td>{inv.paidDate ? new Date(inv.paidDate).toLocaleDateString() : '—'}</Td>
+                    <Td>{inv.dueDate ? fmtDocumentDate(inv.dueDate) : '—'}</Td>
+                    <Td>{inv.paidDate ? fmtDocumentDate(inv.paidDate) : '—'}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -289,7 +289,7 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
                         {fulfillment.number}
                       </Link>
                     </Td>
-                    <Td>{new Date(fulfillment.date).toLocaleDateString()}</Td>
+                    <Td>{fmtDocumentDate(fulfillment.date)}</Td>
                     <Td><StatusBadge status={fulfillment.status} /></Td>
                     <Td>{fulfillment.salesOrderNumber}</Td>
                     <Td>{fulfillment.notes ?? '-'}</Td>
@@ -323,7 +323,7 @@ export default function CustomerRelatedDocs({ opportunities, quotes, salesOrders
                         {receipt.number ?? receipt.id}
                       </Link>
                     </Td>
-                    <Td>{new Date(receipt.date).toLocaleDateString()}</Td>
+                    <Td>{fmtDocumentDate(receipt.date)}</Td>
                     <Td>{fmtCurrency(receipt.amount)}</Td>
                     <Td>{receipt.method ?? '-'}</Td>
                     <Td>{receipt.reference ?? '-'}</Td>

@@ -1,21 +1,24 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { fmtDocumentDate } from '@/lib/format'
 import LeadEditButton from '@/components/LeadEditButton'
 import DeleteButton from '@/components/DeleteButton'
 import { loadListOptionsForSource } from '@/lib/list-source'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 
 function leadName(lead: { firstName: string | null; lastName: string | null; email: string | null }) {
   const fullName = [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim()
   return fullName || lead.email || 'Unnamed Lead'
 }
 
-function fmtDate(value: Date | null | undefined) {
-  return value ? new Date(value).toLocaleDateString() : '—'
+function fmtDate(value: Date | null | undefined, moneySettings?: Parameters<typeof fmtDocumentDate>[1]) {
+  return value ? fmtDocumentDate(value, moneySettings) : '-'
 }
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const { moneySettings } = await loadCompanyDisplaySettings()
 
   const [lead, entities, currencies, leadSourceOptions, leadRatingOptions, leadStatusOptions] = await Promise.all([
     prisma.lead.findUnique({
@@ -107,10 +110,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <Field label="Rating" value={lead.rating} />
             <Field label="Subsidiary" value={lead.subsidiary ? `${lead.subsidiary.subsidiaryId} – ${lead.subsidiary.name}` : null} />
             <Field label="Currency" value={lead.currency ? `${lead.currency.code} – ${lead.currency.name}` : null} />
-            <Field label="Created" value={fmtDate(lead.createdAt)} />
-            <Field label="Last Contacted" value={fmtDate(lead.lastContactedAt)} />
-            <Field label="Qualified At" value={fmtDate(lead.qualifiedAt)} />
-            <Field label="Converted At" value={fmtDate(lead.convertedAt)} />
+            <Field label="Created" value={fmtDate(lead.createdAt, moneySettings)} />
+            <Field label="Last Contacted" value={fmtDate(lead.lastContactedAt, moneySettings)} />
+            <Field label="Qualified At" value={fmtDate(lead.qualifiedAt, moneySettings)} />
+            <Field label="Converted At" value={fmtDate(lead.convertedAt, moneySettings)} />
             <Field label="Website" value={lead.website} />
             <Field label="Industry" value={lead.industry} />
             <Field label="Address" value={lead.address} />
@@ -177,3 +180,4 @@ function RelatedLink({ label, href, value }: { label: string; href: string | nul
     </div>
   )
 }
+

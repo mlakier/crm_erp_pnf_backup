@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency, fmtPhone } from '@/lib/format'
+import { fmtCurrency, fmtPhone, fmtDocumentDate, toNumericValue } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
+import { sumMoney } from '@/lib/money'
 import PurchaseOrderDetailCustomizeMode from '@/components/PurchaseOrderDetailCustomizeMode'
 import PurchaseOrderDetailExportButton from '@/components/PurchaseOrderDetailExportButton'
 import PurchaseOrderGlImpactSection from '@/components/PurchaseOrderGlImpactSection'
@@ -14,6 +16,7 @@ import PurchaseOrderRelatedDocuments from '@/components/PurchaseOrderRelatedDocu
 import CommunicationsSection from '@/components/CommunicationsSection'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import SystemNotesSection from '@/components/SystemNotesSection'
+import TransactionDetailFrame from '@/components/TransactionDetailFrame'
 import { parseCommunicationSummary, parseFieldChangeSummary } from '@/lib/activity'
 import {
   PURCHASE_ORDER_DETAIL_FIELDS,
@@ -28,6 +31,8 @@ import {
   buildTransactionExportHeaderFields,
   getOrderedVisibleTransactionLineColumns,
 } from '@/lib/transaction-detail-helpers'
+import { purchaseOrderPageConfig } from '@/lib/transaction-page-configs/purchase-order'
+import { buildTransactionCommunicationComposePayload } from '@/lib/transaction-communications'
 
 const PURCHASE_ORDER_STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
@@ -48,6 +53,7 @@ export default async function PurchaseOrderDetailPage({
   searchParams: Promise<{ edit?: string; customize?: string }>
 }) {
   const { id } = await params
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
@@ -172,12 +178,12 @@ export default async function PurchaseOrderDetailPage({
 
       return {
         id: activity.id,
-          date: new Date(activity.createdAt).toLocaleString(),
+          date: fmtDocumentDate(activity.createdAt, moneySettings),
           setBy: activity.userId ? activityUserLabelById.get(activity.userId) ?? activity.userId : 'System',
           context: parsed.context,
           fieldName: parsed.fieldName,
-          oldValue: formatSystemNoteValue(parsed.fieldName, parsed.oldValue),
-          newValue: formatSystemNoteValue(parsed.fieldName, parsed.newValue),
+          oldValue: formatSystemNoteValue(parsed.fieldName, parsed.oldValue, moneySettings),
+          newValue: formatSystemNoteValue(parsed.fieldName, parsed.newValue, moneySettings),
         }
       })
       .filter((note): note is Exclude<typeof note, null> => Boolean(note))
@@ -188,7 +194,7 @@ export default async function PurchaseOrderDetailPage({
 
       return {
         id: activity.id,
-        date: new Date(activity.createdAt).toLocaleString(),
+        date: fmtDocumentDate(activity.createdAt, moneySettings),
         direction: parsed.direction || '-',
         channel: parsed.channel || '-',
         subject: parsed.subject || '-',
@@ -230,13 +236,13 @@ export default async function PurchaseOrderDetailPage({
       receivedQuantity: lineReceivedQuantity,
       billedQuantity: lineBilledQuantity,
       openQuantity: Math.max(0, item.quantity - lineReceivedQuantity),
-      unitPrice: item.unitPrice,
-      lineTotal: item.lineTotal,
+      unitPrice: toNumericValue(item.unitPrice, 0),
+      lineTotal: toNumericValue(item.lineTotal, 0),
     })
 
     return acc
   }, [])
-  const computedTotal = derivedLineRows.reduce((sum, row) => sum + row.lineTotal, 0)
+  const computedTotal = sumMoney(derivedLineRows.map((row) => row.lineTotal))
   const glSourceRefs = [
     { sourceType: 'purchase-order', sourceId: po.id, sourceNumber: po.number },
     ...po.receipts.map((receipt) => ({
@@ -284,20 +290,15 @@ export default async function PurchaseOrderDetailPage({
     entry.lineItems.map((line) => ({
       id: line.id,
       journalNumber: entry.number,
-      date: new Date(entry.date).toLocaleDateString(),
+      date: fmtDocumentDate(entry.date, moneySettings),
       sourceType: formatSourceType(entry.sourceType),
       sourceNumber: glSourceNumberByKey.get(`${entry.sourceType}:${entry.sourceId}`) ?? entry.sourceId ?? '-',
       account: `${line.account.accountId} - ${line.account.name}`,
       description: line.description ?? line.memo ?? entry.description ?? '-',
-      debit: line.debit,
-      credit: line.credit,
+      debit: toNumericValue(line.debit, 0),
+      credit: toNumericValue(line.credit, 0),
     }))
   )
-
-  const sectionDescriptions: Record<string, string> = {
-    Vendor: 'Supplier master data linked to this purchase order.',
-    'Purchase Order Details': 'Core purchase order fields and procurement lifecycle status.',
-  }
 
   const vendorOptions = vendors.map((vendor) => ({
     value: vendor.id,
@@ -397,6 +398,8 @@ export default async function PurchaseOrderDetailPage({
       type: 'text',
       helpText: 'Unique purchase order number used across procurement workflows.',
       fieldType: 'text',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Document numbering, provenance, and ownership for the purchase order.',
     },
     createdBy: {
       key: 'createdBy',
@@ -409,6 +412,8 @@ export default async function PurchaseOrderDetailPage({
       helpText: 'User who created the purchase order.',
       fieldType: 'text',
       sourceText: 'Users master data',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Document numbering, provenance, and ownership for the purchase order.',
     },
     createdFrom: {
       key: 'createdFrom',
@@ -424,6 +429,8 @@ export default async function PurchaseOrderDetailPage({
       helpText: 'Source transaction that created this purchase order.',
       fieldType: 'text',
       sourceText: 'Source transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Document numbering, provenance, and ownership for the purchase order.',
     },
     approvedBy: {
       key: 'approvedBy',
@@ -433,6 +440,8 @@ export default async function PurchaseOrderDetailPage({
       helpText: 'User who approved the purchase order based on the approval activity trail.',
       fieldType: 'text',
       sourceText: 'System Notes / activity history',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Document numbering, provenance, and ownership for the purchase order.',
     },
     subsidiaryId: {
       key: 'subsidiaryId',
@@ -444,6 +453,8 @@ export default async function PurchaseOrderDetailPage({
       helpText: 'Legal Subsidiary or subsidiary that owns the purchase order.',
       fieldType: 'list',
       sourceText: 'Subsidiaries master data',
+      subsectionTitle: 'Procurement Controls',
+      subsectionDescription: 'Vendor linkage, lifecycle status, and commercial controls for the purchase order.',
     },
     vendorId: {
       key: 'vendorId',
@@ -455,6 +466,8 @@ export default async function PurchaseOrderDetailPage({
       helpText: 'Vendor record linked to this purchase order.',
       fieldType: 'list',
       sourceText: 'Vendors master data',
+      subsectionTitle: 'Procurement Controls',
+      subsectionDescription: 'Vendor linkage, lifecycle status, and commercial controls for the purchase order.',
     },
     status: {
       key: 'status',
@@ -466,14 +479,18 @@ export default async function PurchaseOrderDetailPage({
       helpText: 'Current lifecycle stage of the purchase order.',
       fieldType: 'list',
       sourceText: 'System purchase order statuses',
+      subsectionTitle: 'Procurement Controls',
+      subsectionDescription: 'Vendor linkage, lifecycle status, and commercial controls for the purchase order.',
     },
     total: {
       key: 'total',
       label: 'Total',
       value: computedTotal.toString(),
-      displayValue: fmtCurrency(computedTotal),
+      displayValue: fmtCurrency(computedTotal, undefined, moneySettings),
       helpText: 'Current document total based on all purchase order line amounts.',
       fieldType: 'currency',
+      subsectionTitle: 'Procurement Controls',
+      subsectionDescription: 'Vendor linkage, lifecycle status, and commercial controls for the purchase order.',
     },
   }
 
@@ -481,7 +498,7 @@ export default async function PurchaseOrderDetailPage({
     fields: PURCHASE_ORDER_DETAIL_FIELDS,
     layout: customization,
     fieldDefinitions: headerFieldDefinitions,
-    sectionDescriptions,
+    sectionDescriptions: purchaseOrderPageConfig.sectionDescriptions,
   })
 
   const customizeFields = buildTransactionCustomizePreviewFields({
@@ -499,7 +516,7 @@ export default async function PurchaseOrderDetailPage({
       createdFrom: po.requisition?.number ?? '',
       approvedBy: approvedByLabel,
       subsidiaryId: po.subsidiary ? `${po.subsidiary.subsidiaryId} - ${po.subsidiary.name}` : '',
-      total: fmtCurrency(computedTotal),
+      total: fmtCurrency(computedTotal, undefined, moneySettings),
       vendorPrimarySubsidiary: po.vendor.subsidiary ? `${po.vendor.subsidiary.subsidiaryId} - ${po.vendor.subsidiary.name}` : '',
       vendorPrimaryCurrency: po.vendor.currency ? `${po.vendor.currency.code} - ${po.vendor.currency.name}` : '',
       vendorInactive: po.vendor.inactive ? 'Yes' : 'No',
@@ -507,7 +524,7 @@ export default async function PurchaseOrderDetailPage({
   })
 
   const exportHeaderFields = buildTransactionExportHeaderFields<PurchaseOrderDetailFieldKey, PurchaseOrderDetailHeaderField>(headerSections, {
-    total: () => fmtCurrency(computedTotal),
+    total: () => fmtCurrency(computedTotal, undefined, moneySettings),
   })
 
   const orderedVisibleLineColumns = getOrderedVisibleTransactionLineColumns(
@@ -541,7 +558,7 @@ export default async function PurchaseOrderDetailPage({
               vendorName={po.vendor.name}
               vendorEmail={po.vendor.email ?? null}
               status={po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1).toLowerCase() : 'Unknown'}
-              total={fmtCurrency(computedTotal)}
+              total={fmtCurrency(computedTotal, undefined, moneySettings)}
               headerFields={exportHeaderFields}
               headerMap={{
                 purchaseOrderNumber: po.number,
@@ -549,7 +566,7 @@ export default async function PurchaseOrderDetailPage({
                 vendorName: po.vendor.name,
                 subsidiary: po.subsidiary ? `${po.subsidiary.subsidiaryId} - ${po.subsidiary.name}` : '',
                 status: po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1).toLowerCase() : 'Unknown',
-                total: fmtCurrency(computedTotal),
+                total: fmtCurrency(computedTotal, undefined, moneySettings),
                 createdBy:
                   po.user?.userId && po.user?.name
                     ? `${po.user.userId} - ${po.user.name}`
@@ -584,116 +601,123 @@ export default async function PurchaseOrderDetailPage({
         )
       }
     >
-      {isCustomizing ? (
-        <PurchaseOrderDetailCustomizeMode
-          detailHref={detailHref}
-          initialLayout={customization}
-          fields={customizeFields}
-          sectionDescriptions={sectionDescriptions}
-        />
-      ) : (
-        <PurchaseOrderHeaderSections
-          purchaseOrderId={po.id}
-          editing={isEditing}
-          sections={headerSections}
-          columns={customization.formColumns}
-        />
-      )}
-
-      <PurchaseOrderLineItemsSection
-        editing={isEditing}
-        rows={derivedLineRows}
-        purchaseOrderId={po.id}
-        userId={po.userId}
-        lineColumns={orderedVisibleLineColumns}
-        itemOptions={items.map((item) => ({
-          id: item.id,
-          itemId: item.itemId ?? 'Pending',
-          name: item.name,
-          unitPrice: item.listPrice ?? 0,
-          itemDrivenValues: {
-            description: item.name,
-            unitPrice: String(item.listPrice ?? 0),
-          },
-        }))}
-      />
-
-      <PurchaseOrderRelatedDocuments
-        requisitions={
-          po.requisition
-            ? [
-                {
-                  id: po.requisition.id,
-                  number: po.requisition.number,
-                  status: po.requisition.status,
-                  total: po.requisition.total,
-                  title: po.requisition.title ?? null,
-                  priority: po.requisition.priority ?? null,
-                  createdAt: po.requisition.createdAt.toISOString(),
-                },
-              ]
-            : []
+      <TransactionDetailFrame
+        header={
+          isCustomizing ? (
+            <div className="mb-7">
+              <PurchaseOrderDetailCustomizeMode
+                detailHref={detailHref}
+                initialLayout={customization}
+                fields={customizeFields}
+                sectionDescriptions={purchaseOrderPageConfig.sectionDescriptions}
+              />
+            </div>
+          ) : (
+            <PurchaseOrderHeaderSections
+              purchaseOrderId={po.id}
+              editing={isEditing}
+              sections={headerSections}
+              columns={customization.formColumns}
+            />
+          )
         }
-        receipts={po.receipts.map((receipt) => ({
-          id: receipt.id,
-          number: receiptNumberMap.get(receipt.id) ?? receipt.id,
-          date: receipt.date.toISOString(),
-          status: receipt.status,
-          quantity: receipt.quantity,
-          createdAt: receipt.createdAt.toISOString(),
-          notes: receipt.notes ?? null,
-        }))}
-        bills={po.bills.map((bill) => ({
-          id: bill.id,
-          number: bill.number,
-          status: bill.status,
-          total: bill.total,
-          date: bill.date.toISOString(),
-          dueDate: bill.dueDate ? bill.dueDate.toISOString() : null,
-          notes: bill.notes ?? null,
-        }))}
-        billPayments={po.bills.flatMap((bill) =>
-          bill.billPayments.map((payment) => ({
-            id: payment.id,
-            number: payment.number,
-            amount: payment.amount,
-            date: payment.date.toISOString(),
-            method: payment.method ?? null,
-            status: payment.status,
-            billNumber: bill.number,
-            reference: payment.reference ?? null,
-          }))
-        )}
+        lineItems={
+          <PurchaseOrderLineItemsSection
+            editing={isEditing}
+            rows={derivedLineRows}
+            purchaseOrderId={po.id}
+            userId={po.userId}
+            lineColumns={orderedVisibleLineColumns}
+            itemOptions={items.map((item) => ({
+              id: item.id,
+              itemId: item.itemId ?? 'Pending',
+              name: item.name,
+              unitPrice: toNumericValue(item.listPrice, 0),
+              itemDrivenValues: {
+                description: item.name,
+                unitPrice: String(toNumericValue(item.listPrice, 0)),
+              },
+            }))}
+          />
+        }
+        relatedDocuments={
+          <PurchaseOrderRelatedDocuments
+            requisitions={
+              po.requisition
+                ? [
+                    {
+                      id: po.requisition.id,
+                      number: po.requisition.number,
+                      status: po.requisition.status,
+                      total: toNumericValue(po.requisition.total, 0),
+                      title: po.requisition.title ?? null,
+                      priority: po.requisition.priority ?? null,
+                      createdAt: po.requisition.createdAt.toISOString(),
+                    },
+                  ]
+                : []
+            }
+            receipts={po.receipts.map((receipt) => ({
+              id: receipt.id,
+              number: receiptNumberMap.get(receipt.id) ?? receipt.id,
+              date: receipt.date.toISOString(),
+              status: receipt.status,
+              quantity: receipt.quantity,
+              createdAt: receipt.createdAt.toISOString(),
+              notes: receipt.notes ?? null,
+            }))}
+            bills={po.bills.map((bill) => ({
+              id: bill.id,
+              number: bill.number,
+              status: bill.status,
+              total: toNumericValue(bill.total, 0),
+              date: bill.date.toISOString(),
+              dueDate: bill.dueDate ? bill.dueDate.toISOString() : null,
+              notes: bill.notes ?? null,
+            }))}
+            billPayments={po.bills.flatMap((bill) =>
+              bill.billPayments.map((payment) => ({
+                id: payment.id,
+                number: payment.number,
+                amount: toNumericValue(payment.amount, 0),
+                date: payment.date.toISOString(),
+                method: payment.method ?? null,
+                status: payment.status,
+                billNumber: bill.number,
+                reference: payment.reference ?? null,
+              }))
+            )}
+          />
+        }
+        supplementarySections={<PurchaseOrderGlImpactSection rows={glImpactRows} />}
+        communications={
+          <CommunicationsSection
+            rows={communications}
+            compose={buildTransactionCommunicationComposePayload({
+              recordId: po.id,
+              userId: po.userId,
+              number: po.number,
+              counterpartyName: po.vendor.name,
+              counterpartyEmail: po.vendor.email ?? null,
+              fromEmail: po.user?.email ?? null,
+              status: po.status ?? 'Draft',
+              total: fmtCurrency(computedTotal, undefined, moneySettings),
+              lineItems: derivedLineRows.map((row, index) => ({
+                line: index + 1,
+                itemId: row.itemId ?? '-',
+                description: row.description,
+                quantity: row.quantity,
+                receivedQuantity: row.receivedQuantity,
+                openQuantity: row.openQuantity,
+                billedQuantity: row.billedQuantity,
+                unitPrice: row.unitPrice,
+                lineTotal: row.lineTotal,
+              })),
+            })}
+          />
+        }
+        systemNotes={<SystemNotesSection notes={systemNotes} />}
       />
-
-      <PurchaseOrderGlImpactSection rows={glImpactRows} />
-
-      <CommunicationsSection
-        rows={communications}
-        compose={{
-          purchaseOrderId: po.id,
-          userId: po.userId,
-          number: po.number,
-          vendorName: po.vendor.name,
-          vendorEmail: po.vendor.email ?? null,
-          fromEmail: po.user?.email ?? null,
-          status: po.status ?? 'Draft',
-          total: fmtCurrency(computedTotal),
-          lineItems: derivedLineRows.map((row, index) => ({
-            line: index + 1,
-            itemId: row.itemId ?? '-',
-            description: row.description,
-            quantity: row.quantity,
-            receivedQuantity: row.receivedQuantity,
-            openQuantity: row.openQuantity,
-            billedQuantity: row.billedQuantity,
-            unitPrice: row.unitPrice,
-            lineTotal: row.lineTotal,
-          })),
-        }}
-      />
-
-      <SystemNotesSection notes={systemNotes} />
     </RecordDetailPageShell>
   )
 }
@@ -727,13 +751,17 @@ function formatSourceType(value: string | null | undefined) {
     .join(' ')
 }
 
-function formatSystemNoteValue(fieldName: string, value: string | null | undefined) {
+function formatSystemNoteValue(
+  fieldName: string,
+  value: string | null | undefined,
+  moneySettings?: Parameters<typeof fmtCurrency>[2],
+) {
   if (!value || !value.trim()) return '-'
 
   if (SYSTEM_NOTE_CURRENCY_FIELDS.has(fieldName)) {
     const numericValue = Number(value)
     if (!Number.isNaN(numericValue)) {
-      return fmtCurrency(numericValue)
+      return fmtCurrency(numericValue, undefined, moneySettings)
     }
   }
 

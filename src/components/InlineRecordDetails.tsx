@@ -11,6 +11,7 @@ export interface InlineRecordField {
   name: string
   label: string
   value: string
+  displayValue?: string
   type?: 'text' | 'number' | 'date' | 'email' | 'select' | 'checkbox' | 'address'
   multiple?: boolean
   column?: number
@@ -23,6 +24,11 @@ export interface InlineRecordField {
     fieldName: string
     equals: string
   }
+  disabledWhenAny?: Array<{
+    fieldName: string
+    equals?: string
+    notEquals?: string
+  }>
   disabledReason?: string
 }
 
@@ -302,7 +308,17 @@ function SectionFieldGrid({
                       checked={values[field.name] === 'true'}
                       disabled={isDisabled}
                       onChange={(event) =>
-                        setValues((prev) => ({ ...prev, [field.name]: event.target.checked ? 'true' : 'false' }))
+                        setValues((prev) => {
+                          const checked = event.target.checked
+                          const next = { ...prev, [field.name]: checked ? 'true' : 'false' }
+                          if (field.name === 'dropShipItem' && checked) {
+                            next.specialOrderItem = 'false'
+                          }
+                          if (field.name === 'specialOrderItem' && checked) {
+                            next.dropShipItem = 'false'
+                          }
+                          return next
+                        })
                       }
                       className="h-4 w-4 rounded disabled:opacity-50"
                     />
@@ -342,10 +358,23 @@ function SectionFieldGrid({
                       value={values[field.name] ?? ''}
                       disabled={isDisabled}
                       onChange={(event) =>
-                        setValues((prev) => ({
-                          ...prev,
-                          [field.name]: event.target.value,
-                        }))
+                        setValues((prev) => {
+                          const nextValue = event.target.value
+                          const next = {
+                            ...prev,
+                            [field.name]: nextValue,
+                          }
+                          if (field.name === 'itemType') {
+                            const normalizedItemType = normalizeConditionValue(nextValue)
+                            if (normalizedItemType === 'inventory') {
+                              next.dropShipItem = 'false'
+                            } else {
+                              next.specialOrderItem = 'false'
+                              next.inventoryAccountId = ''
+                            }
+                          }
+                          return next
+                        })
                       }
                       className="block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
                       style={{ borderColor: 'var(--border-muted)' }}
@@ -402,6 +431,7 @@ function SectionFieldGrid({
 }
 
 function formatDisplayValue(field: InlineRecordField, value: string, optionLabels: Record<string, string>) {
+  if (field.displayValue != null && field.displayValue !== '') return field.displayValue
   if (field.type === 'checkbox') return value === 'true' ? 'Yes' : 'No'
   if (field.type === 'select') {
     if (field.multiple) {
@@ -466,8 +496,26 @@ function SectionHeader({
 }
 
 function isFieldDisabled(field: InlineRecordField, values: Record<string, string>) {
-  if (!field.disabledWhen) return false
-  return (values[field.disabledWhen.fieldName] ?? '') === field.disabledWhen.equals
+  if (field.disabledWhen && normalizeConditionValue(values[field.disabledWhen.fieldName]) === normalizeConditionValue(field.disabledWhen.equals)) {
+    return true
+  }
+
+  if (!field.disabledWhenAny || field.disabledWhenAny.length === 0) return false
+
+  return field.disabledWhenAny.some((condition) => {
+    const value = normalizeConditionValue(values[condition.fieldName])
+    if (condition.equals !== undefined) {
+      return value === normalizeConditionValue(condition.equals)
+    }
+    if (condition.notEquals !== undefined) {
+      return value !== normalizeConditionValue(condition.notEquals)
+    }
+    return false
+  })
+}
+
+function normalizeConditionValue(value: string | null | undefined) {
+  return String(value ?? '').trim().toLowerCase()
 }
 
 function mapFieldTypeLabel(fieldType: NonNullable<InlineRecordField['type']>) {

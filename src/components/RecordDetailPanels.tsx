@@ -1,15 +1,20 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
 
 export function RecordDetailStatCard({
   label,
   value,
   accent,
+  href,
+  valueTone,
 }: {
   label: string
-  value: string | number
+  value: ReactNode
   accent?: true | 'teal' | 'yellow'
+  href?: string | null
+  valueTone?: 'default' | 'accent' | 'teal' | 'yellow' | 'green' | 'red'
 }) {
   const textColor =
     accent === 'teal'
@@ -19,6 +24,18 @@ export function RecordDetailStatCard({
         : accent
           ? 'var(--accent-primary-strong)'
           : 'var(--text-muted)'
+  const valueColor =
+    valueTone === 'accent'
+      ? 'var(--accent-primary-strong)'
+      : valueTone === 'teal'
+        ? '#5eead4'
+        : valueTone === 'yellow'
+          ? '#fcd34d'
+          : valueTone === 'green'
+            ? '#86efac'
+            : valueTone === 'red'
+              ? '#fca5a5'
+              : '#ffffff'
   return (
     <div
       className="rounded-2xl border p-5"
@@ -30,7 +47,15 @@ export function RecordDetailStatCard({
       <p className="text-sm font-medium" style={{ color: textColor }}>
         {label}
       </p>
-      <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
+      <div className="mt-3 text-2xl font-semibold" style={{ color: valueColor }}>
+        {href ? (
+          <Link href={href} className="hover:underline" style={{ color: valueColor }}>
+            {value}
+          </Link>
+        ) : (
+          value
+        )}
+      </div>
     </div>
   )
 }

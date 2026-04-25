@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { fmtDocumentDate } from '@/lib/format'
 
 type CabinetFile = {
   id: string
@@ -192,7 +193,7 @@ export default function CompanyFileCabinetPage() {
                       <td className="px-4 py-2 text-sm text-white">{file.originalName}</td>
                       <td className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{file.type}</td>
                       <td className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{formatSize(file.size)}</td>
-                      <td className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(file.uploadedAt).toLocaleString()}</td>
+                      <td className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(file.uploadedAt)}</td>
                       <td className="px-4 py-2 text-sm">
                         <div className="flex justify-end gap-2">
                           <a href={file.url} target="_blank" rel="noreferrer" className="rounded-md border px-2 py-1" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>

@@ -15,6 +15,7 @@ import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadVendorFormCustomization } from '@/lib/vendor-form-customization-store'
 import { VENDOR_FORM_FIELDS } from '@/lib/vendor-form-customization'
 import { vendorListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
@@ -91,6 +92,7 @@ export default async function VendorsPage({
         searchPlaceholder={vendorListDefinition.searchPlaceholder}
         tableId={vendorListDefinition.tableId}
         exportFileName={vendorListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('vendors', params.q, sort)}
         columns={vendorListDefinition.columns}
         sort={sort}
         sortOptions={vendorListDefinition.sortOptions}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateInvoiceReceiptNumber } from '@/lib/invoice-receipt-number'
+import { parseMoneyValue } from '@/lib/money'
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
   const { invoiceId, amount, date, method, reference } = body
   if (!invoiceId || !amount || !date || !method) return NextResponse.json({ error: 'invoiceId, amount, date, method required' }, { status: 400 })
   const number = await generateInvoiceReceiptNumber()
-  const row = await prisma.cashReceipt.create({ data: { number, invoiceId, amount: parseFloat(amount), date: new Date(date), method, reference: reference || null } })
+  const row = await prisma.cashReceipt.create({ data: { number, invoiceId, amount: parseMoneyValue(amount), date: new Date(date), method, reference: reference || null } })
   return NextResponse.json(row, { status: 201 })
 }
 
@@ -25,7 +26,7 @@ export async function PUT(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
   const body = await req.json()
-  if (body.amount) body.amount = parseFloat(body.amount)
+  if (body.amount !== undefined) body.amount = parseMoneyValue(body.amount)
   if (body.date) body.date = new Date(body.date)
   const row = await prisma.cashReceipt.update({ where: { id }, data: body })
   return NextResponse.json(row)

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { DetailTableDisplayControl, DetailTablePaginationFooter } from '@/components/DetailTablePaging'
+import { fmtDocumentDate } from '@/lib/format'
 import {
   RecordDetailCell,
   RecordDetailEmptyState,
@@ -9,6 +10,7 @@ import {
   RecordDetailSection,
 } from '@/components/RecordDetailPanels'
 import { downloadPurchaseOrderPdf } from '@/lib/purchase-order-pdf'
+import type { TransactionCommunicationComposePayload } from '@/lib/transaction-communications'
 
 export type CommunicationRow = {
   id: string
@@ -23,34 +25,12 @@ export type CommunicationRow = {
 
 type FilterKey = 'date' | 'direction' | 'channel' | 'subject' | 'from' | 'to' | 'status'
 
-type PurchaseOrderPdfLine = {
-  line: number
-  itemId: string
-  description: string
-  quantity: number
-  receivedQuantity: number
-  openQuantity: number
-  billedQuantity: number
-  unitPrice: number
-  lineTotal: number
-}
-
 export default function CommunicationsSection({
   rows,
   compose,
 }: {
   rows: CommunicationRow[]
-  compose?: {
-    purchaseOrderId: string
-    userId?: string | null
-    number: string
-    vendorName: string
-    vendorEmail?: string | null
-    fromEmail?: string | null
-    status: string
-    total: string
-    lineItems: PurchaseOrderPdfLine[]
-  }
+  compose?: TransactionCommunicationComposePayload
 }) {
   const [localRows, setLocalRows] = useState(rows)
   const [filters, setFilters] = useState<Record<FilterKey, string>>({
@@ -67,10 +47,10 @@ export default function CommunicationsSection({
   const [composeError, setComposeError] = useState('')
   const [composeSuccess, setComposeSuccess] = useState('')
   const [preparedMailto, setPreparedMailto] = useState('')
-  const [to, setTo] = useState(compose?.vendorEmail ?? '')
-  const [subject, setSubject] = useState(compose ? `Purchase Order ${compose.number}` : '')
+  const [to, setTo] = useState(compose?.counterpartyEmail ?? '')
+  const [subject, setSubject] = useState(compose ? `${compose.documentLabel} ${compose.number}` : '')
   const [message, setMessage] = useState(
-    compose ? `Please find Purchase Order ${compose.number} for ${compose.vendorName}.` : ''
+    compose ? `Please find ${compose.documentLabel} ${compose.number} for ${compose.counterpartyName}.` : ''
   )
   const [attachPdf, setAttachPdf] = useState(true)
   const [pageSize, setPageSize] = useState(10)
@@ -105,11 +85,11 @@ export default function CommunicationsSection({
     setComposeSuccess('')
 
     try {
-      const response = await fetch('/api/purchase-orders?action=send-email', {
+      const response = await fetch(compose.sendEmailEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          purchaseOrderId: compose.purchaseOrderId,
+          [compose.recordIdFieldName]: compose.recordId,
           userId: compose.userId ?? null,
           to,
           from: compose.fromEmail ?? '',
@@ -127,7 +107,7 @@ export default function CommunicationsSection({
 
       const optimisticRow: CommunicationRow = {
         id: `local-${Date.now()}`,
-        date: new Date().toLocaleString(),
+        date: fmtDocumentDate(new Date()),
         direction: 'Outbound',
         channel: 'Email',
         subject: subject.trim(),
@@ -157,8 +137,8 @@ export default function CommunicationsSection({
         try {
           downloadPurchaseOrderPdf({
             number: compose.number,
-            vendorName: compose.vendorName,
-            vendorEmail: compose.vendorEmail,
+            vendorName: compose.counterpartyName,
+            vendorEmail: compose.counterpartyEmail,
             status: compose.status,
             total: compose.total,
             lines: compose.lineItems,
@@ -301,7 +281,7 @@ export default function CommunicationsSection({
       ) : null}
 
       {localRows.length === 0 ? (
-        <RecordDetailEmptyState message="No communications tracked for this purchase order yet." />
+        <RecordDetailEmptyState message={`No communications tracked for this ${compose?.documentLabel?.toLowerCase() ?? 'record'} yet.`} />
       ) : (
         <>
           <table className="min-w-full">

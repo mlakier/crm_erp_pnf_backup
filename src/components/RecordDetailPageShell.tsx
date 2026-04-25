@@ -7,6 +7,7 @@ type RecordDetailPageShellProps = {
   meta: string
   title: string
   badge?: ReactNode
+  headerCenter?: ReactNode
   actions?: ReactNode
   children: ReactNode
   widthClassName?: string
@@ -18,6 +19,7 @@ export default function RecordDetailPageShell({
   meta,
   title,
   badge,
+  headerCenter,
   actions,
   children,
   widthClassName = 'w-full max-w-none',
@@ -25,7 +27,7 @@ export default function RecordDetailPageShell({
   return (
     <div className="min-h-full px-8 py-8">
       <div className={widthClassName}>
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="mb-8 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
           <div>
             <Link
               href={backHref}
@@ -40,8 +42,13 @@ export default function RecordDetailPageShell({
             <h1 className="mt-2 text-2xl font-semibold text-white">{title}</h1>
             {badge ? <div className="mt-1">{badge}</div> : null}
           </div>
+          {headerCenter ? (
+            <div className="flex flex-wrap items-center justify-center gap-2 md:pt-10">{headerCenter}</div>
+          ) : (
+            <div />
+          )}
           {actions ? (
-            <div className="flex flex-wrap items-center justify-end gap-2">{actions}</div>
+            <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">{actions}</div>
           ) : null}
         </div>
 

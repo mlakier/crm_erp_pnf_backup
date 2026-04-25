@@ -13,6 +13,7 @@ import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadContactFormCustomization } from '@/lib/contact-form-customization-store'
 import { contactListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
 export default async function ContactsPage({
@@ -98,6 +99,7 @@ export default async function ContactsPage({
         searchPlaceholder={contactListDefinition.searchPlaceholder}
         tableId={contactListDefinition.tableId}
         exportFileName={contactListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('contacts', params.q, sort)}
         columns={contactListDefinition.columns}
         sort={sort}
         sortOptions={contactListDefinition.sortOptions}

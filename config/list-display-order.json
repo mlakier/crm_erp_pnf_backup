@@ -1,5 +1,8 @@
 {
   "BILL-STATUS": "list",
   "ENTITY-TYPE": "list",
-  "EMP-LABOR-TYPE": "list"
+  "EMP-LABOR-TYPE": "list",
+  "ITEM-PRODUCT-LINE": "list",
+  "ITEM-BUSINESS-LINE": "list",
+  "COA-FS-SECTION": "list"
 }

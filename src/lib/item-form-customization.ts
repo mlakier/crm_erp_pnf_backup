@@ -3,6 +3,7 @@ import { getListSourceText, type FieldSourceType } from '@/lib/list-source'
 export type ItemFormFieldKey =
   | 'name'
   | 'itemId'
+  | 'externalId'
   | 'sku'
   | 'description'
   | 'salesDescription'
@@ -27,6 +28,7 @@ export type ItemFormFieldKey =
   | 'performanceObligationType'
   | 'standaloneSellingPrice'
   | 'billingType'
+  | 'billingTrigger'
   | 'standardCost'
   | 'averageCost'
   | 'subsidiaryIds'
@@ -74,6 +76,7 @@ export type ItemFormCustomizationConfig = {
 export const ITEM_FORM_FIELDS: ItemFormFieldMeta[] = [
   { id: 'name', label: 'Name', fieldType: 'text', description: 'Primary item name shown on transactions and reports.' },
   { id: 'itemId', label: 'Item ID', fieldType: 'text', description: 'Internal item identifier.' },
+  { id: 'externalId', label: 'External ID', fieldType: 'text', description: 'Optional integration identifier used to match this item to another system.' },
   { id: 'sku', label: 'SKU', fieldType: 'text', description: 'Stock keeping unit or external product code.' },
   { id: 'description', label: 'Description', fieldType: 'text', description: 'Longer description for operational context, purchasing, sales, or internal documentation.' },
   { id: 'salesDescription', label: 'Sales Description', fieldType: 'text', description: 'Customer-facing description used on sales transactions and commercial documents.' },
@@ -98,6 +101,7 @@ export const ITEM_FORM_FIELDS: ItemFormFieldMeta[] = [
   { id: 'performanceObligationType', label: 'Performance Obligation Type', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-ITEM-PERFORMANCE-OBLIGATION-TYPE', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-ITEM-PERFORMANCE-OBLIGATION-TYPE' }), description: 'Default performance obligation category used on revenue elements.' },
   { id: 'standaloneSellingPrice', label: 'Standalone Selling Price', fieldType: 'number', description: 'Used for bundle allocation logic.' },
   { id: 'billingType', label: 'Billing Type', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-ITEM-BILLING-TYPE', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-ITEM-BILLING-TYPE' }), description: 'One-time, recurring, milestone, or usage pattern.' },
+  { id: 'billingTrigger', label: 'Billing Trigger', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-ITEM-BILLING-TRIGGER', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-ITEM-BILLING-TRIGGER' }), description: 'Operational event that allows or creates billing for this item.' },
   { id: 'standardCost', label: 'Standard Cost', fieldType: 'number', description: 'Planned cost for analysis and reporting.' },
   { id: 'averageCost', label: 'Average Cost', fieldType: 'number', description: 'Average cost basis for the item.' },
   { id: 'subsidiaryIds', label: 'Subsidiaries', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Subsidiaries where the item is available for use.' },
@@ -105,7 +109,7 @@ export const ITEM_FORM_FIELDS: ItemFormFieldMeta[] = [
   { id: 'departmentId', label: 'Department Id', fieldType: 'list', sourceType: 'reference', sourceKey: 'departments', source: getListSourceText({ sourceType: 'reference', sourceKey: 'departments' }), description: 'Default department context used for item transactions and analysis.' },
   { id: 'locationId', label: 'Location Id', fieldType: 'list', sourceType: 'reference', sourceKey: 'locations', source: getListSourceText({ sourceType: 'reference', sourceKey: 'locations' }), description: 'Default location context for the item.' },
   { id: 'currencyId', label: 'Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Default item currency.' },
-  { id: 'line', label: 'Line', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-ITEM-LINE', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-ITEM-LINE' }), description: 'Higher-level commercial or catalog line classification.' },
+  { id: 'line', label: 'Business Line', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-ITEM-BUSINESS-LINE', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-ITEM-BUSINESS-LINE' }), description: 'Higher-level business line classification for commercial reporting and operational grouping.' },
   { id: 'productLine', label: 'Product Line', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-ITEM-PRODUCT-LINE', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-ITEM-PRODUCT-LINE' }), description: 'Product line used for merchandising and reporting.' },
   { id: 'dropShipItem', label: 'Drop Ship Item', fieldType: 'boolean', description: 'Indicates this item is typically sourced via direct vendor shipment and can drive auto-PO behavior.' },
   { id: 'specialOrderItem', label: 'Special Order Item', fieldType: 'boolean', description: 'Indicates the item is specially procured for demand and can be received through purchasing.' },
@@ -124,6 +128,7 @@ export const DEFAULT_ITEM_FORM_SECTIONS = [
   'Operational',
   'Pricing And Costing',
   'Revenue Recognition',
+  'Billing',
   'Accounting',
 ] as const
 
@@ -131,6 +136,7 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
   const sectionMap: Record<ItemFormFieldKey, string> = {
     name: 'Core',
     itemId: 'Core',
+    externalId: 'Core',
     sku: 'Core',
     description: 'Core',
     salesDescription: 'Core',
@@ -154,7 +160,8 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
     allocationEligible: 'Revenue Recognition',
     performanceObligationType: 'Revenue Recognition',
     standaloneSellingPrice: 'Pricing And Costing',
-    billingType: 'Revenue Recognition',
+    billingType: 'Billing',
+    billingTrigger: 'Billing',
     standardCost: 'Pricing And Costing',
     averageCost: 'Pricing And Costing',
     subsidiaryIds: 'Operational',
@@ -173,12 +180,13 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
     inventoryAccountId: 'Accounting',
     cogsExpenseAccountId: 'Accounting',
     deferredCostAccountId: 'Accounting',
-    directRevenuePosting: 'Accounting',
+    directRevenuePosting: 'Revenue Recognition',
   }
 
   const columnMap: Record<ItemFormFieldKey, number> = {
     name: 1,
     itemId: 2,
+    externalId: 1,
     sku: 1,
     description: 1,
     salesDescription: 1,
@@ -203,6 +211,7 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
     performanceObligationType: 1,
     standaloneSellingPrice: 2,
     billingType: 1,
+    billingTrigger: 2,
     standardCost: 1,
     averageCost: 2,
     subsidiaryIds: 1,
@@ -221,12 +230,13 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
     inventoryAccountId: 1,
     cogsExpenseAccountId: 2,
     deferredCostAccountId: 1,
-    directRevenuePosting: 1,
+    directRevenuePosting: 2,
   }
 
   const rowMap: Record<ItemFormFieldKey, number> = {
     name: 0,
     itemId: 0,
+    externalId: 1,
     sku: 1,
     description: 1,
     salesDescription: 2,
@@ -250,7 +260,8 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
     allocationEligible: 4,
     performanceObligationType: 5,
     standaloneSellingPrice: 0,
-    billingType: 2,
+    billingType: 0,
+    billingTrigger: 0,
     standardCost: 1,
     averageCost: 1,
     subsidiaryIds: 2,
@@ -269,7 +280,7 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
     inventoryAccountId: 2,
     cogsExpenseAccountId: 2,
     deferredCostAccountId: 2,
-    directRevenuePosting: 0,
+    directRevenuePosting: 3,
   }
 
   return {
@@ -279,6 +290,7 @@ export function defaultItemFormCustomization(): ItemFormCustomizationConfig {
       Core: 4,
       Operational: 6,
       'Pricing And Costing': 3,
+      Billing: 1,
       'Revenue Recognition': 6,
       Accounting: 3,
     },

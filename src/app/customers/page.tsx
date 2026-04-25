@@ -14,6 +14,7 @@ import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadCustomerFormCustomization } from '@/lib/customer-form-customization-store'
 import { CUSTOMER_FORM_FIELDS } from '@/lib/customer-form-customization'
 import { customerListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
@@ -97,6 +98,7 @@ export default async function CRMPage({
         searchPlaceholder={customerListDefinition.searchPlaceholder}
         tableId={customerListDefinition.tableId}
         exportFileName={customerListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('customers', params.q, sort)}
         columns={customerListDefinition.columns}
         sort={sort}
         sortOptions={customerListDefinition.sortOptions}

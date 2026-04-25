@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
 import { syncPurchaseOrderTotal } from '@/lib/purchase-order-total'
+import { calcLineTotal, parseMoneyValue, parseQuantity } from '@/lib/money'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,13 +13,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const parsedQuantity = Number.parseInt(String(quantity), 10)
-    const parsedUnitPrice = Number.parseFloat(String(unitPrice))
+    const parsedQuantity = parseQuantity(quantity)
+    const parsedUnitPrice = parseMoneyValue(unitPrice, Number.NaN)
     const parsedDisplayOrder = Number.parseInt(String(displayOrder ?? 0), 10)
-
-    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
-      return NextResponse.json({ error: 'Quantity must be greater than zero' }, { status: 400 })
-    }
 
     if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
       return NextResponse.json({ error: 'Unit price must be zero or greater' }, { status: 400 })
@@ -35,7 +32,7 @@ export async function POST(request: NextRequest) {
         description,
         quantity: parsedQuantity,
         unitPrice: parsedUnitPrice,
-        lineTotal: parsedQuantity * parsedUnitPrice,
+        lineTotal: calcLineTotal(parsedQuantity, parsedUnitPrice),
         displayOrder: parsedDisplayOrder,
       },
     })
@@ -104,16 +101,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Line item not found' }, { status: 404 })
     }
 
-    const parsedQuantity = Number.parseInt(String(quantity), 10)
-    const parsedUnitPrice = Number.parseFloat(String(unitPrice))
+    const parsedQuantity = parseQuantity(quantity)
+    const parsedUnitPrice = parseMoneyValue(unitPrice, Number.NaN)
     const parsedDisplayOrder = Number.parseInt(String(displayOrder ?? existing.displayOrder ?? 0), 10)
 
     if (!description || !String(description).trim()) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 })
-    }
-
-    if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
-      return NextResponse.json({ error: 'Quantity must be greater than zero' }, { status: 400 })
     }
 
     if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
@@ -131,7 +124,7 @@ export async function PUT(request: NextRequest) {
         description: String(description).trim(),
         quantity: parsedQuantity,
         unitPrice: parsedUnitPrice,
-        lineTotal: parsedQuantity * parsedUnitPrice,
+        lineTotal: calcLineTotal(parsedQuantity, parsedUnitPrice),
         displayOrder: parsedDisplayOrder,
       },
     })

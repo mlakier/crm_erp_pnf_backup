@@ -1,0 +1,442 @@
+{
+  "entity": "journals",
+  "generatedAt": "2026-04-25T15:17:11.063Z",
+  "mode": "audit-only",
+  "checks": [
+    {
+      "section": "foundation",
+      "id": "detail-shared-shell",
+      "label": "Detail page uses shared transaction detail framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "new-shared-shell",
+      "label": "+ New uses shared transaction create framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\new\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "customize-component",
+      "label": "Customize component exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\JournalDetailCustomizeMode.tsx",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "customization-lib",
+      "label": "Customization lib exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\journal-detail-customization.ts",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "customization-store",
+      "label": "Customization store exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\journal-detail-customization-store.ts",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "customization-route",
+      "label": "Customization API route exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\api\\config\\journal-detail-customization\\route.ts",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "customize-shared-engine",
+      "label": "Customize flow uses shared transaction customize engine",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\JournalDetailCustomizeMode.tsx",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "detail-customize-wired",
+      "label": "Detail page recognizes customize mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "detail-edit-wired",
+      "label": "Detail page recognizes edit mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "detail-duplicate-enabled",
+      "label": "Detail page create menu enables duplicate",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "header",
+      "id": "detail-export",
+      "label": "Detail page includes export action",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "header",
+      "id": "detail-stat-card-links",
+      "label": "Detail page supports linked stat card values where applicable",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\transaction-page-configs\\journal.ts",
+      "ok": true
+    },
+    {
+      "section": "header",
+      "id": "detail-stat-card-tones",
+      "label": "Detail page supports colored stat card values where applicable",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\transaction-page-configs\\journal.ts",
+      "ok": true
+    },
+    {
+      "section": "line",
+      "id": "line-section-add-button",
+      "label": "Line section includes add-line capability where applicable",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "detail",
+      "id": "detail-related-docs",
+      "label": "Detail page includes related documents section",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "detail",
+      "id": "detail-communications",
+      "label": "Detail page includes communications section",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "detail",
+      "id": "detail-communications-send-email",
+      "label": "Detail page wires send email in communications",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "detail",
+      "id": "detail-gl-impact",
+      "label": "Detail page includes GL impact section",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "header",
+      "id": "customize-stat-cards",
+      "label": "Customize flow supports configurable stat cards when the page uses stats",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\JournalDetailCustomizeMode.tsx",
+      "ok": true
+    },
+    {
+      "section": "header",
+      "id": "detail-visible-stat-cards",
+      "label": "Detail page renders stat cards from the configured visible slots",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "foundation",
+      "id": "list-row-edit-link",
+      "label": "List page row edit action links to detail edit mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "schema",
+      "id": "list-top-value-columns",
+      "label": "List page defaults to the top 10 value columns when more than 10 exist",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "schema",
+      "id": "list-no-id-sort-option",
+      "label": "List page does not expose an Id sort option",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "schema",
+      "id": "list-no-sort-control",
+      "label": "List page does not expose a sort control",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "schema",
+      "id": "list-export-full-list",
+      "label": "List page export dropdown includes Full List checkbox and export-to format actions",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "schema",
+      "id": "list-status-filters",
+      "label": "List page displays status filters",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+      "ok": true
+    },
+    {
+      "section": "header",
+      "id": "customize-customer-section",
+      "label": "Customize flow supports a configurable Customer section with available customer fields",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\journal-detail-customization.ts",
+      "ok": true
+    },
+    {
+      "section": "schema",
+      "id": "list-id-search-filter",
+      "label": "List page search filters by journal id, description, and status",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+      "ok": true
+    }
+  ],
+  "missingFiles": [],
+  "needsUpdate": [],
+  "checksBySection": [
+    {
+      "section": "foundation",
+      "label": "Foundation",
+      "checks": [
+        {
+          "section": "foundation",
+          "id": "detail-shared-shell",
+          "label": "Detail page uses shared transaction detail framework",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "new-shared-shell",
+          "label": "+ New uses shared transaction create framework",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\new\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "customize-component",
+          "label": "Customize component exists",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\JournalDetailCustomizeMode.tsx",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "customization-lib",
+          "label": "Customization lib exists",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\journal-detail-customization.ts",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "customization-store",
+          "label": "Customization store exists",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\journal-detail-customization-store.ts",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "customization-route",
+          "label": "Customization API route exists",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\api\\config\\journal-detail-customization\\route.ts",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "customize-shared-engine",
+          "label": "Customize flow uses shared transaction customize engine",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\JournalDetailCustomizeMode.tsx",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "detail-customize-wired",
+          "label": "Detail page recognizes customize mode",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "detail-edit-wired",
+          "label": "Detail page recognizes edit mode",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "detail-duplicate-enabled",
+          "label": "Detail page create menu enables duplicate",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "foundation",
+          "id": "list-row-edit-link",
+          "label": "List page row edit action links to detail edit mode",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "section": "schema",
+      "label": "Schema Coverage",
+      "checks": [
+        {
+          "section": "schema",
+          "id": "list-top-value-columns",
+          "label": "List page defaults to the top 10 value columns when more than 10 exist",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "schema",
+          "id": "list-no-id-sort-option",
+          "label": "List page does not expose an Id sort option",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "schema",
+          "id": "list-no-sort-control",
+          "label": "List page does not expose a sort control",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "schema",
+          "id": "list-export-full-list",
+          "label": "List page export dropdown includes Full List checkbox and export-to format actions",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "schema",
+          "id": "list-status-filters",
+          "label": "List page displays status filters",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "schema",
+          "id": "list-id-search-filter",
+          "label": "List page search filters by journal id, description, and status",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\page.tsx",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "section": "header",
+      "label": "Header Section",
+      "checks": [
+        {
+          "section": "header",
+          "id": "detail-export",
+          "label": "Detail page includes export action",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "header",
+          "id": "detail-stat-card-links",
+          "label": "Detail page supports linked stat card values where applicable",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\transaction-page-configs\\journal.ts",
+          "ok": true
+        },
+        {
+          "section": "header",
+          "id": "detail-stat-card-tones",
+          "label": "Detail page supports colored stat card values where applicable",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\transaction-page-configs\\journal.ts",
+          "ok": true
+        },
+        {
+          "section": "header",
+          "id": "customize-stat-cards",
+          "label": "Customize flow supports configurable stat cards when the page uses stats",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\JournalDetailCustomizeMode.tsx",
+          "ok": true
+        },
+        {
+          "section": "header",
+          "id": "detail-visible-stat-cards",
+          "label": "Detail page renders stat cards from the configured visible slots",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "header",
+          "id": "customize-customer-section",
+          "label": "Customize flow supports a configurable Customer section with available customer fields",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\journal-detail-customization.ts",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "section": "line",
+      "label": "Line Section",
+      "checks": [
+        {
+          "section": "line",
+          "id": "line-section-add-button",
+          "label": "Line section includes add-line capability where applicable",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "section": "detail",
+      "label": "Detail Section",
+      "checks": [
+        {
+          "section": "detail",
+          "id": "detail-related-docs",
+          "label": "Detail page includes related documents section",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "detail",
+          "id": "detail-communications",
+          "label": "Detail page includes communications section",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "detail",
+          "id": "detail-communications-send-email",
+          "label": "Detail page wires send email in communications",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        },
+        {
+          "section": "detail",
+          "id": "detail-gl-impact",
+          "label": "Detail page includes GL impact section",
+          "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\journals\\[id]\\page.tsx",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "writes": [],
+  "updates": [],
+  "summary": {
+    "passed": 28,
+    "failed": 0,
+    "touched": 0,
+    "updated": 0,
+    "untouched": true
+  }
+}

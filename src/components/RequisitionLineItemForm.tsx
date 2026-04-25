@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { roundMoney } from '@/lib/format'
+import { parseMoneyValue, parseQuantity } from '@/lib/money'
 
 type Item = { id: string; name: string; listPrice: number }
 
@@ -28,7 +30,7 @@ export default function RequisitionLineItemForm({
       const item = items.find((i) => i.id === id)
       if (item) {
         if (!description) setDescription(item.name)
-        setUnitPrice(String(item.listPrice))
+        setUnitPrice(roundMoney(item.listPrice).toFixed(2))
       }
     }
   }
@@ -56,8 +58,8 @@ export default function RequisitionLineItemForm({
         body: JSON.stringify({
           requisitionId,
           description,
-          quantity: parseInt(quantity) || 1,
-          unitPrice: parseFloat(unitPrice) || 0,
+          quantity: parseQuantity(quantity),
+          unitPrice: parseMoneyValue(unitPrice),
           notes: notes || null,
           itemId: itemId || null,
         }),

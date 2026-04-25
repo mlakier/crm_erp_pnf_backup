@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { parseMoneyValue } from '@/lib/money';
 import type { PtpWorkflowConfig, PtpStep, PtpTrigger, PtpApproval, ApprovalTier } from '@/lib/ptp-workflow-store';
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
@@ -352,7 +353,7 @@ return (
                       <input
                         type="number"
                         value={tier.value}
-                        onChange={(e) => updateTier(approval.id, tierIdx, { value: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateTier(approval.id, tierIdx, { value: parseMoneyValue(e.target.value) })}
                         className="w-full rounded-md border bg-transparent px-2 py-1.5 text-sm text-white"
                         style={{ borderColor: 'var(--border-muted)' }}
                       />

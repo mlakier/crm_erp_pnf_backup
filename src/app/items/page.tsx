@@ -14,9 +14,11 @@ import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { ITEM_FORM_FIELDS, type ItemFormFieldKey } from '@/lib/item-form-customization'
 import { itemListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
 import { buildFieldStyleListTooltip } from '@/lib/field-style-list-tooltip'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
+import { toNumericValue } from '@/lib/format'
 
 export default async function ItemsPage({
   searchParams,
@@ -37,7 +39,7 @@ export default async function ItemsPage({
     })
 
   const where = query
-    ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { itemId: { contains: query, mode: 'insensitive' as const } }, { sku: { contains: query, mode: 'insensitive' as const } }] }
+    ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { itemId: { contains: query, mode: 'insensitive' as const } }, { externalId: { contains: query, mode: 'insensitive' as const } }, { sku: { contains: query, mode: 'insensitive' as const } }] }
     : {}
 
   const total = await prisma.item.count({ where })
@@ -97,6 +99,7 @@ export default async function ItemsPage({
       'createRevenuePlanOn',
       'performanceObligationType',
       'billingType',
+      'billingTrigger',
       'line',
       'productLine',
       'departmentId',
@@ -126,7 +129,7 @@ export default async function ItemsPage({
   type ItemRow = (typeof items)[number]
   type ItemListColumnId = ItemFormFieldKey | 'created' | 'last-modified' | 'actions'
 
-  const formatNumber = (value: number | null | undefined) => (value == null ? '-' : value.toFixed(2))
+  const formatNumber = (value: unknown) => (value == null ? '-' : toNumericValue(value).toFixed(2))
   const formatBoolean = (value: boolean) => (value ? 'Yes' : 'No')
 
   const renderItemFieldValue = (item: ItemRow, columnId: ItemListColumnId): ReactNode => {
@@ -208,6 +211,7 @@ export default async function ItemsPage({
         searchPlaceholder={itemListDefinition.searchPlaceholder}
         tableId={itemListDefinition.tableId}
         exportFileName={itemListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('items', params.q, sort)}
         columns={itemListDefinition.columns}
         sort={sort}
         sortOptions={itemListDefinition.sortOptions}
@@ -280,6 +284,7 @@ export default async function ItemsPage({
                           { name: 'performanceObligationType', label: 'Performance Obligation Type', value: item.performanceObligationType ?? '', type: 'select', options: fieldOptions.performanceObligationType ?? [] },
                           { name: 'standaloneSellingPrice', label: 'Standalone Selling Price', value: item.standaloneSellingPrice != null ? String(item.standaloneSellingPrice) : '', type: 'number' },
                           { name: 'billingType', label: 'Billing Type', value: item.billingType ?? '', type: 'select', options: fieldOptions.billingType ?? [] },
+                          { name: 'billingTrigger', label: 'Billing Trigger', value: item.billingTrigger ?? '', type: 'select', options: fieldOptions.billingTrigger ?? [] },
                           { name: 'standardCost', label: 'Standard Cost', value: item.standardCost != null ? String(item.standardCost) : '', type: 'number' },
                           { name: 'averageCost', label: 'Average Cost', value: item.averageCost != null ? String(item.averageCost) : '', type: 'number' },
                           {
@@ -313,7 +318,7 @@ export default async function ItemsPage({
                           { name: 'inventoryAccountId', label: 'Asset Account', value: item.inventoryAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
                           { name: 'cogsExpenseAccountId', label: 'COGS / Expense Account', value: item.cogsExpenseAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
                           { name: 'deferredCostAccountId', label: 'Deferred Cost Account', value: item.deferredCostAccountId ?? '', type: 'select', placeholder: 'Select GL account', options: glOptions },
-                          { name: 'line', label: 'Line', value: item.line ?? '', type: 'select', options: fieldOptions.line ?? [] },
+                          { name: 'line', label: 'Business Line', value: item.line ?? '', type: 'select', options: fieldOptions.line ?? [] },
                           { name: 'productLine', label: 'Product Line', value: item.productLine ?? '', type: 'select', options: fieldOptions.productLine ?? [] },
                           { name: 'dropShipItem', label: 'Drop Ship Item', value: item.dropShipItem ? 'true' : 'false', type: 'checkbox', placeholder: 'Drop Ship Item' },
                           { name: 'specialOrderItem', label: 'Special Order Item', value: item.specialOrderItem ? 'true' : 'false', type: 'checkbox', placeholder: 'Special Order Item' },

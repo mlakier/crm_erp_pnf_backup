@@ -12,6 +12,7 @@ import {
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { getMasterDataRowStyle, MASTER_DATA_TABLE_DIVIDER_STYLE } from '@/lib/master-data-table'
 import { getPagination } from '@/lib/pagination'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { managedListDefinition } from '@/lib/master-data-list-definitions'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 import { loadManagedListsState } from '@/lib/manage-lists'
@@ -70,6 +71,7 @@ export default async function ListsPage({
         searchPlaceholder={managedListDefinition.searchPlaceholder}
         tableId={managedListDefinition.tableId}
         exportFileName={managedListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('lists', params.q, sort)}
         columns={managedListDefinition.columns}
         sort={sort}
         sortOptions={managedListDefinition.sortOptions}

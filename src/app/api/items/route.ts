@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isFieldRequiredServer } from '@/lib/form-requirements-store'
 import { generateNextItemNumber } from '@/lib/item-number'
+import {
+  isInventoryItemType,
+  normalizeItemOrderFlags,
+  validateItemInventoryRules,
+  validateItemOrderFlags,
+  validateItemRevenueTriggerSequence,
+} from '@/lib/item-business-rules'
 
 export async function GET() {
   const data = await prisma.item.findMany({
@@ -40,6 +47,7 @@ export async function POST(request: Request) {
     const name = String(body?.name ?? '').trim()
     const requestedItemId = toOptionalString(body?.itemId)
     const itemId = requestedItemId ?? await generateNextItemNumber()
+    const externalId = toOptionalString(body?.externalId)
     const sku = toOptionalString(body?.sku)
     const itemType = String(body?.itemType ?? 'service').trim() || 'service'
     const description = toOptionalString(body?.description)
@@ -65,6 +73,7 @@ export async function POST(request: Request) {
     const standaloneSellingPriceRaw = String(body?.standaloneSellingPrice ?? '').trim()
     const standaloneSellingPrice = standaloneSellingPriceRaw ? Number(standaloneSellingPriceRaw) : null
     const billingType = toOptionalString(body?.billingType)
+    const billingTrigger = toOptionalString(body?.billingTrigger)
     const standardCostRaw = String(body?.standardCost ?? '').trim()
     const standardCost = standardCostRaw ? Number(standardCostRaw) : null
     const averageCostRaw = String(body?.averageCost ?? '').trim()
@@ -76,8 +85,27 @@ export async function POST(request: Request) {
     const currencyId = toOptionalString(body?.currencyId)
     const line = toOptionalString(body?.line)
     const productLine = toOptionalString(body?.productLine)
-    const dropShipItem = String(body?.dropShipItem ?? 'false').trim().toLowerCase() === 'true'
-    const specialOrderItem = String(body?.specialOrderItem ?? 'false').trim().toLowerCase() === 'true'
+    const directRevenuePosting = String(body?.directRevenuePosting ?? 'false').trim().toLowerCase() === 'true'
+    const parsedDropShipItem = String(body?.dropShipItem ?? 'false').trim().toLowerCase() === 'true'
+    const parsedSpecialOrderItem = String(body?.specialOrderItem ?? 'false').trim().toLowerCase() === 'true'
+    const orderFlagError = validateItemOrderFlags({ dropShipItem: parsedDropShipItem, specialOrderItem: parsedSpecialOrderItem })
+    if (orderFlagError) {
+      return NextResponse.json({ error: orderFlagError }, { status: 400 })
+    }
+    const revenueTriggerError = validateItemRevenueTriggerSequence({
+      directRevenuePosting,
+      recognitionTrigger,
+      createRevenueArrangementOn,
+      createForecastPlanOn,
+      createRevenuePlanOn,
+    })
+    if (revenueTriggerError) {
+      return NextResponse.json({ error: revenueTriggerError }, { status: 400 })
+    }
+    const { dropShipItem, specialOrderItem } = normalizeItemOrderFlags({
+      dropShipItem: parsedDropShipItem,
+      specialOrderItem: parsedSpecialOrderItem,
+    })
     const canBeFulfilled = String(body?.canBeFulfilled ?? 'false').trim().toLowerCase() === 'true'
     const preferredVendorId = toOptionalString(body?.preferredVendorId)
     const incomeAccountId = toOptionalString(body?.incomeAccountId)
@@ -85,18 +113,39 @@ export async function POST(request: Request) {
     const inventoryAccountId = toOptionalString(body?.inventoryAccountId)
     const cogsExpenseAccountId = toOptionalString(body?.cogsExpenseAccountId)
     const deferredCostAccountId = toOptionalString(body?.deferredCostAccountId)
-    const directRevenuePosting = String(body?.directRevenuePosting ?? 'false').trim().toLowerCase() === 'true'
     const inactive = String(body?.inactive ?? 'false').trim().toLowerCase() === 'true'
     const subsidiaryId = subsidiaryIds[0] ?? null
+    const inventoryRuleError = validateItemInventoryRules({
+      itemType,
+      dropShipItem: parsedDropShipItem,
+      specialOrderItem: parsedSpecialOrderItem,
+      inventoryAccountId,
+    })
+    if (inventoryRuleError) {
+      return NextResponse.json({ error: inventoryRuleError }, { status: 400 })
+    }
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
     }
 
     const missing: string[] = []
+    const revenueRecognitionFieldNames = new Set([
+      'revenueStream',
+      'recognitionMethod',
+      'recognitionTrigger',
+      'defaultRevRecTemplateId',
+      'defaultTermMonths',
+      'createRevenueArrangementOn',
+      'createForecastPlanOn',
+      'createRevenuePlanOn',
+      'allocationEligible',
+      'performanceObligationType',
+    ])
     const requiredFields = [
       ['name', name],
       ['itemId', itemId],
+      ['externalId', externalId],
       ['sku', sku],
       ['itemType', itemType],
       ['uom', uom],
@@ -113,6 +162,7 @@ export async function POST(request: Request) {
       ['performanceObligationType', performanceObligationType],
       ['standaloneSellingPrice', standaloneSellingPriceRaw],
       ['billingType', billingType],
+      ['billingTrigger', billingTrigger],
       ['standardCost', standardCostRaw],
       ['averageCost', averageCostRaw],
       ['subsidiaryId', subsidiaryId],
@@ -123,6 +173,9 @@ export async function POST(request: Request) {
     ] as const
 
     for (const [fieldName, fieldValue] of requiredFields) {
+      if (directRevenuePosting && revenueRecognitionFieldNames.has(fieldName)) {
+        continue
+      }
       if ((await isFieldRequiredServer('itemCreate', fieldName)) && !String(fieldValue ?? '').trim()) {
         missing.push(fieldName)
       }
@@ -136,17 +189,23 @@ export async function POST(request: Request) {
       missing.push('deferredCostAccountId')
     }
 
+    if (isInventoryItemType(itemType) && !inventoryAccountId) {
+      missing.push('inventoryAccountId')
+    }
+
     if (missing.length > 0) {
       return NextResponse.json({ error: `Missing required fields: ${missing.join(', ')}` }, { status: 400 })
     }
 
     const normalizedDeferredRevenueAccountId = directRevenuePosting ? null : deferredRevenueAccountId
     const normalizedDeferredCostAccountId = directRevenuePosting ? null : deferredCostAccountId
+    const normalizedInventoryAccountId = isInventoryItemType(itemType) ? inventoryAccountId : null
 
     const created = await prisma.item.create({
       data: {
         name,
         itemId,
+        externalId,
         sku,
         description,
         salesDescription,
@@ -170,6 +229,7 @@ export async function POST(request: Request) {
         performanceObligationType,
         standaloneSellingPrice: Number.isFinite(standaloneSellingPrice) ? standaloneSellingPrice : null,
         billingType,
+        billingTrigger,
         standardCost: Number.isFinite(standardCost) ? standardCost : null,
         averageCost: Number.isFinite(averageCost) ? averageCost : null,
         includeChildren,
@@ -185,7 +245,7 @@ export async function POST(request: Request) {
         preferredVendorId,
         incomeAccountId,
         deferredRevenueAccountId: normalizedDeferredRevenueAccountId,
-        inventoryAccountId,
+        inventoryAccountId: normalizedInventoryAccountId,
         cogsExpenseAccountId,
         deferredCostAccountId: normalizedDeferredCostAccountId,
         directRevenuePosting,
@@ -240,6 +300,7 @@ export async function PUT(request: Request) {
     }
     const name = body?.name !== undefined ? String(body.name).trim() : undefined
     const itemId = body?.itemId !== undefined ? toOptionalString(body.itemId) : undefined
+    const externalId = body?.externalId !== undefined ? toOptionalString(body.externalId) : undefined
     const sku = body?.sku !== undefined ? toOptionalString(body.sku) : undefined
     const itemType = body?.itemType !== undefined ? String(body.itemType).trim() : undefined
     const description = body?.description !== undefined ? toOptionalString(body.description) : undefined
@@ -269,6 +330,7 @@ export async function PUT(request: Request) {
       ? (String(body.standaloneSellingPrice).trim() ? Number(body.standaloneSellingPrice) : null)
       : undefined
     const billingType = body?.billingType !== undefined ? toOptionalString(body.billingType) : undefined
+    const billingTrigger = body?.billingTrigger !== undefined ? toOptionalString(body.billingTrigger) : undefined
     const standardCost = body?.standardCost !== undefined
       ? (String(body.standardCost).trim() ? Number(body.standardCost) : null)
       : undefined
@@ -284,10 +346,10 @@ export async function PUT(request: Request) {
     const currencyId = body?.currencyId !== undefined ? toOptionalString(body.currencyId) : undefined
     const line = body?.line !== undefined ? toOptionalString(body.line) : undefined
     const productLine = body?.productLine !== undefined ? toOptionalString(body.productLine) : undefined
-    const dropShipItem = body?.dropShipItem !== undefined
+    const parsedDropShipItem = body?.dropShipItem !== undefined
       ? String(body.dropShipItem).trim().toLowerCase() === 'true'
       : undefined
-    const specialOrderItem = body?.specialOrderItem !== undefined
+    const parsedSpecialOrderItem = body?.specialOrderItem !== undefined
       ? String(body.specialOrderItem).trim().toLowerCase() === 'true'
       : undefined
     const canBeFulfilled = body?.canBeFulfilled !== undefined
@@ -310,6 +372,61 @@ export async function PUT(request: Request) {
       : body?.active !== undefined
         ? String(body.active).trim().toLowerCase() === 'true'
         : undefined
+    const existing = await prisma.item.findUnique({
+      where: { id },
+      select: {
+        dropShipItem: true,
+        specialOrderItem: true,
+        directRevenuePosting: true,
+        recognitionTrigger: true,
+        createRevenueArrangementOn: true,
+        createForecastPlanOn: true,
+        createRevenuePlanOn: true,
+        itemType: true,
+        inventoryAccountId: true,
+      },
+    })
+    const candidateDropShipItem = parsedDropShipItem ?? existing?.dropShipItem ?? false
+    const candidateSpecialOrderItem = parsedSpecialOrderItem ?? existing?.specialOrderItem ?? false
+    const candidateDirectRevenuePosting = directRevenuePosting ?? existing?.directRevenuePosting ?? false
+    const candidateRecognitionTrigger = recognitionTrigger ?? existing?.recognitionTrigger ?? null
+    const candidateCreateRevenueArrangementOn = createRevenueArrangementOn ?? existing?.createRevenueArrangementOn ?? null
+    const candidateCreateForecastPlanOn = createForecastPlanOn ?? existing?.createForecastPlanOn ?? null
+    const candidateCreateRevenuePlanOn = createRevenuePlanOn ?? existing?.createRevenuePlanOn ?? null
+    const candidateItemType = itemType ?? existing?.itemType ?? null
+    const candidateInventoryAccountId = inventoryAccountId ?? existing?.inventoryAccountId ?? null
+    const orderFlagError = validateItemOrderFlags({ dropShipItem: candidateDropShipItem, specialOrderItem: candidateSpecialOrderItem })
+    if (orderFlagError) {
+      return NextResponse.json({ error: orderFlagError }, { status: 400 })
+    }
+    const inventoryRuleError = validateItemInventoryRules({
+      itemType: candidateItemType,
+      dropShipItem: candidateDropShipItem,
+      specialOrderItem: candidateSpecialOrderItem,
+      inventoryAccountId: candidateInventoryAccountId,
+    })
+    if (inventoryRuleError) {
+      return NextResponse.json({ error: inventoryRuleError }, { status: 400 })
+    }
+    const revenueTriggerError = validateItemRevenueTriggerSequence({
+      directRevenuePosting: candidateDirectRevenuePosting,
+      recognitionTrigger: candidateRecognitionTrigger,
+      createRevenueArrangementOn: candidateCreateRevenueArrangementOn,
+      createForecastPlanOn: candidateCreateForecastPlanOn,
+      createRevenuePlanOn: candidateCreateRevenuePlanOn,
+    })
+    if (revenueTriggerError) {
+      return NextResponse.json({ error: revenueTriggerError }, { status: 400 })
+    }
+    const normalizedOrderFlags = normalizeItemOrderFlags({
+      dropShipItem: candidateDropShipItem,
+      specialOrderItem: candidateSpecialOrderItem,
+    })
+    const dropShipItem = parsedDropShipItem !== undefined ? normalizedOrderFlags.dropShipItem : undefined
+    const specialOrderItem =
+      parsedDropShipItem !== undefined || parsedSpecialOrderItem !== undefined
+        ? normalizedOrderFlags.specialOrderItem
+        : undefined
 
     const normalizedDeferredRevenueAccountId = directRevenuePosting === true
       ? null
@@ -317,6 +434,9 @@ export async function PUT(request: Request) {
     const normalizedDeferredCostAccountId = directRevenuePosting === true
       ? null
       : deferredCostAccountId
+    const normalizedInventoryAccountId = itemType !== undefined
+      ? (isInventoryItemType(itemType) ? inventoryAccountId : null)
+      : inventoryAccountId
     const subsidiaryId = subsidiaryIds !== undefined ? (subsidiaryIds[0] ?? null) : undefined
 
     const updated = await prisma.item.update({
@@ -326,6 +446,7 @@ export async function PUT(request: Request) {
           Object.entries({
           name,
           itemId,
+          externalId,
           sku,
           itemType,
           itemCategory,
@@ -349,6 +470,7 @@ export async function PUT(request: Request) {
           performanceObligationType,
           standaloneSellingPrice,
           billingType,
+          billingTrigger,
           standardCost,
           averageCost,
           currencyId,
@@ -364,7 +486,7 @@ export async function PUT(request: Request) {
           preferredVendorId,
           incomeAccountId,
           deferredRevenueAccountId: normalizedDeferredRevenueAccountId,
-          inventoryAccountId,
+          inventoryAccountId: normalizedInventoryAccountId,
           cogsExpenseAccountId,
           deferredCostAccountId: normalizedDeferredCostAccountId,
           directRevenuePosting,

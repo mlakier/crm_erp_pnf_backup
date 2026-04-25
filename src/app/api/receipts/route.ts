@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity'
+import { canReceivePurchaseOrderLine } from '@/lib/item-business-rules'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +17,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Quantity must be greater than zero' }, { status: 400 })
     }
 
+    const purchaseOrderForReceipt = await prisma.purchaseOrder.findUnique({
+      where: { id: purchaseOrderId },
+      select: {
+        number: true,
+        lineItems: {
+          select: {
+            id: true,
+            item: { select: { dropShipItem: true, specialOrderItem: true } },
+          },
+        },
+      },
+    })
+
+    if (!purchaseOrderForReceipt) {
+      return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 })
+    }
+
+    const hasReceivableLine = purchaseOrderForReceipt.lineItems.some((line) => canReceivePurchaseOrderLine(line.item))
+    if (!hasReceivableLine) {
+      return NextResponse.json({ error: 'This purchase order has no receivable lines. Drop ship items cannot be received.' }, { status: 400 })
+    }
+
     const receipt = await prisma.receipt.create({
       data: {
         purchaseOrderId,
@@ -25,16 +48,11 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const purchaseOrder = await prisma.purchaseOrder.findUnique({
-      where: { id: purchaseOrderId },
-      select: { number: true },
-    })
-
     await logActivity({
       entityType: 'purchase-order',
       entityId: purchaseOrderId,
       action: 'update',
-      summary: `Recorded receipt for purchase order ${purchaseOrder?.number ?? purchaseOrderId}`,
+      summary: `Recorded receipt for purchase order ${purchaseOrderForReceipt.number ?? purchaseOrderId}`,
       userId,
     })
 

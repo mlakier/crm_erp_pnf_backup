@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
-import { fmtCurrency } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate, toNumericValue } from '@/lib/format'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 import DeleteButton from '@/components/DeleteButton'
-import EditButton from '@/components/EditButton'
 import OpportunityStageMoveButton from '@/components/OpportunityStageMoveButton'
 import ColumnSelector from '@/components/ColumnSelector'
 import ExportButton from '@/components/ExportButton'
@@ -10,8 +10,6 @@ import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
-import CreateModalButton from '@/components/CreateModalButton'
-import OpportunityCreateForm from '@/components/OpportunityCreateForm'
 import { loadListOptionsForSource } from '@/lib/list-source'
 import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
@@ -51,6 +49,7 @@ export default async function OpportunitiesPage({
   searchParams: Promise<{ q?: string; stage?: string; sort?: string; view?: string; page?: string }>
 }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const query = (params.q ?? '').trim()
   const stageFilter = params.stage ?? 'all'
   const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -98,14 +97,11 @@ export default async function OpportunitiesPage({
           ? [{ amount: 'asc' as const }]
           : [{ createdAt: 'desc' as const }]
 
-  const [totalOpportunities, adminUser, companySettings, cabinetFiles, stageOptions, customers, items] = await Promise.all([
+  const [totalOpportunities, companySettings, cabinetFiles, stageOptions] = await Promise.all([
     prisma.opportunity.count({ where }),
-    prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
     loadListOptionsForSource({ sourceType: 'managed-list', sourceKey: 'LIST-OPP-STAGE' }),
-    prisma.customer.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
-    prisma.item.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true, listPrice: true, itemId: true } }),
   ])
   const STAGE_OPTIONS = stageOptions.map((option) => option.value)
 
@@ -163,9 +159,14 @@ export default async function OpportunitiesPage({
           <h1 className="text-xl font-semibold text-white">Opportunities</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{totalOpportunities} total</p>
         </div>
-                  <CreateModalButton buttonLabel="New Opportunity" title="New Opportunity">
-          <OpportunityCreateForm userId={adminUser?.id ?? ''} customers={customers} items={items} stageOptions={stageOptions} />
-          </CreateModalButton>
+        <Link
+          href="/opportunities/new"
+          className="inline-flex items-center rounded-lg px-3.5 py-1.5 text-base font-semibold transition"
+          style={{ backgroundColor: 'var(--accent-primary-strong)', color: '#ffffff' }}
+        >
+          <span className="mr-1.5 text-lg leading-none">+</span>
+          New Opportunity
+        </Link>
       </div>
       {/* Stage tabs */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -241,9 +242,9 @@ export default async function OpportunitiesPage({
                                   </Link>
                                   <p className="text-sm font-semibold text-white">{opportunity.name}</p>
                                   <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>{opportunity.customer.name}</p>
-                                  <p className="mt-2 text-sm font-medium text-white">{fmtCurrency(opportunity.amount)}</p>
+                                  <p className="mt-2 text-sm font-medium text-white">{fmtCurrency(opportunity.amount, undefined, moneySettings)}</p>
                                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                                    {opportunity.closeDate ? new Date(opportunity.closeDate).toLocaleDateString() : 'No close date'}
+                                    {opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate, moneySettings) : 'No close date'}
                                   </p>
                                   <div className="mt-3 flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
@@ -251,7 +252,7 @@ export default async function OpportunitiesPage({
                                         <OpportunityStageMoveButton
                                           id={opportunity.id}
                                           name={opportunity.name}
-                                          amount={opportunity.amount}
+                                          amount={toNumericValue(opportunity.amount, 0)}
                                           closeDate={opportunity.closeDate ? new Date(opportunity.closeDate).toISOString() : ''}
                                           targetStage={prevStage}
                                           label="Back"
@@ -261,7 +262,7 @@ export default async function OpportunitiesPage({
                                         <OpportunityStageMoveButton
                                           id={opportunity.id}
                                           name={opportunity.name}
-                                          amount={opportunity.amount}
+                                          amount={toNumericValue(opportunity.amount, 0)}
                                           closeDate={opportunity.closeDate ? new Date(opportunity.closeDate).toISOString() : ''}
                                           targetStage={nextStage}
                                           label="Advance"
@@ -308,22 +309,19 @@ export default async function OpportunitiesPage({
                     <td data-column="name" className="px-4 py-2 text-sm text-white">{opportunity.name}</td>
                     <td data-column="customer" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{opportunity.customer.name}</td>
                     <td data-column="stage" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{STAGE_LABELS[opportunity.normalizedStage]}</td>
-                    <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(opportunity.amount)}</td>
-                    <td data-column="close-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{opportunity.closeDate ? new Date(opportunity.closeDate).toLocaleDateString() : '—'}</td>
-                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(opportunity.createdAt).toLocaleDateString()}</td>
-                    <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(opportunity.updatedAt).toLocaleDateString()}</td>
+                    <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(opportunity.amount, undefined, moneySettings)}</td>
+                    <td data-column="close-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate, moneySettings) : '—'}</td>
+                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(opportunity.createdAt, moneySettings)}</td>
+                    <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(opportunity.updatedAt, moneySettings)}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       <div className="flex items-center gap-2">
-                        <EditButton
-                          resource="opportunities"
-                          id={opportunity.id}
-                          fields={[
-                            { name: 'name', label: 'Name', value: opportunity.name },
-                            { name: 'stage', label: 'Stage', value: opportunity.normalizedStage },
-                            { name: 'amount', label: 'Amount', value: opportunity.amount?.toString() ?? '', type: 'number' },
-                            { name: 'closeDate', label: 'Close Date', value: opportunity.closeDate ? new Date(opportunity.closeDate).toISOString().split('T')[0] : '', type: 'date' },
-                          ]}
-                        />
+                        <Link
+                          href={`/opportunities/${opportunity.id}?edit=1`}
+                          className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                          style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+                        >
+                          Edit
+                        </Link>
                         <DeleteButton resource="opportunities" id={opportunity.id} />
                       </div>
                     </td>
@@ -348,3 +346,4 @@ export default async function OpportunitiesPage({
     </div>
   )
 }
+

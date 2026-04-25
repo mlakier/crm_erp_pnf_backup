@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     const normalBalance = String(body?.normalBalance ?? '').trim() || null
     const financialStatementSection = String(body?.financialStatementSection ?? '').trim() || null
     const financialStatementGroup = String(body?.financialStatementGroup ?? '').trim() || null
+    const financialStatementCategory = String(body?.financialStatementCategory ?? '').trim() || null
     const isPosting = body?.isPosting !== undefined ? parseBool(body?.isPosting) : !summary
     const isControlAccount = parseBool(body?.isControlAccount)
     const allowsManualPosting = body?.allowsManualPosting !== undefined ? parseBool(body?.allowsManualPosting) : true
@@ -118,6 +119,7 @@ export async function POST(request: NextRequest) {
         normalBalance,
         financialStatementSection,
         financialStatementGroup,
+        financialStatementCategory,
         isPosting,
         isControlAccount,
         allowsManualPosting,
@@ -163,6 +165,7 @@ export async function PUT(request: NextRequest) {
     const normalBalance = body?.normalBalance !== undefined ? (String(body.normalBalance).trim() || null) : undefined
     const financialStatementSection = body?.financialStatementSection !== undefined ? (String(body.financialStatementSection).trim() || null) : undefined
     const financialStatementGroup = body?.financialStatementGroup !== undefined ? (String(body.financialStatementGroup).trim() || null) : undefined
+    const financialStatementCategory = body?.financialStatementCategory !== undefined ? (String(body.financialStatementCategory).trim() || null) : undefined
     const isPosting = body?.isPosting !== undefined ? parseBool(body.isPosting) : undefined
     const isControlAccount = body?.isControlAccount !== undefined ? parseBool(body.isControlAccount) : undefined
     const allowsManualPosting = body?.allowsManualPosting !== undefined ? parseBool(body.allowsManualPosting) : undefined
@@ -205,6 +208,7 @@ export async function PUT(request: NextRequest) {
           ...(normalBalance !== undefined ? { normalBalance } : {}),
           ...(financialStatementSection !== undefined ? { financialStatementSection } : {}),
           ...(financialStatementGroup !== undefined ? { financialStatementGroup } : {}),
+          ...(financialStatementCategory !== undefined ? { financialStatementCategory } : {}),
           ...(isPosting !== undefined ? { isPosting } : {}),
           ...(isControlAccount !== undefined ? { isControlAccount } : {}),
           ...(allowsManualPosting !== undefined ? { allowsManualPosting } : {}),

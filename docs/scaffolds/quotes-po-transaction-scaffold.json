@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-04-24T05:51:17.209Z",
+  "entity": {
+    "name": "quotes",
+    "slug": "quotes",
+    "singularSlug": "quote",
+    "pascal": "Quote",
+    "routePascal": "Quotes",
+    "constant": "QUOTE",
+    "routeConstant": "QUOTES",
+    "singularDisplayName": "Quote",
+    "pluralDisplayName": "Quotes",
+    "formKey": "quoteCreate",
+    "flow": "OTC",
+    "flowLabel": "Order to Cash"
+  },
+  "purchaseOrderPattern": {
+    "referenceRoute": "src/app/purchase-orders/[id]/page.tsx",
+    "referenceNewRoute": "src/app/purchase-orders/new/page.tsx",
+    "referenceCreateClient": "src/components/PurchaseOrderCreatePageClient.tsx",
+    "referenceCustomizeMode": "src/components/PurchaseOrderDetailCustomizeMode.tsx",
+    "referenceCustomizationLib": "src/lib/purchase-order-detail-customization.ts",
+    "referenceCustomizationStore": "src/lib/purchase-order-detail-customization-store.ts"
+  },
+  "targetFiles": [
+    "src/lib/quotes-detail-customization.ts",
+    "src/lib/quotes-detail-customization-store.ts",
+    "src/app/api/config/quotes-detail-customization/route.ts",
+    "src/components/QuoteDetailCustomizeMode.tsx",
+    "src/components/QuoteCreatePageClient.tsx",
+    "src/components/QuotePageActions.tsx",
+    "src/app/quotes/new/page.tsx",
+    "src/app/quotes/[id]/page.tsx"
+  ]
+}

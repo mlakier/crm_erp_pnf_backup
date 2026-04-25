@@ -10,12 +10,16 @@ type QuoteOption = {
 
 export default function SalesOrderCreateFromQuoteForm({
   quotes,
+  formId,
   fullPage,
+  duplicateFrom,
   onSuccess,
   onCancel,
 }: {
   quotes: QuoteOption[]
+  formId?: string
   fullPage?: boolean
+  duplicateFrom?: string
   onSuccess?: () => void
   onCancel?: () => void
 }) {
@@ -30,10 +34,11 @@ export default function SalesOrderCreateFromQuoteForm({
     setSaving(true)
 
     try {
+      const payload = duplicateFrom ? { duplicateFrom } : { quoteId }
       const response = await fetch('/api/sales-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quoteId }),
+        body: JSON.stringify(payload),
       })
 
       const body = await response.json()
@@ -58,23 +63,32 @@ export default function SalesOrderCreateFromQuoteForm({
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form id={formId} className="space-y-4" onSubmit={handleSubmit}>
       <div>
         <label className="block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Quote</label>
-        <select
-          value={quoteId}
-          onChange={(event) => setQuoteId(event.target.value)}
-          required
-          className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
-          style={{ borderColor: 'var(--border-muted)' }}
-        >
-          {quotes.length === 0 ? <option value="">No eligible quotes</option> : null}
-          {quotes.map((quote) => (
-            <option key={quote.id} value={quote.id}>
-              {quote.label}
-            </option>
-          ))}
-        </select>
+        {duplicateFrom ? (
+          <div
+            className="mt-1 rounded-md border px-3 py-2 text-sm"
+            style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+          >
+            This sales order will be created by duplicating the source sales order.
+          </div>
+        ) : (
+          <select
+            value={quoteId}
+            onChange={(event) => setQuoteId(event.target.value)}
+            required
+            className="mt-1 block w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
+            style={{ borderColor: 'var(--border-muted)' }}
+          >
+            {quotes.length === 0 ? <option value="">No eligible quotes</option> : null}
+            {quotes.map((quote) => (
+              <option key={quote.id} value={quote.id}>
+                {quote.label}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {error ? <p className="text-sm" style={{ color: 'var(--danger)' }}>{error}</p> : null}
@@ -101,11 +115,11 @@ export default function SalesOrderCreateFromQuoteForm({
         )}
         <button
           type="submit"
-          disabled={saving || quotes.length === 0}
+          disabled={saving || (!duplicateFrom && quotes.length === 0)}
           className="rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-60"
           style={{ backgroundColor: '#7fd0cf', color: '#0f172a' }}
         >
-          {saving ? 'Creating...' : 'Create Sales Order'}
+          {saving ? 'Creating...' : duplicateFrom ? 'Duplicate Sales Order' : 'Create Sales Order'}
         </button>
       </div>
     </form>

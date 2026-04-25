@@ -13,6 +13,7 @@ import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadUserFormCustomization } from '@/lib/user-form-customization-store'
 import { userListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { USER_FORM_FIELDS } from '@/lib/user-form-customization'
 import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
@@ -110,6 +111,7 @@ export default async function UsersPage({
         searchPlaceholder={userListDefinition.searchPlaceholder}
         tableId={userListDefinition.tableId}
         exportFileName={userListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('users', params.q, sort)}
         columns={userListDefinition.columns}
         sort={sort}
         sortOptions={userListDefinition.sortOptions}

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { SelectOption } from '@/lib/list-source'
+import { parseMoneyValue } from '@/lib/money'
 
 export default function CustomerDetailOpportunityForm({
   customerId,
@@ -48,7 +49,7 @@ export default function CustomerDetailOpportunityForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          amount: parseFloat(amount) || 0,
+          amount: parseMoneyValue(amount),
           stage,
           closeDate: closeDate || null,
           customerId,

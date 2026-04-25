@@ -6,6 +6,7 @@ import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import PurchaseOrderHeaderSections, { type PurchaseOrderHeaderSection } from '@/components/PurchaseOrderHeaderSections'
 import PurchaseOrderLineItemsSection from '@/components/PurchaseOrderLineItemsSection'
 import { fmtCurrency, fmtPhone } from '@/lib/format'
+import { calcLineTotal, sumMoney } from '@/lib/money'
 import {
   PURCHASE_ORDER_DETAIL_FIELDS,
   PURCHASE_ORDER_LINE_COLUMNS,
@@ -99,7 +100,7 @@ export default function PurchaseOrderCreatePageClient({
   )
 
   const computedTotal = useMemo(
-    () => draftRows.reduce((sum, row) => sum + row.lineTotal, 0),
+    () => sumMoney(draftRows.map((row) => row.lineTotal)),
     [draftRows]
   )
 
@@ -322,7 +323,7 @@ export default function PurchaseOrderCreatePageClient({
         ...row,
         quantity: Math.max(1, row.quantity || 1),
         unitPrice: Math.max(0, row.unitPrice || 0),
-        lineTotal: Math.max(1, row.quantity || 1) * Math.max(0, row.unitPrice || 0),
+        lineTotal: calcLineTotal(row.quantity || 1, row.unitPrice || 0),
         displayOrder: index,
       }))
       .filter((row) => row.description.trim() || row.itemId)
@@ -337,7 +338,7 @@ export default function PurchaseOrderCreatePageClient({
           vendorId,
           subsidiaryId: values.subsidiaryId?.trim() || null,
           userId,
-          total: filteredLines.reduce((sum, row) => sum + row.lineTotal, 0),
+          total: sumMoney(filteredLines.map((row) => row.lineTotal)),
           lineItems: filteredLines,
         }),
       })

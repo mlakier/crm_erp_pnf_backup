@@ -1,0 +1,205 @@
+{
+  "formColumns": 3,
+  "sections": [
+    "Customer",
+    "Sales Order Details"
+  ],
+  "sectionRows": {
+    "Customer": 3,
+    "Sales Order Details": 5
+  },
+  "fields": {
+    "id": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 0,
+      "column": 1
+    },
+    "customerId": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 0,
+      "column": 2
+    },
+    "customerName": {
+      "visible": true,
+      "section": "Customer",
+      "order": 0,
+      "column": 1
+    },
+    "customerNumber": {
+      "visible": true,
+      "section": "Customer",
+      "order": 1,
+      "column": 1
+    },
+    "customerEmail": {
+      "visible": true,
+      "section": "Customer",
+      "order": 0,
+      "column": 2
+    },
+    "customerPhone": {
+      "visible": true,
+      "section": "Customer",
+      "order": 1,
+      "column": 2
+    },
+    "customerAddress": {
+      "visible": false,
+      "section": "Customer",
+      "order": 0,
+      "column": 3
+    },
+    "customerPrimarySubsidiary": {
+      "visible": true,
+      "section": "Customer",
+      "order": 2,
+      "column": 1
+    },
+    "customerPrimaryCurrency": {
+      "visible": true,
+      "section": "Customer",
+      "order": 2,
+      "column": 2
+    },
+    "customerInactive": {
+      "visible": false,
+      "section": "Customer",
+      "order": 1,
+      "column": 3
+    },
+    "number": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 1,
+      "column": 1
+    },
+    "userId": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 2,
+      "column": 1
+    },
+    "quoteId": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 0,
+      "column": 3
+    },
+    "createdBy": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 1,
+      "column": 3
+    },
+    "createdFrom": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 1,
+      "column": 2
+    },
+    "opportunityId": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 2,
+      "column": 2
+    },
+    "subsidiaryId": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 3,
+      "column": 1
+    },
+    "currencyId": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 3,
+      "column": 2
+    },
+    "status": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 3,
+      "column": 3
+    },
+    "total": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 4,
+      "column": 1
+    },
+    "createdAt": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 2,
+      "column": 3
+    },
+    "updatedAt": {
+      "visible": true,
+      "section": "Sales Order Details",
+      "order": 4,
+      "column": 2
+    }
+  },
+  "lineColumns": {
+    "line": {
+      "visible": true,
+      "order": 0
+    },
+    "item-id": {
+      "visible": true,
+      "order": 1
+    },
+    "description": {
+      "visible": true,
+      "order": 2
+    },
+    "quantity": {
+      "visible": true,
+      "order": 3
+    },
+    "fulfilled-qty": {
+      "visible": true,
+      "order": 4
+    },
+    "open-qty": {
+      "visible": true,
+      "order": 5
+    },
+    "unit-price": {
+      "visible": true,
+      "order": 6
+    },
+    "line-total": {
+      "visible": true,
+      "order": 7
+    }
+  },
+  "statCards": [
+    {
+      "id": "slot-1",
+      "metric": "status",
+      "visible": true,
+      "order": 0
+    },
+    {
+      "id": "slot-2",
+      "metric": "quoteId",
+      "visible": true,
+      "order": 1
+    },
+    {
+      "id": "slot-3",
+      "metric": "lineCount",
+      "visible": true,
+      "order": 2
+    },
+    {
+      "id": "slot-4",
+      "metric": "total",
+      "visible": true,
+      "order": 3
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { loadCompanyPreferencesSettings } from '@/lib/company-preferences-store'
 import { formatCustomerNumber } from '@/lib/customer-number'
 import { formatContactNumber } from '@/lib/contact-number'
 import { formatOpportunityNumber } from '@/lib/opportunity-number'
+import { calcLineTotal, parseMoneyValue, parseOptionalMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
 
 function leadDisplayName(lead: {
   leadNumber?: string | null
@@ -185,18 +186,13 @@ export async function POST(request: NextRequest) {
         opportunityConfig.prefix
       )
 
-      const parsedAmount =
-        amount === '' || amount == null
-          ? null
-          : Number.isNaN(Number(amount))
-            ? null
-            : Number(amount)
+      const parsedAmount = parseOptionalMoneyValue(amount)
 
       const normalizedLines = Array.isArray(lineItems)
         ? lineItems
             .map((line) => {
-              const quantity = Math.max(1, Number.parseInt(String(line.quantity ?? '1'), 10) || 1)
-              const unitPrice = Number.parseFloat(String(line.unitPrice ?? '0')) || 0
+              const quantity = parseQuantity(line.quantity)
+              const unitPrice = parseMoneyValue(line.unitPrice)
               const description = (line.description ?? '').trim()
               if (!description) return null
               return {
@@ -204,7 +200,7 @@ export async function POST(request: NextRequest) {
                 description,
                 quantity,
                 unitPrice,
-                lineTotal: quantity * unitPrice,
+                lineTotal: calcLineTotal(quantity, unitPrice),
                 notes: line.notes?.trim() || null,
               }
             })
@@ -218,7 +214,7 @@ export async function POST(request: NextRequest) {
             } => Boolean(line))
         : []
 
-      const linesTotal = normalizedLines.reduce((sum, line) => sum + line.lineTotal, 0)
+      const linesTotal = sumMoney(normalizedLines.map((line) => line.lineTotal))
       const finalAmount = parsedAmount ?? (normalizedLines.length > 0 ? linesTotal : null)
 
       const opportunity = await tx.opportunity.create({

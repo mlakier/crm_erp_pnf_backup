@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateBillPaymentNumber } from '@/lib/bill-payment-number'
 import { logActivity } from '@/lib/activity'
+import { parseMoneyValue } from '@/lib/money'
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const number = await generateBillPaymentNumber()
-  if (body.amount) body.amount = parseFloat(body.amount)
+  if (body.amount !== undefined) body.amount = parseMoneyValue(body.amount)
   if (body.date) body.date = new Date(body.date)
   const row = await prisma.billPayment.create({ data: { number, ...body } })
   await logActivity({
@@ -32,7 +33,7 @@ export async function PUT(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
   const body = await req.json()
-  if (body.amount) body.amount = parseFloat(body.amount)
+  if (body.amount !== undefined) body.amount = parseMoneyValue(body.amount)
   if (body.date) body.date = new Date(body.date)
   const row = await prisma.billPayment.update({ where: { id }, data: body })
   await logActivity({

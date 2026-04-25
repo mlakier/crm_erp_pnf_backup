@@ -61,6 +61,7 @@ const NAV: NavGroup[] = [
       { label: 'Subsidiaries', href: '/subsidiaries' },
       { label: 'Currencies', href: '/currencies' },
       { label: 'Locations', href: '/locations' },
+      { label: 'Accounting Periods', href: '/accounting-periods' },
       { label: 'Items', href: '/items' },
       { label: 'Chart of Accounts', href: '/chart-of-accounts' },
       { label: 'Departments', href: '/departments' },
@@ -105,6 +106,7 @@ const NAV: NavGroup[] = [
     section: 'RECORD TO REPORT',
     items: [
       { label: 'Journals', href: '/journals' },
+      { label: 'Intercompany Journals', href: '/intercompany-journals' },
     ],
   },
 ]

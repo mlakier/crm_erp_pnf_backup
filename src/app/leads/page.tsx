@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
+import { fmtDocumentDate } from '@/lib/format'
 import CreateModalButton from '@/components/CreateModalButton'
 import DeleteButton from '@/components/DeleteButton'
 import LeadEditButton from '@/components/LeadEditButton'
@@ -14,6 +15,7 @@ import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListOptionsForSource } from '@/lib/list-source'
 import { DEFAULT_RECORD_LIST_SORT, prependIdSortOption } from '@/lib/record-list-sort'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
 
 const LEAD_COLUMNS = [
   { id: 'lead-number', label: 'Lead Id' },
@@ -39,6 +41,7 @@ export default async function LeadsPage({
   searchParams: Promise<{ q?: string; status?: string; sort?: string; page?: string }>
 }) {
   const params = await searchParams
+  const { moneySettings } = await loadCompanyDisplaySettings()
   const query = (params.q ?? '').trim()
   const statusFilter = params.status ?? 'all'
   const sort = params.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -199,8 +202,8 @@ export default async function LeadsPage({
                     <td data-column="source" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.source ?? '—'}</td>
                     <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.subsidiary?.subsidiaryId ?? '—'}</td>
                     <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{lead.currency?.code ?? '—'}</td>
-                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(lead.createdAt).toLocaleDateString()}</td>
-                    <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{new Date(lead.updatedAt).toLocaleDateString()}</td>
+                    <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(lead.createdAt, moneySettings)}</td>
+                    <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(lead.updatedAt, moneySettings)}</td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
                       <div className="flex items-center gap-2">
                         <ConvertLeadButton

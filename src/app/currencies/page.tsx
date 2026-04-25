@@ -12,6 +12,7 @@ import { formatMasterDataDate } from '@/lib/master-data-display'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { CURRENCY_FORM_FIELDS } from '@/lib/currency-form-customization'
 import { currencyListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-helpers'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 
@@ -81,6 +82,7 @@ export default async function CurrenciesPage({
         searchPlaceholder={currencyListDefinition.searchPlaceholder}
         tableId={currencyListDefinition.tableId}
         exportFileName={currencyListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('currencies', params.q, sort)}
         columns={currencyListDefinition.columns}
         sort={sort}
         sortOptions={currencyListDefinition.sortOptions}

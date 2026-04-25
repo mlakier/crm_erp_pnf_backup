@@ -9,6 +9,7 @@ import PaginationFooter from '@/components/PaginationFooter'
 import { loadCompanyPageLogo } from '@/lib/company-page-logo'
 import { loadListOptionsForSource } from '@/lib/list-source'
 import { locationListDefinition } from '@/lib/master-data-list-definitions'
+import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
 import { formatMasterDataDate } from '@/lib/master-data-display'
 import { getPagination } from '@/lib/pagination'
@@ -111,6 +112,7 @@ export default async function LocationsPage({
         searchPlaceholder={locationListDefinition.searchPlaceholder}
         tableId={locationListDefinition.tableId}
         exportFileName={locationListDefinition.exportFileName}
+        exportAllUrl={buildMasterDataExportUrl('locations', params.q, sort)}
         columns={locationListDefinition.columns}
         sort={sort}
         sortOptions={locationListDefinition.sortOptions}

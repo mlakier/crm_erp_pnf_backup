@@ -1,0 +1,162 @@
+{
+  "entity": "framework-sample-transactions",
+  "generatedAt": "2026-04-24T21:02:05.670Z",
+  "mode": "audit-and-write-missing",
+  "checks": [
+    {
+      "id": "detail-shared-shell",
+      "label": "Detail page uses shared transaction detail framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx",
+      "ok": false
+    },
+    {
+      "id": "new-shared-shell",
+      "label": "+ New uses shared transaction create framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\new\\page.tsx",
+      "ok": false
+    },
+    {
+      "id": "customize-component",
+      "label": "Customize component exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionDetailCustomizeMode.tsx",
+      "ok": false
+    },
+    {
+      "id": "customization-lib",
+      "label": "Customization lib exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization.ts",
+      "ok": false
+    },
+    {
+      "id": "customization-store",
+      "label": "Customization store exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization-store.ts",
+      "ok": false
+    },
+    {
+      "id": "customization-route",
+      "label": "Customization API route exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\api\\config\\framework-sample-transactions-detail-customization\\route.ts",
+      "ok": false
+    },
+    {
+      "id": "customize-shared-engine",
+      "label": "Customize flow uses shared transaction customize engine",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionDetailCustomizeMode.tsx",
+      "ok": false
+    },
+    {
+      "id": "detail-customize-wired",
+      "label": "Detail page recognizes customize mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx",
+      "ok": false
+    },
+    {
+      "id": "detail-edit-wired",
+      "label": "Detail page recognizes edit mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx",
+      "ok": false
+    }
+  ],
+  "missingFiles": [
+    {
+      "key": "detailPage",
+      "filePath": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx"
+    },
+    {
+      "key": "newPage",
+      "filePath": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\new\\page.tsx"
+    },
+    {
+      "key": "createClient",
+      "filePath": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionCreatePageClient.tsx"
+    },
+    {
+      "key": "customizeComponent",
+      "filePath": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionDetailCustomizeMode.tsx"
+    },
+    {
+      "key": "customizationLib",
+      "filePath": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization.ts"
+    },
+    {
+      "key": "customizationStore",
+      "filePath": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization-store.ts"
+    },
+    {
+      "key": "customizationRoute",
+      "filePath": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\api\\config\\framework-sample-transactions-detail-customization\\route.ts"
+    }
+  ],
+  "needsUpdate": [
+    {
+      "id": "detail-shared-shell",
+      "label": "Detail page uses shared transaction detail framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx",
+      "ok": false
+    },
+    {
+      "id": "new-shared-shell",
+      "label": "+ New uses shared transaction create framework",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\new\\page.tsx",
+      "ok": false
+    },
+    {
+      "id": "customize-component",
+      "label": "Customize component exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionDetailCustomizeMode.tsx",
+      "ok": false
+    },
+    {
+      "id": "customization-lib",
+      "label": "Customization lib exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization.ts",
+      "ok": false
+    },
+    {
+      "id": "customization-store",
+      "label": "Customization store exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization-store.ts",
+      "ok": false
+    },
+    {
+      "id": "customization-route",
+      "label": "Customization API route exists",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\api\\config\\framework-sample-transactions-detail-customization\\route.ts",
+      "ok": false
+    },
+    {
+      "id": "customize-shared-engine",
+      "label": "Customize flow uses shared transaction customize engine",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionDetailCustomizeMode.tsx",
+      "ok": false
+    },
+    {
+      "id": "detail-customize-wired",
+      "label": "Detail page recognizes customize mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx",
+      "ok": false
+    },
+    {
+      "id": "detail-edit-wired",
+      "label": "Detail page recognizes edit mode",
+      "file": "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx",
+      "ok": false
+    }
+  ],
+  "writes": [
+    "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization.ts",
+    "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\lib\\framework-sample-transactions-detail-customization-store.ts",
+    "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\api\\config\\framework-sample-transactions-detail-customization\\route.ts",
+    "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionDetailCustomizeMode.tsx",
+    "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\components\\FrameworkSampleTransactionCreatePageClient.tsx",
+    "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\new\\page.tsx",
+    "C:\\Users\\mlakier\\App\\crm_erp_pnf\\src\\app\\framework-sample-transactions\\[id]\\page.tsx"
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 9,
+    "touched": 7,
+    "untouched": false
+  }
+}

@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import SignOutButton from '@/components/SignOutButton'
 import { prisma } from '@/lib/prisma'
+import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
+import { fmtDocumentDate } from '@/lib/format'
 
 function getActivityHref(entityType: string, entityId: string) {
   if (entityType === 'department') return `/departments/${entityId}`
@@ -21,6 +23,7 @@ function getActivityHref(entityType: string, entityId: string) {
 
 export default async function Dashboard() {
   const session = await getServerSession(authOptions)
+  const { moneySettings } = await loadCompanyDisplaySettings()
 
   if (!session) {
     redirect('/auth/signin')
@@ -124,7 +127,7 @@ export default async function Dashboard() {
                   const href = getActivityHref(item.entityType, item.entityId)
                   return (
                     <tr key={item.id} style={i < recentActivity.length - 1 ? { borderBottom: '1px solid var(--border-muted)' } : {}}>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(item.createdAt).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{fmtDocumentDate(item.createdAt, moneySettings)}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{item.entityType}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{item.action}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--foreground)' }}>{item.summary}</td>

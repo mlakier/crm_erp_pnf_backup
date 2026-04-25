@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { parseMoneyValue } from '@/lib/money'
 
 export default function VendorDetailPurchaseOrderForm({
   vendorId,
@@ -45,7 +46,7 @@ export default function VendorDetailPurchaseOrderForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status,
-          total: parseFloat(total) || 0,
+          total: parseMoneyValue(total),
           vendorId,
           userId,
         }),

@@ -55,6 +55,28 @@ export const locationListDefinition: MasterDataListDefinition = {
   sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
 }
 
+export const accountingPeriodListDefinition: MasterDataListDefinition = {
+  columns: [
+    { id: 'name', label: 'Name' },
+    { id: 'start-date', label: 'Start Date' },
+    { id: 'end-date', label: 'End Date' },
+    { id: 'subsidiary', label: 'Subsidiary' },
+    { id: 'status', label: 'Status' },
+    { id: 'closed', label: 'Closed' },
+    { id: 'ar-locked', label: 'AR Locked' },
+    { id: 'ap-locked', label: 'AP Locked' },
+    { id: 'inventory-locked', label: 'Inventory Locked' },
+    { id: 'closed-at', label: 'Closed At' },
+    { id: 'created', label: 'Created', defaultVisible: false },
+    { id: 'last-modified', label: 'Last Modified', defaultVisible: false },
+    { id: 'actions', label: 'Actions', locked: true },
+  ],
+  searchPlaceholder: 'Search accounting period name, status, or subsidiary',
+  tableId: 'accounting-periods-list',
+  exportFileName: 'accounting_periods',
+  sortOptions: ID_NEWEST_OLDEST_NAME_SORT_OPTIONS,
+}
+
 export const managedListDefinition: MasterDataListDefinition = {
   columns: [
     { id: 'list-key', label: 'List Key' },
@@ -111,6 +133,8 @@ export const chartOfAccountsListDefinition: MasterDataListDefinition = {
     { id: 'normal-balance', label: 'Normal Balance' },
     { id: 'fs-section', label: 'FS Section' },
     { id: 'fs-group', label: 'FS Group' },
+    { id: 'fs-category', label: 'FS Category' },
+    { id: 'parent-account', label: 'Parent Account' },
     { id: 'posting', label: 'Posting' },
     { id: 'control', label: 'Control' },
     { id: 'inventory', label: 'Inventory' },
