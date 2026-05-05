@@ -217,7 +217,7 @@ const DEFAULT_OPPORTUNITY_LINE_WIDTHS: Record<OpportunityLineColumnKey, Opportun
 
 const DEFAULT_OPPORTUNITY_LINE_EDIT_DISPLAY: Record<OpportunityLineColumnKey, OpportunityLineDisplayMode> = {
   line: 'label',
-  'item-id': 'idAndLabel',
+  'item-id': 'id',
   description: 'label',
   quantity: 'label',
   'unit-price': 'label',
@@ -231,6 +231,7 @@ const DEFAULT_OPPORTUNITY_LINE_VIEW_DISPLAY: Record<OpportunityLineColumnKey, Op
 
 const DEFAULT_OPPORTUNITY_LINE_DROPDOWN_DISPLAY: Record<OpportunityLineColumnKey, OpportunityLineDisplayMode> = {
   ...DEFAULT_OPPORTUNITY_LINE_EDIT_DISPLAY,
+  'item-id': 'idAndLabel',
 }
 
 const DEFAULT_OPPORTUNITY_LINE_DROPDOWN_SORT: Record<OpportunityLineColumnKey, OpportunityLineDropdownSortMode> = {

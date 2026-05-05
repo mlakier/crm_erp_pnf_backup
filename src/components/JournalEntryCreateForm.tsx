@@ -4,10 +4,11 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import SearchableSelect from '@/components/SearchableSelect'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
 import { moneyEquals, sumMoney } from '@/lib/money'
 
 type EntityOption = { id: string; subsidiaryId: string; name: string }
-type AccountOption = { id: string; accountId: string; name: string }
+type AccountOption = { id: string; accountId: string; accountNumber: string; name: string }
 type DepartmentOption = { id: string; departmentId: string; name: string }
 type LocationOption = { id: string; locationId: string; name: string }
 type ProjectOption = { id: string; name: string }
@@ -107,9 +108,9 @@ export default function JournalEntryCreateForm({
     () =>
       accounts.map((account) => ({
         value: account.id,
-        label: `${account.accountId} - ${account.name}`,
-        searchText: `${account.accountId} ${account.name}`,
-        sortIdText: account.accountId,
+        label: formatGlAccountLabel(account),
+        searchText: `${account.accountNumber} ${account.accountId} ${account.name}`,
+        sortIdText: account.accountNumber,
         sortLabelText: account.name,
       })),
     [accounts],

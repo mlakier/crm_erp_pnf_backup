@@ -50,7 +50,7 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
       { key: 'entityType', required: false },
       { key: 'taxId', required: false },
       { key: 'registrationNumber', required: false },
-      { key: 'defaultCurrencyCode', required: false },
+      { key: 'localCurrencyCode', required: false },
       { key: 'active', required: false },
     ],
     sampleRows: [
@@ -66,6 +66,8 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
       { key: 'name', required: true },
       { key: 'accountType', required: true },
       { key: 'description', required: false },
+      { key: 'accountRole', required: false },
+      { key: 'rollforwardCategory', required: false },
       { key: 'inventory', required: false },
       { key: 'revalueOpenBalance', required: false },
       { key: 'eliminateIntercoTransactions', required: false },
@@ -76,8 +78,8 @@ export const MASTER_DATA_IMPORT_SCHEMA: Record<SupportedEntity, EntitySchema> = 
       { key: 'subsidiaryCodes', required: false },
     ],
     sampleRows: [
-      ['GL-00001', '1000', 'Cash', 'Asset', 'Cash and equivalents', 'false', 'false', 'false', 'false', 'selected', '', 'false', 'SUB-001,SUB-002'],
-      ['GL-00002', '4000', 'Revenue', 'Revenue', 'Sales revenue', 'false', 'false', 'false', 'false', 'parent', 'SUB-001', 'true', ''],
+      ['GL-00001', '1000', 'Cash', 'Asset', 'Cash and equivalents', 'Bank Account', 'Cash and Cash Equivalents', 'false', 'false', 'false', 'false', 'selected', '', 'false', 'SUB-001,SUB-002'],
+      ['GL-00002', '4000', 'Revenue', 'Revenue', 'Sales revenue', 'Not Applicable', 'Not Applicable', 'false', 'false', 'false', 'false', 'parent', 'SUB-001', 'true', ''],
     ],
   },
   locations: {

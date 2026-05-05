@@ -94,6 +94,8 @@ body {
 .overflow-x-auto table {
   width: max-content;
   min-width: max-content;
+  border-collapse: collapse;
+  border-spacing: 0;
 }
 
 .record-list-scroll-region {
@@ -137,65 +139,4 @@ body {
   z-index: 12;
   background-color: var(--card);
   box-shadow: -1px 0 0 0 var(--border-muted);
-}
-
-[data-column-selector-table] :is(
-  td[data-column="number"],
-  td[data-column="vendor-number"],
-  td[data-column="contact-number"],
-  td[data-column="employee-id"],
-  td[data-column="item-id"],
-  td[data-column="opportunity-number"],
-  td[data-column="lead-number"],
-  td[data-column="quote-number"],
-  td[data-column="sales-order-number"],
-  td[data-column="invoice-number"],
-  td[data-column="subsidiary-id"]
-) {
-  position: sticky;
-  left: 0;
-  z-index: 6;
-  width: var(--pin-id-width);
-  min-width: var(--pin-id-width);
-  background-color: var(--card);
-  box-shadow: 1px 0 0 0 var(--border-muted);
-}
-
-[data-column-selector-table] :is(
-  th[data-column="number"],
-  th[data-column="vendor-number"],
-  th[data-column="contact-number"],
-  th[data-column="employee-id"],
-  th[data-column="item-id"],
-  th[data-column="opportunity-number"],
-  th[data-column="lead-number"],
-  th[data-column="quote-number"],
-  th[data-column="sales-order-number"],
-  th[data-column="invoice-number"],
-  th[data-column="subsidiary-id"]
-) {
-  position: sticky;
-  left: 0;
-  z-index: 14;
-  width: var(--pin-id-width);
-  min-width: var(--pin-id-width);
-  background-color: var(--card);
-  box-shadow: 1px 0 0 0 var(--border-muted);
-}
-
-[data-column-selector-table] th[data-column="name"],
-[data-column-selector-table] td[data-column="name"] {
-  position: sticky;
-  left: var(--pin-id-width);
-  min-width: var(--pin-name-width);
-  background-color: var(--card);
-  box-shadow: 1px 0 0 0 var(--border-muted);
-}
-
-[data-column-selector-table] td[data-column="name"] {
-  z-index: 6;
-}
-
-[data-column-selector-table] th[data-column="name"] {
-  z-index: 13;
 }

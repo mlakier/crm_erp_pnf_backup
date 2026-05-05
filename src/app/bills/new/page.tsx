@@ -11,7 +11,7 @@ export default async function NewBillPage({
 }) {
   const duplicateFrom = (await searchParams)?.duplicateFrom?.trim()
 
-  const [adminUser, vendors, purchaseOrders, subsidiaries, currencies, items, nextNumber, duplicateSource, customization] = await Promise.all([
+  const [adminUser, vendors, purchaseOrders, subsidiaries, currencies, items, expenseAccounts, nextNumber, duplicateSource, customization] = await Promise.all([
     prisma.user.findUnique({ where: { email: 'admin@example.com' } }),
     prisma.vendor.findMany({
       orderBy: { vendorNumber: 'asc' },
@@ -41,6 +41,16 @@ export default async function NewBillPage({
       orderBy: [{ itemId: 'asc' }, { name: 'asc' }],
       select: { id: true, itemId: true, name: true, listPrice: true },
     }),
+    prisma.chartOfAccounts.findMany({
+      where: {
+        active: true,
+        isPosting: true,
+        accountType: { contains: 'expense', mode: 'insensitive' },
+      },
+      orderBy: [{ accountNumber: 'asc' }, { accountId: 'asc' }],
+      select: { id: true, accountId: true, accountNumber: true, name: true },
+      take: 500,
+    }),
     generateNextBillNumber(),
     duplicateFrom
       ? prisma.bill.findUnique({
@@ -64,11 +74,14 @@ export default async function NewBillPage({
       subsidiaries={subsidiaries}
       currencies={currencies}
       items={items.map((item) => ({ ...item, listPrice: toNumericValue(item.listPrice, 0) }))}
+      expenseAccounts={expenseAccounts}
       customization={customization}
       initialHeaderValues={
         duplicateSource
           ? {
               number: nextNumber,
+              vendorBillNumber: duplicateSource.vendorBillNumber ?? '',
+              vendorBillDate: duplicateSource.vendorBillDate ? duplicateSource.vendorBillDate.toISOString().slice(0, 10) : '',
               vendorId: duplicateSource.vendorId,
               purchaseOrderId: duplicateSource.purchaseOrderId ?? '',
               subsidiaryId: duplicateSource.subsidiaryId ?? '',
@@ -83,7 +96,9 @@ export default async function NewBillPage({
       initialDraftRows={
         duplicateSource
           ? duplicateSource.lineItems.map((line, index) => ({
+              lineType: (line.lineType === 'expense' ? 'expense' : 'item') as 'item' | 'expense',
               itemId: line.itemId,
+              expenseAccountId: line.expenseAccountId ?? null,
               description: line.description,
               notes: line.notes ?? null,
               quantity: line.quantity,

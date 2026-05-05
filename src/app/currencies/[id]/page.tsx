@@ -37,7 +37,7 @@ export default async function CurrencyDetailPage({
     prisma.currency.findUnique({
       where: { id },
       include: {
-        defaultCurrencySubsidiaries: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
+        localCurrencySubsidiaries: { orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } },
         customers: { orderBy: { name: 'asc' }, select: { id: true, name: true, customerId: true } },
         vendors: { orderBy: { name: 'asc' }, select: { id: true, name: true, vendorNumber: true } },
       },
@@ -85,12 +85,12 @@ export default async function CurrencyDetailPage({
     supportsColorized: boolean
     supportsLink: boolean
   }> = [
-    { id: 'subsidiaries', label: 'Subsidiaries', value: currency.defaultCurrencySubsidiaries.length, cardTone: 'accent', valueTone: 'accent', supportsColorized: true, supportsLink: false },
+    { id: 'subsidiaries', label: 'Subsidiaries', value: currency.localCurrencySubsidiaries.length, cardTone: 'accent', valueTone: 'accent', supportsColorized: true, supportsLink: false },
     { id: 'customers', label: 'Customers', value: currency.customers.length, cardTone: 'teal', valueTone: 'teal', supportsColorized: true, supportsLink: false },
     { id: 'vendors', label: 'Vendors', value: currency.vendors.length, cardTone: 'yellow', valueTone: 'yellow', supportsColorized: true, supportsLink: false },
   ]
   const statDefinitions: Array<TransactionStatDefinition<typeof currency>> = [
-    { id: 'subsidiaries', label: 'Subsidiaries', getValue: () => currency.defaultCurrencySubsidiaries.length, getCardTone: () => 'accent', getValueTone: () => 'accent' },
+    { id: 'subsidiaries', label: 'Subsidiaries', getValue: () => currency.localCurrencySubsidiaries.length, getCardTone: () => 'accent', getValueTone: () => 'accent' },
     { id: 'customers', label: 'Customers', getValue: () => currency.customers.length, getCardTone: () => 'teal', getValueTone: () => 'teal' },
     { id: 'vendors', label: 'Vendors', getValue: () => currency.vendors.length, getCardTone: () => 'yellow', getValueTone: () => 'yellow' },
   ]
@@ -111,14 +111,14 @@ export default async function CurrencyDetailPage({
     {
       key: 'subsidiaries',
       label: 'Subsidiaries',
-      count: currency.defaultCurrencySubsidiaries.length,
-      emptyMessage: 'No subsidiaries use this as their default currency.',
-      rows: currency.defaultCurrencySubsidiaries.map((subsidiary) => ({
+      count: currency.localCurrencySubsidiaries.length,
+      emptyMessage: 'No subsidiaries use this as their local currency.',
+      rows: currency.localCurrencySubsidiaries.map((subsidiary) => ({
         id: subsidiary.id,
         type: 'Subsidiary',
         reference: subsidiary.subsidiaryId,
         name: subsidiary.name,
-        details: 'Default Currency',
+        details: 'Local Currency',
         href: `/subsidiaries/${subsidiary.id}`,
       })),
     },

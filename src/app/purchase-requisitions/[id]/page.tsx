@@ -10,6 +10,7 @@ import PurchaseRequisitionDetailCustomizeMode from '@/components/PurchaseRequisi
 import PurchaseRequisitionLineItemsSection from '@/components/PurchaseRequisitionLineItemsSection'
 import PurchaseRequisitionRelatedDocuments from '@/components/PurchaseRequisitionRelatedDocuments'
 import CommunicationsSection from '@/components/CommunicationsSection'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import SystemNotesSection from '@/components/SystemNotesSection'
 import TransactionDetailFrame from '@/components/TransactionDetailFrame'
@@ -165,6 +166,7 @@ export default async function PurchaseRequisitionDetailPage({
     ])
 
   if (!req) notFound()
+  const requisitionCurrencyCode = req.currency?.code ?? req.currency?.currencyId ?? undefined
 
   const detailHref = `/purchase-requisitions/${req.id}`
   const receiptNumberMap = buildReceiptDisplayNumberMap(
@@ -469,6 +471,7 @@ export default async function PurchaseRequisitionDetailPage({
       key: 'subsidiaryId',
       label: 'Subsidiary',
       value: req.subsidiaryId ?? '',
+      href: req.subsidiary ? `/subsidiaries/${req.subsidiary.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...subsidiaryOptions],
@@ -483,6 +486,7 @@ export default async function PurchaseRequisitionDetailPage({
       key: 'currencyId',
       label: 'Currency',
       value: req.currencyId ?? '',
+      href: req.currency ? `/currencies/${req.currency.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...currencyOptions],
@@ -499,7 +503,7 @@ export default async function PurchaseRequisitionDetailPage({
       key: 'total',
       label: 'Total',
       value: String(toNumericValue(req.total, 0)),
-      displayValue: fmtCurrency(req.total, undefined, moneySettings),
+      displayValue: fmtCurrency(req.total, requisitionCurrencyCode, moneySettings),
       helpText: 'Current document total based on all requisition line amounts.',
       fieldType: 'currency',
       subsectionTitle: 'Sourcing & Financials',
@@ -560,7 +564,7 @@ export default async function PurchaseRequisitionDetailPage({
       createdFrom: '',
       approvedBy: approvedByLabel,
       neededByDate: req.neededByDate ? fmtDocumentDate(req.neededByDate, moneySettings) : '-',
-      total: fmtCurrency(req.total, undefined, moneySettings),
+      total: fmtCurrency(req.total, requisitionCurrencyCode, moneySettings),
       vendorId: req.vendor ? `${req.vendor.vendorNumber ?? 'VENDOR'} - ${req.vendor.name}` : '',
       departmentId: req.department ? `${req.department.departmentId} - ${req.department.name}` : '',
       subsidiaryId: req.subsidiary ? `${req.subsidiary.subsidiaryId} - ${req.subsidiary.name}` : '',
@@ -574,6 +578,7 @@ export default async function PurchaseRequisitionDetailPage({
 
   const statsRecord = {
     total: toNumericValue(req.total, 0),
+    currencyCode: requisitionCurrencyCode ?? null,
     neededByDate: req.neededByDate,
     lineCount: req.lineItems.length,
     statusLabel: formatStatus(req.status),
@@ -658,7 +663,7 @@ export default async function PurchaseRequisitionDetailPage({
     PurchaseRequisitionDetailFieldKey,
     PurchaseRequisitionHeaderField
   >(headerSections, {
-    total: () => fmtCurrency(req.total, undefined, moneySettings),
+    total: () => fmtCurrency(req.total, requisitionCurrencyCode, moneySettings),
   })
 
   return (
@@ -685,9 +690,8 @@ export default async function PurchaseRequisitionDetailPage({
       }
       widthClassName="w-full max-w-none"
       actions={
-        isCustomizing ? null : (
           <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
+            mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
             cancelHref={detailHref}
             formId={`inline-record-form-${req.id}`}
             recordId={req.id}
@@ -740,7 +744,6 @@ export default async function PurchaseRequisitionDetailPage({
               )
             }
           />
-        )
       }
     >
       <TransactionDetailFrame
@@ -847,6 +850,7 @@ export default async function PurchaseRequisitionDetailPage({
                   listPrice: toNumericValue(item.listPrice, 0),
                 }))}
               lineRows={lineRows}
+              currencyCode={requisitionCurrencyCode ?? null}
               moneySettings={moneySettings}
               lineSettings={customization.lineSettings}
               lineColumns={customization.lineColumns}
@@ -854,9 +858,37 @@ export default async function PurchaseRequisitionDetailPage({
           )
         }
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'vendor',
+                label: 'Vendor',
+                count: req.vendor ? 1 : 0,
+                emptyMessage: 'No related vendor is linked to this purchase requisition.',
+                rows: req.vendor
+                  ? [
+                      {
+                        id: req.vendor.id,
+                        type: 'Vendor',
+                        reference: req.vendor.vendorNumber ?? req.vendor.id,
+                        name: req.vendor.name,
+                        details: [req.vendor.email, req.vendor.phone].filter(Boolean).join(' | ') || '-',
+                        href: `/vendors/${req.vendor.id}`,
+                      },
+                    ]
+                  : [],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={req.vendor ? 1 : 0}
+        relatedDocuments={isCustomizing ? null : (
           <PurchaseRequisitionRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={requisitionCurrencyCode}
             purchaseOrders={
               req.purchaseOrder
                 ? [
@@ -866,6 +898,7 @@ export default async function PurchaseRequisitionDetailPage({
                       status: req.purchaseOrder.status,
                       total: toNumericValue(req.purchaseOrder.total, 0),
                       createdAt: req.purchaseOrder.createdAt.toISOString(),
+                      currencyCode: requisitionCurrencyCode,
                     },
                   ]
                 : []
@@ -889,6 +922,7 @@ export default async function PurchaseRequisitionDetailPage({
                 status: bill.status,
                 total: toNumericValue(bill.total, 0),
                 notes: bill.notes ?? null,
+                currencyCode: requisitionCurrencyCode,
               })) ?? []
             }
             billPayments={
@@ -901,24 +935,19 @@ export default async function PurchaseRequisitionDetailPage({
                   amount: toNumericValue(payment.amount, 0),
                   reference: payment.reference ?? null,
                   billNumber: bill.number,
+                  currencyCode: requisitionCurrencyCode,
                 })),
               ) ?? []
             }
             moneySettings={moneySettings}
           />
         )}
-        relatedRecordsCount={
+        relatedDocumentsCount={
           (req.purchaseOrder ? 1 : 0) +
           (req.purchaseOrder?.receipts.length ?? 0) +
           (req.purchaseOrder?.bills.length ?? 0) +
           (req.purchaseOrder?.bills.reduce((sum, bill) => sum + bill.billPayments.length, 0) ?? 0)
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this purchase requisition yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         communications={isCustomizing ? null : (
           <CommunicationsSection
             embedded
@@ -933,7 +962,7 @@ export default async function PurchaseRequisitionDetailPage({
               counterpartyEmail: req.vendor?.email ?? null,
               fromEmail: req.user?.email ?? null,
               status: formatStatus(req.status),
-              total: fmtCurrency(req.total, undefined, moneySettings),
+              total: fmtCurrency(req.total, requisitionCurrencyCode, moneySettings),
               lineItems: req.lineItems.map((line, index) => ({
                 line: index + 1,
                 itemId: line.item?.itemId ?? '-',

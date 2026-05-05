@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity } from '@/lib/activity'
+import { logActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { generateNextCustomerNumber } from '@/lib/customer-number'
 import { formatContactNumber } from '@/lib/contact-number'
 import { normalizePhone } from '@/lib/format'
@@ -140,6 +140,24 @@ export async function POST(request: NextRequest) {
       summary: `Created customer ${customer.customerId ?? customer.name} ${customer.name}`,
       userId,
     })
+    await logRecordSnapshotActivities({
+      entityType: 'customer',
+      entityId: customer.id,
+      userId,
+      action: 'create',
+      context: 'Customer Details',
+      fields: [
+        { fieldName: 'Business Id', value: customer.customerId },
+        { fieldName: 'Name', value: customer.name },
+        { fieldName: 'Email', value: customer.email },
+        { fieldName: 'Phone', value: customer.phone },
+        { fieldName: 'Address', value: customer.address },
+        { fieldName: 'Industry', value: customer.industry },
+        { fieldName: 'Primary Subsidiary', value: customer.subsidiaryId },
+        { fieldName: 'Primary Currency', value: customer.currencyId },
+        { fieldName: 'Inactive', value: customer.inactive },
+      ],
+    })
 
     return NextResponse.json(customer, { status: 201 })
   } catch {
@@ -166,6 +184,9 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    const before = await prisma.customer.findUnique({ where: { id } })
+    if (!before) return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
+
     const customer = await prisma.customer.update({
       where: { id },
       data: {
@@ -186,6 +207,22 @@ export async function PUT(request: NextRequest) {
       action: 'update',
       summary: `Updated customer ${customer.name}`,
       userId: customer.userId,
+    })
+    await logFieldChangeActivities({
+      entityType: 'customer',
+      entityId: customer.id,
+      userId: customer.userId ?? null,
+      context: 'Customer Details',
+      changes: [
+        { fieldName: 'Name', oldValue: before.name, newValue: customer.name },
+        { fieldName: 'Email', oldValue: before.email, newValue: customer.email },
+        { fieldName: 'Phone', oldValue: before.phone, newValue: customer.phone },
+        { fieldName: 'Address', oldValue: before.address, newValue: customer.address },
+        { fieldName: 'Industry', oldValue: before.industry, newValue: customer.industry },
+        { fieldName: 'Primary Subsidiary', oldValue: before.subsidiaryId, newValue: customer.subsidiaryId },
+        { fieldName: 'Primary Currency', oldValue: before.currencyId, newValue: customer.currencyId },
+        { fieldName: 'Inactive', oldValue: before.inactive, newValue: customer.inactive },
+      ],
     })
 
     return NextResponse.json(customer)
@@ -214,6 +251,26 @@ export async function DELETE(request: NextRequest) {
       summary: `Deleted customer ${existing?.name ?? id}`,
       userId: existing?.userId,
     })
+    if (existing) {
+      await logRecordSnapshotActivities({
+        entityType: 'customer',
+        entityId: id,
+        userId: existing.userId ?? null,
+        action: 'delete',
+        context: 'Customer Details',
+        fields: [
+          { fieldName: 'Business Id', value: existing.customerId },
+          { fieldName: 'Name', value: existing.name },
+          { fieldName: 'Email', value: existing.email },
+          { fieldName: 'Phone', value: existing.phone },
+          { fieldName: 'Address', value: existing.address },
+          { fieldName: 'Industry', value: existing.industry },
+          { fieldName: 'Primary Subsidiary', value: existing.subsidiaryId },
+          { fieldName: 'Primary Currency', value: existing.currencyId },
+          { fieldName: 'Inactive', value: existing.inactive },
+        ],
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch {

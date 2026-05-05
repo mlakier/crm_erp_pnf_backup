@@ -97,7 +97,7 @@ export default function BillPaymentDetailEditor({
     )
   }, [bills, headerValues.vendorId])
 
-  const headerFieldDefinitions: Record<BillPaymentDetailFieldKey, BillPaymentHeaderField> = {
+  const headerFieldDefinitions: Record<string, BillPaymentHeaderField> = {
     id: {
       key: 'id',
       label: 'DB Id',

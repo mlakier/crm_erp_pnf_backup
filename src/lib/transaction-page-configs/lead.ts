@@ -7,6 +7,7 @@ export type LeadPageConfigRecord = {
   company: string | null
   source: string | null
   expectedValue: number
+  currencyCode?: string | null
   createdAt: string
   moneySettings?: Parameters<typeof fmtCurrency>[2]
 }
@@ -33,7 +34,7 @@ export const leadPageConfig: TransactionPageConfig<LeadPageConfigRecord> = {
       id: 'expectedValue',
       label: 'Expected Value',
       accent: true,
-      getValue: (record) => fmtCurrency(record.expectedValue, undefined, record.moneySettings),
+      getValue: (record) => fmtCurrency(record.expectedValue, record.currencyCode ?? undefined, record.moneySettings),
     },
     {
       id: 'status',

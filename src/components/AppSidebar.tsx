@@ -32,6 +32,7 @@ const NAV: NavGroup[] = [
     section: 'Company',
     items: [
       { label: 'Company Information', href: '/company-information' },
+      { label: 'Company Setup', href: '/company-setup' },
       { label: 'Company Prefs', href: '/company-preferences' },
       { label: 'File Cabinet', href: '/company-information/file-cabinet' },
     ],
@@ -88,6 +89,7 @@ const NAV: NavGroup[] = [
       { label: 'Sales Orders', href: '/sales-orders' },
       { label: 'Fulfillments', href: '/fulfillments' },
       { label: 'Invoices', href: '/invoices' },
+      { label: 'Credit Memos', href: '/credit-memos' },
       { label: 'Invoice Receipts', href: '/invoice-receipts' },
       { label: 'Customer Refunds', href: '/customer-refunds' },
     ],
@@ -100,7 +102,9 @@ const NAV: NavGroup[] = [
       { label: 'Purchase Orders', href: '/purchase-orders' },
       { label: 'Receipts', href: '/receipts' },
       { label: 'Bills', href: '/bills' },
+      { label: 'Bill Credits', href: '/bill-credits' },
       { label: 'Bill Payments', href: '/bill-payments' },
+      { label: 'Vendor Refunds', href: '/vendor-refunds' },
     ],
   },
   {
@@ -108,11 +112,15 @@ const NAV: NavGroup[] = [
     items: [
       { label: 'Journals', href: '/journals' },
       { label: 'Intercompany Journals', href: '/intercompany-journals' },
+      { label: 'Clearing Documents', href: '/clearing-documents' },
+      { label: 'FX Revaluation', href: '/fx-revaluation' },
+      { label: 'Rollforwards', href: '/rollforwards' },
     ],
   },
 ]
 
-export default function AppSidebar() {
+export default function AppSidebar({ companyLogoUrl: _companyLogoUrl }: { companyLogoUrl?: string | null }) {
+  void _companyLogoUrl
   const pathname = usePathname()
   const [openSection, setOpenSection] = useState<string | null>(null)
   const navRef = useRef<HTMLDivElement | null>(null)

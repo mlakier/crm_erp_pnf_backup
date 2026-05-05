@@ -42,7 +42,7 @@ export default async function CustomerDetailPage({
   const isCustomizing = customize === '1'
   const fieldMetaById = buildFieldMetaById(CUSTOMER_FORM_FIELDS)
 
-  const [customer, fieldOptions, inactiveOptions, formCustomization, formRequirements] = await Promise.all([
+  const [customer, fieldOptions, inactiveOptions, formCustomization, formRequirements, currencies] = await Promise.all([
     prisma.customer.findUnique({
       where: { id },
       include: {
@@ -77,11 +77,16 @@ export default async function CustomerDetailPage({
     loadListOptionsForSource({ sourceType: 'system', sourceKey: 'activeInactive' }),
     loadCustomerFormCustomization(),
     loadFormRequirements(),
+    prisma.currency.findMany({
+      orderBy: { code: 'asc' },
+      select: { id: true, currencyId: true, code: true },
+    }),
   ])
 
   if (!customer) notFound()
 
   const pipelineValue = customer.opportunities.reduce((sum, opportunity) => sum + toNumericValue(opportunity.amount), 0)
+  const currencyCodeById = new Map(currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]))
   const detailHref = `/customers/${customer.id}`
   const sectionDescriptions: Record<string, string> = {
     Core: 'Primary identity fields for the customer record.',
@@ -373,12 +378,14 @@ export default async function CustomerDetailPage({
                     <CustomerRelatedDocumentsSection
                       embedded
                       showDisplayControl={false}
+                      defaultCurrencyCode={customer.currency?.code ?? customer.currency?.currencyId ?? null}
                       opportunities={customer.opportunities.map((opportunity) => ({
                         id: opportunity.id,
                         number: opportunity.opportunityNumber ?? opportunity.name,
                         name: opportunity.name,
                         status: opportunity.stage,
                         total: toNumericValue(opportunity.amount, 0),
+                        currencyCode: currencyCodeById.get(opportunity.currencyId ?? '') ?? null,
                         closeDate: opportunity.closeDate ? opportunity.closeDate.toISOString() : null,
                       }))}
                       quotes={customer.quotes.map((quote) => ({
@@ -386,6 +393,7 @@ export default async function CustomerDetailPage({
                         number: quote.number,
                         status: quote.status,
                         total: toNumericValue(quote.total, 0),
+                        currencyCode: currencyCodeById.get(quote.currencyId ?? '') ?? null,
                         validUntil: quote.validUntil ? quote.validUntil.toISOString() : null,
                         createdAt: quote.createdAt.toISOString(),
                       }))}
@@ -394,6 +402,7 @@ export default async function CustomerDetailPage({
                         number: salesOrder.number,
                         status: salesOrder.status,
                         total: toNumericValue(salesOrder.total, 0),
+                        currencyCode: currencyCodeById.get(salesOrder.currencyId ?? '') ?? null,
                         createdAt: salesOrder.createdAt.toISOString(),
                       }))}
                       fulfillments={customer.salesOrders.flatMap((salesOrder) =>
@@ -411,6 +420,7 @@ export default async function CustomerDetailPage({
                         number: invoice.number,
                         status: invoice.status,
                         total: toNumericValue(invoice.total, 0),
+                        currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                         dueDate: invoice.dueDate ? invoice.dueDate.toISOString() : null,
                         paidDate: invoice.paidDate ? invoice.paidDate.toISOString() : null,
                       }))}
@@ -419,6 +429,7 @@ export default async function CustomerDetailPage({
                           id: receipt.id,
                           number: receipt.number,
                           amount: toNumericValue(receipt.amount, 0),
+                          currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                           date: receipt.date.toISOString(),
                           method: receipt.method,
                           reference: receipt.reference,

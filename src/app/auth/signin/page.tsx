@@ -1,5 +1,6 @@
 'use client'
 
+import SessionProvider from '@/components/SessionProvider'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { signIn, useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -25,9 +26,11 @@ async function signInWithTimeout(params: Parameters<typeof signIn>[1]) {
 
 export default function SignIn() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
-      <SignInContent />
-    </Suspense>
+    <SessionProvider>
+      <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
+        <SignInContent />
+      </Suspense>
+    </SessionProvider>
   )
 }
 

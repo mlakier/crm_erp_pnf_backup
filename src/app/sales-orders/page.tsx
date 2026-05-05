@@ -257,7 +257,11 @@ export default async function SalesOrdersPage({
                       {formatRecordLabel(order.status, statusLabelMap)}
                     </td>
                     <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {fmtCurrency(order.total, undefined, moneySettings)}
+                      {fmtCurrency(
+                        order.total,
+                        order.currency?.code ?? order.currency?.currencyId ?? undefined,
+                        moneySettings,
+                      )}
                     </td>
                     <td data-column="subsidiary-id" className="px-4 py-2 text-sm">
                       {order.subsidiary ? (

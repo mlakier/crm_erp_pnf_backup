@@ -9,6 +9,7 @@ type PurchaseRequisition = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   title?: string | null
   priority?: string | null
   createdAt: string
@@ -29,6 +30,7 @@ type Bill = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   date: string
   dueDate: string | null
   notes?: string | null
@@ -38,6 +40,7 @@ type BillPayment = {
   id: string
   number: string
   amount: number
+  currencyCode?: string | null
   date: string
   method: string | null
   status: string
@@ -50,6 +53,7 @@ export default function PurchaseOrderRelatedDocuments({
   receipts,
   bills,
   billPayments,
+  moneySettings,
   embedded = false,
   showDisplayControl = true,
 }: {
@@ -57,9 +61,12 @@ export default function PurchaseOrderRelatedDocuments({
   receipts: Receipt[]
   bills: Bill[]
   billPayments: BillPayment[]
+  moneySettings?: Parameters<typeof fmtCurrency>[2]
   embedded?: boolean
   showDisplayControl?: boolean
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? undefined, moneySettings)
   return (
     <TransactionRelatedDocumentsTabs
       embedded={embedded}
@@ -80,16 +87,16 @@ export default function PurchaseOrderRelatedDocuments({
                 {requisition.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={requisition.status} />,
-              fmtCurrency(requisition.total),
-              fmtDocumentDate(requisition.createdAt),
+              formatAmount(requisition.total, requisition.currencyCode),
+              fmtDocumentDate(requisition.createdAt, moneySettings),
               requisition.priority ?? '-',
               requisition.title ?? '-',
             ],
             filterValues: [
               requisition.number,
               requisition.status,
-              fmtCurrency(requisition.total),
-              fmtDocumentDate(requisition.createdAt),
+              formatAmount(requisition.total, requisition.currencyCode),
+              fmtDocumentDate(requisition.createdAt, moneySettings),
               requisition.priority ?? '-',
               requisition.title ?? '-',
             ],
@@ -109,14 +116,14 @@ export default function PurchaseOrderRelatedDocuments({
                 {receipt.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={receipt.status} />,
-              fmtDocumentDate(receipt.date),
+              fmtDocumentDate(receipt.date, moneySettings),
               receipt.quantity,
               receipt.notes ?? '-',
             ],
             filterValues: [
               receipt.number,
               receipt.status,
-              fmtDocumentDate(receipt.date),
+              fmtDocumentDate(receipt.date, moneySettings),
               String(receipt.quantity),
               receipt.notes ?? '-',
             ],
@@ -136,17 +143,17 @@ export default function PurchaseOrderRelatedDocuments({
                 {bill.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={bill.status} />,
-              fmtCurrency(bill.total),
-              fmtDocumentDate(bill.date),
-              bill.dueDate ? fmtDocumentDate(bill.dueDate) : '-',
+              formatAmount(bill.total, bill.currencyCode),
+              fmtDocumentDate(bill.date, moneySettings),
+              bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '-',
               bill.notes ?? '-',
             ],
             filterValues: [
               bill.number,
               bill.status,
-              fmtCurrency(bill.total),
-              fmtDocumentDate(bill.date),
-              bill.dueDate ? fmtDocumentDate(bill.dueDate) : '-',
+              formatAmount(bill.total, bill.currencyCode),
+              fmtDocumentDate(bill.date, moneySettings),
+              bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '-',
               bill.notes ?? '-',
             ],
           })),
@@ -165,8 +172,8 @@ export default function PurchaseOrderRelatedDocuments({
                 {payment.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={payment.status} />,
-              fmtCurrency(payment.amount),
-              fmtDocumentDate(payment.date),
+              formatAmount(payment.amount, payment.currencyCode),
+              fmtDocumentDate(payment.date, moneySettings),
               payment.billNumber,
               payment.method ?? '-',
               payment.reference ?? '-',
@@ -174,8 +181,8 @@ export default function PurchaseOrderRelatedDocuments({
             filterValues: [
               payment.number,
               payment.status,
-              fmtCurrency(payment.amount),
-              fmtDocumentDate(payment.date),
+              formatAmount(payment.amount, payment.currencyCode),
+              fmtDocumentDate(payment.date, moneySettings),
               payment.billNumber,
               payment.method ?? '-',
               payment.reference ?? '-',

@@ -70,6 +70,7 @@ model User {
   salesOrders           SalesOrder[]
   invoices              Invoice[]
   customerRefunds       CustomerRefund[]
+  vendorRefunds         VendorRefund[]
   requisitions          Requisition[]
   purchaseOrders        PurchaseOrder[]
   creditMemos           CreditMemo[]
@@ -256,6 +257,7 @@ model Vendor {
   bills                 Bill[]
   billPayments          BillPayment[]
   billCredits           BillCredit[]
+  vendorRefunds         VendorRefund[]
   contacts              Contact[]
   preferredItems        Item[]
   journalEntryLineItems JournalEntryLineItem[]
@@ -372,6 +374,8 @@ model ChartOfAccounts {
   financialStatementSection    String?
   financialStatementGroup      String?
   financialStatementCategory   String?
+  rollforwardCategory          String?
+  accountRole                  String?
   inventory                    Boolean  @default(false)
   revalueOpenBalance           Boolean  @default(false)
   eliminateIntercoTransactions Boolean  @default(false)
@@ -405,7 +409,10 @@ model ChartOfAccounts {
   deferredCostItems            Item[]                     @relation("ItemDeferredCostAccount")
   cashReceipts                 CashReceipt[]              @relation("CashReceiptBankAccount")
   customerRefunds              CustomerRefund[]           @relation("CustomerRefundBankAccount")
+  vendorRefunds                VendorRefund[]             @relation("VendorRefundBankAccount")
   billPayments                 BillPayment[]              @relation("BillPaymentBankAccount")
+  openItems                    OpenItem[]
+  expenseBillLineItems         BillLineItem[]
   retainedEarningsSubsidiaries     Subsidiary[] @relation("SubsidiaryRetainedEarningsAccount")
   ctaSubsidiaries                  Subsidiary[] @relation("SubsidiaryCtaAccount")
   intercompanyClearingSubsidiaries Subsidiary[] @relation("SubsidiaryIntercompanyClearingAccount")
@@ -687,6 +694,11 @@ model CashReceipt {
   method    String // check, wire, etc.
   reference String?
   bankAccountId String?
+  subsidiaryId String?
+  currencyId String?
+  fxRateType String?
+  fxRateSource String?
+  fxEffectiveDate DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -694,11 +706,15 @@ model CashReceipt {
   invoiceId String
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
   bankAccount ChartOfAccounts? @relation("CashReceiptBankAccount", fields: [bankAccountId], references: [id])
+  subsidiary Subsidiary? @relation(fields: [subsidiaryId], references: [id])
+  currency Currency? @relation(fields: [currencyId], references: [id])
   applications CashReceiptApplication[]
   customerRefunds CustomerRefund[]
 
   @@index([invoiceId])
   @@index([bankAccountId])
+  @@index([subsidiaryId])
+  @@index([currencyId])
   @@index([status])
   @@map("cash_receipts")
 }
@@ -736,6 +752,40 @@ model CustomerRefund {
   @@index([subsidiaryId])
   @@index([currencyId])
   @@map("customer_refunds")
+}
+
+model VendorRefund {
+  id                 String   @id @default(cuid())
+  number             String   @unique
+  status             String   @default("draft")
+  amount             Decimal  @db.Decimal(18, 2)
+  date               DateTime
+  method             String
+  reference          String?
+  notes              String?
+  bankAccountId      String?
+  vendorId           String
+  billPaymentId      String?
+  userId             String?
+  subsidiaryId       String?
+  currencyId         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  vendor             Vendor           @relation(fields: [vendorId], references: [id])
+  billPayment        BillPayment?     @relation(fields: [billPaymentId], references: [id])
+  bankAccount        ChartOfAccounts? @relation("VendorRefundBankAccount", fields: [bankAccountId], references: [id])
+  user               User?            @relation(fields: [userId], references: [id])
+  subsidiary         Subsidiary?      @relation(fields: [subsidiaryId], references: [id])
+  currency           Currency?        @relation(fields: [currencyId], references: [id])
+
+  @@index([bankAccountId])
+  @@index([vendorId])
+  @@index([billPaymentId])
+  @@index([userId])
+  @@index([subsidiaryId])
+  @@index([currencyId])
+  @@map("vendor_refunds")
 }
 
 model CashReceiptApplication {
@@ -941,6 +991,7 @@ model InvoiceLineItem {
 
 model BillLineItem {
   id                        String    @id @default(cuid())
+  lineType                  String    @default("item")
   description               String
   quantity                  Int       @default(1)
   unitPrice                 Decimal   @default(0) @db.Decimal(18, 2)
@@ -962,6 +1013,8 @@ model BillLineItem {
   bill           Bill            @relation(fields: [billId], references: [id], onDelete: Cascade)
   itemId         String?
   item           Item?           @relation(fields: [itemId], references: [id])
+  expenseAccountId String?
+  expenseAccount ChartOfAccounts? @relation(fields: [expenseAccountId], references: [id])
   department     Department?     @relation(fields: [departmentId], references: [id])
   location       Location?       @relation(fields: [locationId], references: [id])
   project        Project?        @relation(fields: [projectId], references: [id])
@@ -969,6 +1022,8 @@ model BillLineItem {
 
   @@index([billId])
   @@index([itemId])
+  @@index([lineType])
+  @@index([expenseAccountId])
   @@index([departmentId])
   @@index([locationId])
   @@index([projectId])
@@ -1086,6 +1141,12 @@ model JournalEntryLineItem {
   description String?
   debit       Decimal  @default(0) @db.Decimal(18, 2)
   credit      Decimal  @default(0) @db.Decimal(18, 2)
+  localDebit  Decimal? @db.Decimal(18, 2)
+  localCredit Decimal? @db.Decimal(18, 2)
+  functionalDebit  Decimal? @db.Decimal(18, 2)
+  functionalCredit Decimal? @db.Decimal(18, 2)
+  groupDebit       Decimal? @db.Decimal(18, 2)
+  groupCredit      Decimal? @db.Decimal(18, 2)
   memo        String?
   activityTypeCode String?
   reversesJournalEntryLineItemId String?
@@ -1114,6 +1175,7 @@ model JournalEntryLineItem {
   item           Item?           @relation(fields: [itemId], references: [id])
   employeeId     String?
   employee       Employee?       @relation(fields: [employeeId], references: [id])
+  settlesOpenItemId String? @map("settles_open_item_id")
 
   @@index([journalEntryId])
   @@index([accountId])
@@ -1124,6 +1186,7 @@ model JournalEntryLineItem {
   @@index([vendorId])
   @@index([itemId])
   @@index([employeeId])
+  @@index([settlesOpenItemId])
   @@index([activityTypeCode])
   @@index([reversesJournalEntryLineItemId])
   @@index([reconciliationGroupKey])
@@ -1152,15 +1215,21 @@ model Receipt {
   date      DateTime
   status    String   @default("pending")
   notes     String?
+  subsidiaryId String?
+  currencyId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  subsidiary      Subsidiary?   @relation(fields: [subsidiaryId], references: [id])
+  currency        Currency?     @relation(fields: [currencyId], references: [id])
   lines           ReceiptLine[]
 
   @@index([purchaseOrderId])
+  @@index([subsidiaryId])
+  @@index([currencyId])
   @@map("receipts")
 }
 
@@ -1180,6 +1249,8 @@ model ReceiptLine {
 model Bill {
   id         String    @id @default(cuid())
   number     String    @unique
+  vendorBillNumber String?
+  vendorBillDate DateTime?
   vendorId   String
   total      Decimal   @map("amount") @db.Decimal(18, 2)
   date       DateTime
@@ -1206,6 +1277,8 @@ model Bill {
   paymentApplications BillPaymentApplication[]
 
   @@index([vendorId])
+  @@index([vendorBillNumber])
+  @@index([vendorBillDate])
   @@index([purchaseOrderId])
   @@index([userId])
   @@index([status])
@@ -1366,7 +1439,7 @@ model Currency {
   updatedAt  DateTime @updatedAt
 
   // Relations
-  defaultCurrencySubsidiaries Subsidiary[]        @relation("SubsidiaryDefaultCurrency")
+  localCurrencySubsidiaries   Subsidiary[]        @relation("SubsidiaryLocalCurrency")
   items                      Item[]
   customers                  Customer[]
   vendors                    Vendor[]
@@ -1375,17 +1448,21 @@ model Currency {
   quotes                     Quote[]
   salesOrders                SalesOrder[]
   invoices                   Invoice[]
+  cashReceipts               CashReceipt[]
   creditMemos                CreditMemo[]
   customerRefunds            CustomerRefund[]
+  vendorRefunds              VendorRefund[]
   purchaseOrders             PurchaseOrder[]
+  receipts                   Receipt[]
   bills                      Bill[]
   billCredits                BillCredit[]
+  billPayments               BillPayment[]
   requisitions               Requisition[]
   journalEntries             JournalEntry[]
   baseExchangeRates          ExchangeRate[]  @relation("ExchangeRateBaseCurrency")
   quoteExchangeRates         ExchangeRate[]  @relation("ExchangeRateQuoteCurrency")
   functionalCurrencySubsidiaries Subsidiary[]        @relation("SubsidiaryFunctionalCurrency")
-  reportingCurrencySubsidiaries  Subsidiary[]        @relation("SubsidiaryReportingCurrency")
+  groupCurrencySubsidiaries      Subsidiary[]        @relation("SubsidiaryGroupCurrency")
   approvalLimitUsers         User[]          @relation("UserApprovalCurrency")
 
   fulfillments Fulfillment[]
@@ -1428,7 +1505,7 @@ model Subsidiary {
   registrationNumber            String?
   parentSubsidiaryId            String?
   functionalCurrencyId          String?
-  reportingCurrencyId           String?
+  groupCurrencyId               String?
   fiscalCalendarId              String?
   consolidationMethod           String?
   ownershipPercent              Float?
@@ -1443,10 +1520,10 @@ model Subsidiary {
   updatedAt                     DateTime  @updatedAt
 
   // Relations
-  defaultCurrencyId           String?
-  defaultCurrency             Currency?                  @relation("SubsidiaryDefaultCurrency", fields: [defaultCurrencyId], references: [id])
+  localCurrencyId             String?
+  localCurrency               Currency?                  @relation("SubsidiaryLocalCurrency", fields: [localCurrencyId], references: [id])
   functionalCurrency          Currency?                  @relation("SubsidiaryFunctionalCurrency", fields: [functionalCurrencyId], references: [id])
-  reportingCurrency           Currency?                  @relation("SubsidiaryReportingCurrency", fields: [reportingCurrencyId], references: [id])
+  groupCurrency               Currency?                  @relation("SubsidiaryGroupCurrency", fields: [groupCurrencyId], references: [id])
   parentSubsidiary            Subsidiary?                @relation("SubsidiaryHierarchy", fields: [parentSubsidiaryId], references: [id])
   childSubsidiaries           Subsidiary[]               @relation("SubsidiaryHierarchy")
   retainedEarningsAccount     ChartOfAccounts?           @relation("SubsidiaryRetainedEarningsAccount", fields: [retainedEarningsAccountId], references: [id])
@@ -1469,11 +1546,15 @@ model Subsidiary {
   quotes                      Quote[]
   salesOrders                 SalesOrder[]
   invoices                    Invoice[]
+  cashReceipts                CashReceipt[]
   creditMemos                 CreditMemo[]
   customerRefunds             CustomerRefund[]
+  vendorRefunds               VendorRefund[]
   purchaseOrders              PurchaseOrder[]
+  receipts                    Receipt[]
   bills                       Bill[]
   billCredits                 BillCredit[]
+  billPayments                BillPayment[]
   requisitions                Requisition[]
   journalEntries              JournalEntry[]
   journalEntryLineItems       JournalEntryLineItem[]
@@ -1482,9 +1563,9 @@ model Subsidiary {
   chartOfAccountAssignments   ChartOfAccountSubsidiary[] @relation("ChartOfAccountSubsidiaryAssignment")
   fulfillments                Fulfillment[]
 
-  @@index([defaultCurrencyId])
+  @@index([localCurrencyId])
   @@index([functionalCurrencyId])
-  @@index([reportingCurrencyId])
+  @@index([groupCurrencyId])
   @@index([parentSubsidiaryId])
   @@index([retainedEarningsAccountId])
   @@index([ctaAccountId])
@@ -1736,17 +1817,27 @@ model BillPayment {
   vendorId  String?
   billId    String?
   bankAccountId String?
+  subsidiaryId String?
+  currencyId String?
+  fxRateType String?
+  fxRateSource String?
+  fxEffectiveDate DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   vendor Vendor? @relation(fields: [vendorId], references: [id])
   bill Bill? @relation(fields: [billId], references: [id])
   bankAccount ChartOfAccounts? @relation("BillPaymentBankAccount", fields: [bankAccountId], references: [id])
+  subsidiary Subsidiary? @relation(fields: [subsidiaryId], references: [id])
+  currency Currency? @relation(fields: [currencyId], references: [id])
   applications BillPaymentApplication[]
+  vendorRefunds VendorRefund[]
 
   @@index([vendorId])
   @@index([billId])
   @@index([bankAccountId])
+  @@index([subsidiaryId])
+  @@index([currencyId])
   @@map("bill_payments")
 }
 
@@ -1765,6 +1856,25 @@ model BillPaymentApplication {
   @@index([billId])
   @@unique([billPaymentId, billId])
   @@map("bill_payment_applications")
+}
+
+model DocumentRelationship {
+  id               String   @id @default(cuid())
+  sourceRecordType String
+  sourceRecordId   String
+  targetRecordType String
+  targetRecordId   String
+  relationshipType String
+  autoGenerated    Boolean  @default(false)
+  automationSource String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([sourceRecordType, sourceRecordId, targetRecordType, targetRecordId, relationshipType])
+  @@index([sourceRecordType, sourceRecordId])
+  @@index([targetRecordType, targetRecordId])
+  @@index([relationshipType])
+  @@map("document_relationships")
 }
 
 model ActivityTypeDefinition {
@@ -1907,10 +2017,12 @@ model OpenItem {
   openItemType             String
   status                   String
   accountType              String
+  accountId                String?
   subsidiaryId             String?
   transactionCurrencyId    String?
   localCurrencyId          String?
   functionalCurrencyId     String?
+  groupCurrencyId          String?
   sourceTransactionType    String?
   sourceTransactionId      String?
   sourceTransactionLineId  String?
@@ -1923,6 +2035,7 @@ model OpenItem {
   originalTransactionAmount Decimal @db.Decimal(18, 2)
   originalLocalAmount      Decimal? @db.Decimal(18, 2)
   originalFunctionalAmount Decimal? @db.Decimal(18, 2)
+  originalGroupAmount      Decimal? @db.Decimal(18, 2)
   openItemEligible         Boolean  @default(true)
   isOpen                   Boolean  @default(true)
   closedAt                 DateTime?
@@ -1931,6 +2044,7 @@ model OpenItem {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
+  account                  ChartOfAccounts? @relation(fields: [accountId], references: [id])
   entries                  OpenItemEntry[]
   applicationsFrom         OpenItemApplication[] @relation("OpenItemApplicationFrom")
   applicationsTo           OpenItemApplication[] @relation("OpenItemApplicationTo")
@@ -1940,11 +2054,15 @@ model OpenItem {
   @@index([status])
   @@index([isOpen])
   @@index([openItemType])
+  @@index([accountId])
   @@index([subsidiaryId])
   @@index([sourceTransactionType, sourceTransactionId])
   @@index([counterpartyType, counterpartyId])
+  @@index([accountId, isOpen])
+  @@index([accountId, subsidiaryId, isOpen])
   @@index([subsidiaryId, isOpen, postingDate])
   @@index([counterpartyType, counterpartyId, isOpen])
+  @@index([groupCurrencyId])
   @@map("open_items")
 }
 
@@ -1959,6 +2077,7 @@ model OpenItemEntry {
   transactionAmount     Decimal  @db.Decimal(18, 2)
   localAmount           Decimal? @db.Decimal(18, 2)
   functionalAmount      Decimal? @db.Decimal(18, 2)
+  groupAmount           Decimal? @db.Decimal(18, 2)
   sourceTransactionType String?
   sourceTransactionId   String?
   sourceTransactionLineId String?
@@ -1996,6 +2115,10 @@ model OpenItemApplication {
   transactionAmount     Decimal  @db.Decimal(18, 2)
   localAmount           Decimal? @db.Decimal(18, 2)
   functionalAmount      Decimal? @db.Decimal(18, 2)
+  groupAmount           Decimal? @db.Decimal(18, 2)
+  realizedFxLocalAmount Decimal? @db.Decimal(18, 2)
+  realizedFxFunctionalAmount Decimal? @db.Decimal(18, 2)
+  realizedFxGroupAmount Decimal? @db.Decimal(18, 2)
   exchangeRateContextId String?
   reversesApplicationId String?
   memo                  String?
@@ -2027,6 +2150,7 @@ model ClearingDocumentHeader {
   transactionCurrencyId    String?
   localCurrencyId          String?
   functionalCurrencyId     String?
+  groupCurrencyId          String?
   clearingDate             DateTime
   postingDate              DateTime?
   accountingPeriodId       String?
@@ -2038,8 +2162,10 @@ model ClearingDocumentHeader {
   transactionAmount        Decimal  @db.Decimal(18, 2)
   localAmount              Decimal? @db.Decimal(18, 2)
   functionalAmount         Decimal? @db.Decimal(18, 2)
+  groupAmount              Decimal? @db.Decimal(18, 2)
   realizedFxLocalAmount    Decimal? @db.Decimal(18, 2)
   realizedFxFunctionalAmount Decimal? @db.Decimal(18, 2)
+  realizedFxGroupAmount    Decimal? @db.Decimal(18, 2)
   memo                     String?
   reversesClearingDocumentId String?
   reversedByClearingDocumentId String?
@@ -2084,8 +2210,10 @@ model ClearingDocumentLine {
   transactionAmount          Decimal  @db.Decimal(18, 2)
   localAmount                Decimal? @db.Decimal(18, 2)
   functionalAmount           Decimal? @db.Decimal(18, 2)
+  groupAmount                Decimal? @db.Decimal(18, 2)
   realizedFxLocalAmount      Decimal? @db.Decimal(18, 2)
   realizedFxFunctionalAmount Decimal? @db.Decimal(18, 2)
+  realizedFxGroupAmount      Decimal? @db.Decimal(18, 2)
   openItemApplicationId      String?
   sourceGlLineId             String?
   settlementGlLineId         String?

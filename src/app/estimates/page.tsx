@@ -87,6 +87,7 @@ export default async function QuotesPage({
       customer: true,
       opportunity: true,
       salesOrder: true,
+      currency: { select: { id: true, code: true, currencyId: true, name: true } },
     },
     orderBy,
     skip: pagination.skip,
@@ -193,7 +194,9 @@ export default async function QuotesPage({
                     <td data-column="opportunity" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.opportunity?.name ?? '—'}</td>
                     <td data-column="sales-order" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.salesOrder?.number ?? '—'}</td>
                     <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.status}</td>
-                    <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(quote.total, undefined, moneySettings)}</td>
+                    <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {fmtCurrency(quote.total, quote.currency?.code ?? quote.currency?.currencyId ?? undefined, moneySettings)}
+                    </td>
                     <td data-column="valid-until" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.validUntil ? fmtDocumentDate(quote.validUntil, moneySettings) : '—'}</td>
                     <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(quote.createdAt, moneySettings)}</td>
                     <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(quote.updatedAt, moneySettings)}</td>

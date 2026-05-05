@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
-import SavedSearchViewSelector from '@/components/SavedSearchViewSelector'
+import ListSearchActions from '@/components/ListSearchActions'
 import type { SavedSearchFieldOption, SavedSearchFilterDefinition } from '@/lib/saved-search-metadata'
 
 export type MasterDataListColumn = {
@@ -74,11 +72,12 @@ export default function MasterDataListToolbar({
           </Link>
         ) : null}
         {extraControls}
-        <SavedSearchViewSelector tableId={tableId} />
-        <ExportButton tableId={tableId} fileName={exportFileName} compact={compactExport} exportAllUrl={exportAllUrl} />
-        <ColumnSelector
+        <ListSearchActions
           tableId={tableId}
+          exportFileName={exportFileName}
+          exportAllUrl={exportAllUrl}
           columns={columns}
+          compactExport={compactExport}
           title={listTitle}
           basePath={basePath}
           filterDefinitions={filterDefinitions}

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { createFieldChangeSummary, logActivity, logCommunicationActivity } from '@/lib/activity'
+import { logActivity, logCommunicationActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { generateNextBillNumber } from '@/lib/bill-number'
 import { calcLineTotal, parseMoneyValue, sumMoney } from '@/lib/money'
 import { resolveVendorTransactionSnapshot } from '@/lib/transaction-snapshot-defaults'
 import { generateNextJournalNumber } from '@/lib/journal-number'
-import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
+import { loadCompanySetupSettings } from '@/lib/company-setup-settings-store'
+import { deriveOpenItemCurrencyContext } from '@/lib/open-item-currency-context'
+import { ensureOpenItemForSource } from '@/lib/open-item-service'
 
 const INCLUDE = {
   vendor: true,
@@ -14,23 +16,18 @@ const INCLUDE = {
   subsidiary: true,
   currency: true,
   lineItems: {
-    include: { item: true },
+    include: {
+      item: true,
+      expenseAccount: {
+        select: { id: true, accountId: true, name: true },
+      },
+    },
     orderBy: [{ createdAt: 'asc' }],
   },
 } satisfies Prisma.BillInclude
 
-async function findBillPostingAccounts(lineItemIds: string[]) {
-  const companySettings = await loadCompanyInformationSettings()
-  const items = lineItemIds.length
-    ? await prisma.item.findMany({
-        where: { id: { in: lineItemIds } },
-        select: { id: true, cogsExpenseAccountId: true },
-      })
-    : []
-
-  const expenseAccountIds = Array.from(
-    new Set(items.map((item) => item.cogsExpenseAccountId).filter(Boolean)),
-  ) as string[]
+async function findBillPostingAccounts() {
+  const companySettings = await loadCompanySetupSettings()
 
   let apAccount = companySettings.defaultApAccountId
     ? await prisma.chartOfAccounts.findFirst({
@@ -74,7 +71,6 @@ async function findBillPostingAccounts(lineItemIds: string[]) {
 
   return {
     apAccountId: apAccount?.id ?? null,
-    expenseAccountIds,
   }
 }
 
@@ -91,39 +87,82 @@ async function postBillApprovalJournal(billId: string) {
   })
   if (!bill) return
 
-  const { apAccountId, expenseAccountIds } = await findBillPostingAccounts(
-    bill.lineItems.map((line) => line.itemId).filter(Boolean) as string[],
-  )
+  const { apAccountId } = await findBillPostingAccounts()
 
-  if (!apAccountId || expenseAccountIds.length === 0) return
+  const billCurrencyContext = await deriveOpenItemCurrencyContext({
+    subsidiaryId: bill.subsidiaryId ?? null,
+    transactionCurrencyId: bill.currencyId ?? null,
+    transactionAmount: bill.total,
+    effectiveDate: bill.date,
+    rateType: 'spot',
+  })
 
-  const fallbackExpenseAccountId = expenseAccountIds[0]
-  const totalDebit = sumMoney(
-    bill.lineItems.map((line) => {
+  await ensureOpenItemForSource({
+    openItemType: 'accounts_payable',
+    accountType: 'Liability',
+    accountId: apAccountId,
+    subsidiaryId: bill.subsidiaryId ?? null,
+    transactionCurrencyId: billCurrencyContext.transactionCurrencyId,
+    localCurrencyId: billCurrencyContext.localCurrencyId,
+    functionalCurrencyId: billCurrencyContext.functionalCurrencyId,
+    groupCurrencyId: billCurrencyContext.groupCurrencyId,
+    sourceTransactionType: 'bill',
+    sourceTransactionId: bill.id,
+    sourceNumber: bill.number,
+    counterpartyType: 'vendor',
+    counterpartyId: bill.vendorId,
+    documentDate: bill.date,
+    postingDate: bill.date,
+    dueDate: bill.dueDate ?? null,
+    originalTransactionAmount: bill.total,
+    originalLocalAmount: billCurrencyContext.originalLocalAmount,
+    originalFunctionalAmount: billCurrencyContext.originalFunctionalAmount,
+    originalGroupAmount: billCurrencyContext.originalGroupAmount,
+    memo: bill.notes ?? null,
+    createdById: bill.userId ?? null,
+  })
+
+  if (existingJournal) return
+
+  if (!apAccountId) return
+
+  const debitLines = bill.lineItems
+    .map((line, index) => {
       const quantity = Number(line.quantity ?? 0)
       const unitPrice = Number(line.unitPrice ?? 0)
-      return calcLineTotal(quantity, unitPrice)
-    }),
-  )
+      const debit = calcLineTotal(quantity, unitPrice)
+      const accountId =
+        line.lineType === 'expense'
+          ? line.expenseAccountId
+          : (line.item?.cogsExpenseAccountId ?? null)
+
+      if (!accountId || debit <= 0) return null
+
+      return {
+        displayOrder: index,
+        description: line.description || bill.number,
+        memo: line.notes ?? null,
+        activityTypeCode: 'expense_recognition',
+        debit,
+        credit: 0,
+        accountId,
+        subsidiaryId: bill.subsidiaryId,
+        vendorId: bill.vendorId,
+        itemId: line.itemId,
+      }
+    })
+    .filter((line): line is NonNullable<typeof line> => Boolean(line))
+
+  const totalDebit = sumMoney(debitLines.map((line) => line.debit))
 
   if (totalDebit <= 0) return
 
-  const lineCreates = bill.lineItems.map((line, index) => ({
-    displayOrder: index,
-    description: line.description || bill.number,
-    memo: line.notes ?? null,
-    debit: calcLineTotal(Number(line.quantity ?? 0), Number(line.unitPrice ?? 0)),
-    credit: 0,
-    accountId: line.item?.cogsExpenseAccountId ?? fallbackExpenseAccountId,
-    subsidiaryId: bill.subsidiaryId,
-    vendorId: bill.vendorId,
-    itemId: line.itemId,
-  }))
-
+  const lineCreates = [...debitLines]
   lineCreates.push({
-    displayOrder: lineCreates.length,
+    displayOrder: debitLines.length,
     description: `${bill.number} accounts payable`,
     memo: bill.notes ?? null,
+    activityTypeCode: 'ap_addition',
     debit: 0,
     credit: totalDebit,
     accountId: apAccountId,
@@ -238,7 +277,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    const { vendorId, purchaseOrderId, total, date, dueDate, status, notes, subsidiaryId, currencyId, userId, lineItems } = body
+    const { vendorId, vendorBillNumber, vendorBillDate, purchaseOrderId, total, date, dueDate, status, notes, subsidiaryId, currencyId, userId, lineItems } = body
 
     if (!vendorId || total === undefined || !date) {
       return NextResponse.json({ error: 'vendorId, total, and bill date are required' }, { status: 400 })
@@ -255,6 +294,8 @@ export async function POST(request: NextRequest) {
       ? lineItems
           .map((line: {
             itemId?: string | null
+            lineType?: string | null
+            expenseAccountId?: string | null
             description?: string | null
             quantity?: number
             unitPrice?: number
@@ -265,7 +306,9 @@ export async function POST(request: NextRequest) {
             const unitPrice = Math.max(0, Number(line.unitPrice) || 0)
             const nextDescription = line.description?.trim() || ''
             return {
-              itemId: line.itemId || null,
+              lineType: line.lineType === 'expense' ? 'expense' : 'item',
+              itemId: line.lineType === 'expense' ? null : line.itemId || null,
+              expenseAccountId: line.lineType === 'expense' ? line.expenseAccountId || null : null,
               description: nextDescription,
               quantity,
               unitPrice,
@@ -273,7 +316,10 @@ export async function POST(request: NextRequest) {
               notes: line.notes?.trim() || null,
             }
           })
-          .filter((line: { itemId: string | null; description: string }) => line.itemId || line.description)
+          .filter(
+            (line: { itemId: string | null; expenseAccountId?: string | null; description: string }) =>
+              line.itemId || line.expenseAccountId || line.description,
+          )
       : []
 
     const computedTotal = normalizedLineItems.length
@@ -284,6 +330,8 @@ export async function POST(request: NextRequest) {
       data: {
         number,
         vendorId,
+        vendorBillNumber: vendorBillNumber ? String(vendorBillNumber).trim() : null,
+        vendorBillDate: vendorBillDate ? new Date(String(vendorBillDate)) : null,
         purchaseOrderId: purchaseOrderId || null,
         total: computedTotal,
         date: new Date(date),
@@ -296,7 +344,9 @@ export async function POST(request: NextRequest) {
         lineItems: normalizedLineItems.length
           ? {
               create: normalizedLineItems.map((line: {
+                lineType: string
                 itemId: string | null
+                expenseAccountId: string | null
                 description: string
                 quantity: number
                 unitPrice: number
@@ -304,6 +354,8 @@ export async function POST(request: NextRequest) {
                 notes: string | null
               }) => ({
                 itemId: line.itemId,
+                lineType: line.lineType,
+                expenseAccountId: line.expenseAccountId,
                 description: line.description,
                 quantity: line.quantity,
                 unitPrice: line.unitPrice,
@@ -322,6 +374,27 @@ export async function POST(request: NextRequest) {
       action: 'create',
       summary: `Created bill ${bill.number}`,
     })
+    await logRecordSnapshotActivities({
+      entityType: 'bill',
+      entityId: bill.id,
+      userId: bill.userId ?? null,
+      action: 'create',
+      context: 'Header',
+      fields: [
+        { fieldName: 'Business Id', value: bill.number },
+        { fieldName: 'Vendor', value: bill.vendorId },
+        { fieldName: 'Vendor Bill Number', value: bill.vendorBillNumber },
+        { fieldName: 'Vendor Bill Date', value: bill.vendorBillDate },
+        { fieldName: 'Purchase Order', value: bill.purchaseOrderId },
+        { fieldName: 'Total', value: bill.total },
+        { fieldName: 'Bill Date', value: bill.date },
+        { fieldName: 'Due Date', value: bill.dueDate },
+        { fieldName: 'Status', value: bill.status },
+        { fieldName: 'Notes', value: bill.notes },
+        { fieldName: 'Subsidiary', value: bill.subsidiaryId },
+        { fieldName: 'Currency', value: bill.currencyId },
+      ],
+    })
 
     return NextResponse.json(bill, { status: 201 })
   } catch {
@@ -338,7 +411,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { vendorId, purchaseOrderId, total, date, dueDate, status, notes, subsidiaryId, currencyId } = body
+    const { vendorId, vendorBillNumber, vendorBillDate, purchaseOrderId, total, date, dueDate, status, notes, subsidiaryId, currencyId } = body
 
     const before = await prisma.bill.findUnique({ where: { id } })
     if (!before) {
@@ -357,6 +430,8 @@ export async function PUT(request: NextRequest) {
       where: { id },
       data: {
         ...(vendorId !== undefined ? { vendorId: String(vendorId).trim() } : {}),
+        ...(vendorBillNumber !== undefined ? { vendorBillNumber: vendorBillNumber ? String(vendorBillNumber).trim() : null } : {}),
+        ...(vendorBillDate !== undefined ? { vendorBillDate: vendorBillDate ? new Date(String(vendorBillDate)) : null } : {}),
         ...(purchaseOrderId !== undefined ? { purchaseOrderId: purchaseOrderId ? String(purchaseOrderId).trim() : null } : {}),
         ...(total !== undefined ? { total: parseMoneyValue(total) } : {}),
         ...(date !== undefined ? { date: new Date(String(date)) } : {}),
@@ -380,34 +455,25 @@ export async function PUT(request: NextRequest) {
       summary: `Updated bill ${bill.number}`,
     })
 
-    const changes = [
-      ['Vendor', before.vendorId ?? '', bill.vendorId ?? ''],
-      ['Purchase Order', before.purchaseOrderId ?? '', bill.purchaseOrderId ?? ''],
-      ['Total', String(before.total ?? ''), String(bill.total ?? '')],
-      ['Bill Date', before.date ? before.date.toISOString().slice(0, 10) : '', bill.date ? bill.date.toISOString().slice(0, 10) : ''],
-      ['Due Date', before.dueDate ? before.dueDate.toISOString().slice(0, 10) : '', bill.dueDate ? bill.dueDate.toISOString().slice(0, 10) : ''],
-      ['Status', before.status ?? '', bill.status ?? ''],
-      ['Notes', before.notes ?? '', bill.notes ?? ''],
-      ['Subsidiary', before.subsidiaryId ?? '', bill.subsidiaryId ?? ''],
-      ['Currency', before.currencyId ?? '', bill.currencyId ?? ''],
-    ]
-      .filter(([, oldValue, newValue]) => oldValue !== newValue)
-      .map(([fieldName, oldValue, newValue]) => ({
-        entityType: 'bill',
-        entityId: bill.id,
-        action: 'update',
-        summary: createFieldChangeSummary({
-          context: 'Header',
-          fieldName,
-          oldValue,
-          newValue,
-        }),
-        userId: bill.userId,
-      }))
-
-    if (changes.length) {
-      await prisma.activity.createMany({ data: changes })
-    }
+    await logFieldChangeActivities({
+      entityType: 'bill',
+      entityId: bill.id,
+      userId: bill.userId ?? null,
+      context: 'Header',
+      changes: [
+        { fieldName: 'Vendor', oldValue: before.vendorId, newValue: bill.vendorId },
+        { fieldName: 'Vendor Bill Number', oldValue: before.vendorBillNumber, newValue: bill.vendorBillNumber },
+        { fieldName: 'Vendor Bill Date', oldValue: before.vendorBillDate, newValue: bill.vendorBillDate },
+        { fieldName: 'Purchase Order', oldValue: before.purchaseOrderId, newValue: bill.purchaseOrderId },
+        { fieldName: 'Total', oldValue: before.total, newValue: bill.total },
+        { fieldName: 'Bill Date', oldValue: before.date, newValue: bill.date },
+        { fieldName: 'Due Date', oldValue: before.dueDate, newValue: bill.dueDate },
+        { fieldName: 'Status', oldValue: before.status, newValue: bill.status },
+        { fieldName: 'Notes', oldValue: before.notes, newValue: bill.notes },
+        { fieldName: 'Subsidiary', oldValue: before.subsidiaryId, newValue: bill.subsidiaryId },
+        { fieldName: 'Currency', oldValue: before.currencyId, newValue: bill.currencyId },
+      ],
+    })
 
     return NextResponse.json(bill)
   } catch {
@@ -432,6 +498,29 @@ export async function DELETE(request: NextRequest) {
       action: 'delete',
       summary: `Deleted bill ${existing?.number ?? id}`,
     })
+    if (existing) {
+      await logRecordSnapshotActivities({
+        entityType: 'bill',
+        entityId: id,
+        userId: existing.userId ?? null,
+        action: 'delete',
+        context: 'Header',
+        fields: [
+          { fieldName: 'Business Id', value: existing.number },
+          { fieldName: 'Vendor', value: existing.vendorId },
+          { fieldName: 'Vendor Bill Number', value: existing.vendorBillNumber },
+          { fieldName: 'Vendor Bill Date', value: existing.vendorBillDate },
+          { fieldName: 'Purchase Order', value: existing.purchaseOrderId },
+          { fieldName: 'Total', value: existing.total },
+          { fieldName: 'Bill Date', value: existing.date },
+          { fieldName: 'Due Date', value: existing.dueDate },
+          { fieldName: 'Status', value: existing.status },
+          { fieldName: 'Notes', value: existing.notes },
+          { fieldName: 'Subsidiary', value: existing.subsidiaryId },
+          { fieldName: 'Currency', value: existing.currencyId },
+        ],
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch {

@@ -11,7 +11,7 @@ export default function TransactionActionStack({
   primaryActions,
   secondaryActions,
 }: {
-  mode: 'detail' | 'edit' | 'create'
+  mode: 'detail' | 'edit' | 'create' | 'customize'
   cancelHref?: string
   formId?: string
   recordId?: string

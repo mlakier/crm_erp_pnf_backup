@@ -266,7 +266,7 @@ const DEFAULT_PURCHASE_REQUISITION_LINE_WIDTHS: Record<PurchaseRequisitionLineCo
 
 const DEFAULT_PURCHASE_REQUISITION_LINE_EDIT_DISPLAY: Record<PurchaseRequisitionLineColumnKey, PurchaseRequisitionLineDisplayMode> = {
   line: 'label',
-  'item-id': 'idAndLabel',
+  'item-id': 'id',
   description: 'label',
   quantity: 'label',
   'unit-price': 'label',
@@ -280,6 +280,7 @@ const DEFAULT_PURCHASE_REQUISITION_LINE_VIEW_DISPLAY: Record<PurchaseRequisition
 
 const DEFAULT_PURCHASE_REQUISITION_LINE_DROPDOWN_DISPLAY: Record<PurchaseRequisitionLineColumnKey, PurchaseRequisitionLineDisplayMode> = {
   ...DEFAULT_PURCHASE_REQUISITION_LINE_EDIT_DISPLAY,
+  'item-id': 'idAndLabel',
 }
 
 const DEFAULT_PURCHASE_REQUISITION_LINE_DROPDOWN_SORT: Record<PurchaseRequisitionLineColumnKey, PurchaseRequisitionLineDropdownSortMode> = {

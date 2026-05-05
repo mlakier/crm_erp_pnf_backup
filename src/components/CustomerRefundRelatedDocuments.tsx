@@ -13,25 +13,29 @@ export default function CustomerRefundRelatedDocuments({
   moneySettings,
   embedded = false,
   showDisplayControl = true,
+  defaultCurrencyCode,
 }: {
   customer: { id: string; number: string; name: string; email?: string | null } | null
-  opportunity: { id: string; number: string; name: string; status: string; total: number } | null
-  quote: { id: string; number: string; status: string; total: number } | null
-  salesOrder: { id: string; number: string; status: string; total: number } | null
-  invoice: { id: string; number: string; status: string; total: number } | null
-  receipt: { id: string; number: string; status: string; amount: number } | null
+  opportunity: { id: string; number: string; name: string; status: string; total: number; currencyCode?: string | null } | null
+  quote: { id: string; number: string; status: string; total: number; currencyCode?: string | null } | null
+  salesOrder: { id: string; number: string; status: string; total: number; currencyCode?: string | null } | null
+  invoice: { id: string; number: string; status: string; total: number; currencyCode?: string | null } | null
+  receipt: { id: string; number: string; status: string; amount: number; currencyCode?: string | null } | null
   moneySettings?: Parameters<typeof import('@/lib/format').fmtCurrency>[2]
   embedded?: boolean
   showDisplayControl?: boolean
+  defaultCurrencyCode?: string | null
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined, moneySettings)
   const tabs = [
-    {
-      key: 'master-data',
-      label: 'Master Data',
-      count: customer ? 1 : 0,
-      emptyMessage: 'No related master data records are linked to this refund.',
-      rows: customer
-        ? [
+    ...(customer
+      ? [{
+          key: 'master-data',
+          label: 'Master Data',
+          count: 1,
+          emptyMessage: 'No related master data records are linked to this refund.',
+          rows: [
             {
               id: customer.id,
               type: 'Customer',
@@ -40,9 +44,9 @@ export default function CustomerRefundRelatedDocuments({
               details: customer.email ?? '-',
               href: `/customers/${customer.id}`,
             },
-          ]
-        : [],
-    },
+          ],
+        }]
+      : []),
     {
       key: 'transactions',
       label: 'Transactions',
@@ -60,7 +64,7 @@ export default function CustomerRefundRelatedDocuments({
               type: 'Opportunity',
               reference: opportunity.number,
               name: opportunity.name,
-              details: `${opportunity.status} | ${fmtCurrency(opportunity.total, undefined, moneySettings)}`,
+              details: `${opportunity.status} | ${formatAmount(opportunity.total, opportunity.currencyCode)}`,
               href: `/opportunities/${opportunity.id}`,
             }]
           : []),
@@ -70,7 +74,7 @@ export default function CustomerRefundRelatedDocuments({
               type: 'Quote',
               reference: quote.number,
               name: quote.status,
-              details: fmtCurrency(quote.total, undefined, moneySettings),
+              details: formatAmount(quote.total, quote.currencyCode),
               href: `/quotes/${quote.id}`,
             }]
           : []),
@@ -80,7 +84,7 @@ export default function CustomerRefundRelatedDocuments({
               type: 'Sales Order',
               reference: salesOrder.number,
               name: salesOrder.status,
-              details: fmtCurrency(salesOrder.total, undefined, moneySettings),
+              details: formatAmount(salesOrder.total, salesOrder.currencyCode),
               href: `/sales-orders/${salesOrder.id}`,
             }]
           : []),
@@ -90,7 +94,7 @@ export default function CustomerRefundRelatedDocuments({
               type: 'Invoice',
               reference: invoice.number,
               name: invoice.status,
-              details: fmtCurrency(invoice.total, undefined, moneySettings),
+              details: formatAmount(invoice.total, invoice.currencyCode),
               href: `/invoices/${invoice.id}`,
             }]
           : []),
@@ -100,7 +104,7 @@ export default function CustomerRefundRelatedDocuments({
               type: 'Invoice Receipt',
               reference: receipt.number,
               name: receipt.status,
-              details: fmtCurrency(receipt.amount, undefined, moneySettings),
+              details: formatAmount(receipt.amount, receipt.currencyCode),
               href: `/invoice-receipts/${receipt.id}`,
             }]
           : []),

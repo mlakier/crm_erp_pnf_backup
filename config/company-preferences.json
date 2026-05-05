@@ -160,6 +160,13 @@
       "digits": 0,
       "autoIncrement": true,
       "locked": true
+    },
+    "clearingDocument": {
+      "prefix": "CLR-",
+      "startingNumber": 1,
+      "digits": 0,
+      "autoIncrement": true,
+      "locked": true
     }
   },
   "moneySettings": {
@@ -172,5 +179,14 @@
     "showCurrencyOn": "all",
     "negativeColor": "default",
     "documentDateFormat": "locale"
+  },
+  "transactionStatusColors": {
+    "salesOrder": {
+      "draft": "default",
+      "approved": "accent",
+      "booked": "accent",
+      "fulfilled": "green",
+      "cancelled": "red"
+    }
   }
 }

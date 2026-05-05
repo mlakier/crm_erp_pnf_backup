@@ -2,7 +2,9 @@ import { prisma } from '@/lib/prisma'
 import { loadListValues } from '@/lib/load-list-values'
 import InvoiceReceiptCreatePageClient from '@/components/InvoiceReceiptCreatePageClient'
 import { loadInvoiceReceiptDetailCustomization } from '@/lib/invoice-receipt-detail-customization-store'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
 import { roundMoney } from '@/lib/invoice-receipt-applications'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 
 export const runtime = 'nodejs'
 
@@ -18,6 +20,12 @@ export default async function NewInvoiceReceiptPage({
       include: {
         customer: {
           select: { id: true, customerId: true, name: true },
+        },
+        subsidiary: {
+          select: { subsidiaryId: true, name: true },
+        },
+        currency: {
+          select: { currencyId: true, code: true, name: true },
         },
         cashReceiptApplications: {
           include: {
@@ -40,19 +48,7 @@ export default async function NewInvoiceReceiptPage({
     loadListValues('PAYMENT-METHOD'),
     loadListValues('INV-RECEIPT-STATUS'),
     loadInvoiceReceiptDetailCustomization(),
-    prisma.chartOfAccounts.findMany({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      orderBy: [{ accountId: 'asc' }],
-    }),
+    loadCashBankPostingAccounts(),
     duplicateFrom
       ? prisma.cashReceipt.findUnique({
           where: { id: duplicateFrom },
@@ -81,6 +77,12 @@ export default async function NewInvoiceReceiptPage({
         date: invoice.createdAt.toISOString(),
         subsidiaryId: invoice.subsidiaryId ?? null,
         currencyId: invoice.currencyId ?? null,
+        subsidiaryLabel: invoice.subsidiary
+          ? `${invoice.subsidiary.subsidiaryId} - ${invoice.subsidiary.name}`
+          : null,
+        currencyLabel: invoice.currency
+          ? `${invoice.currency.code ?? invoice.currency.currencyId} - ${invoice.currency.name}`
+          : null,
         userId: invoice.userId ?? null,
         openAmount: roundMoney(Number(invoice.total) - invoice.cashReceiptApplications.reduce((sum, application) => sum + Number(application.appliedAmount), 0) - invoice.cashReceipts.reduce((sum, receipt) => {
           if (receipt.applications.length > 0) return sum
@@ -97,7 +99,7 @@ export default async function NewInvoiceReceiptPage({
       }))}
       bankAccountOptions={cashAccounts.map((account) => ({
         value: account.id,
-        label: `${account.accountId} - ${account.name}`,
+        label: formatGlAccountLabel(account),
       }))}
       customization={customization}
       initialHeaderValues={

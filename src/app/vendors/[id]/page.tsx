@@ -39,7 +39,7 @@ export default async function VendorDetailPage({
   const isCustomizing = customize === '1'
   const fieldMetaById = buildFieldMetaById(VENDOR_FORM_FIELDS)
 
-  const [vendor, defaultUser, fieldOptions, inactiveOptions, formCustomization, formRequirements] = await Promise.all([
+  const [vendor, defaultUser, fieldOptions, inactiveOptions, formCustomization, formRequirements, currencies] = await Promise.all([
     prisma.vendor.findUnique({
       where: { id },
       include: {
@@ -67,11 +67,16 @@ export default async function VendorDetailPage({
     loadListOptionsForSource({ sourceType: 'system', sourceKey: 'activeInactive' }),
     loadVendorFormCustomization(),
     loadFormRequirements(),
+    prisma.currency.findMany({
+      orderBy: { code: 'asc' },
+      select: { id: true, currencyId: true, code: true },
+    }),
   ])
 
   if (!vendor) notFound()
 
   const totalSpend = vendor.purchaseOrders.reduce((sum, purchaseOrder) => sum + toNumericValue(purchaseOrder.total), 0)
+  const currencyCodeById = new Map(currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]))
   const openInvoices = vendor.bills.filter((bill) => bill.status !== 'paid' && bill.status !== 'void')
   const detailHref = `/vendors/${vendor.id}`
   const relatedPurchaseOrders = vendor.purchaseOrders.map((purchaseOrder) => ({
@@ -79,6 +84,7 @@ export default async function VendorDetailPage({
     number: purchaseOrder.number,
     status: purchaseOrder.status,
     total: toNumericValue(purchaseOrder.total, 0),
+    currencyCode: currencyCodeById.get(purchaseOrder.currencyId ?? '') ?? null,
     createdAt: purchaseOrder.createdAt.toISOString(),
   }))
   const relatedRequisitionMap = new Map<string, {
@@ -86,6 +92,7 @@ export default async function VendorDetailPage({
     number: string
     status: string
     total: number
+    currencyCode?: string | null
     priority: string | null
     title: string | null
     createdAt: string
@@ -96,6 +103,7 @@ export default async function VendorDetailPage({
       number: requisition.number,
       status: requisition.status,
       total: toNumericValue(requisition.total, 0),
+      currencyCode: currencyCodeById.get(requisition.currencyId ?? '') ?? null,
       priority: requisition.priority,
       title: requisition.title,
       createdAt: requisition.createdAt.toISOString(),
@@ -108,6 +116,7 @@ export default async function VendorDetailPage({
       number: purchaseOrder.requisition.number,
       status: purchaseOrder.requisition.status,
       total: toNumericValue(purchaseOrder.requisition.total, 0),
+      currencyCode: currencyCodeById.get(purchaseOrder.requisition.currencyId ?? '') ?? null,
       priority: purchaseOrder.requisition.priority,
       title: purchaseOrder.requisition.title,
       createdAt: purchaseOrder.requisition.createdAt.toISOString(),
@@ -119,6 +128,7 @@ export default async function VendorDetailPage({
     number: bill.number,
     status: bill.status,
     total: toNumericValue(bill.total, 0),
+    currencyCode: currencyCodeById.get(bill.currencyId ?? '') ?? null,
     date: bill.date.toISOString(),
     dueDate: bill.dueDate?.toISOString() ?? null,
   }))
@@ -138,6 +148,7 @@ export default async function VendorDetailPage({
       id: payment.id,
       number: payment.number,
       amount: toNumericValue(payment.amount, 0),
+      currencyCode: currencyCodeById.get(bill.currencyId ?? '') ?? null,
       date: payment.date.toISOString(),
       method: payment.method,
       reference: payment.reference,
@@ -414,6 +425,7 @@ export default async function VendorDetailPage({
                     <VendorRelatedDocuments
                       embedded
                       showDisplayControl={false}
+                      defaultCurrencyCode={vendor.currency?.code ?? vendor.currency?.currencyId ?? null}
                       purchaseRequisitions={relatedRequisitions}
                       purchaseOrders={relatedPurchaseOrders}
                       receipts={relatedReceipts}

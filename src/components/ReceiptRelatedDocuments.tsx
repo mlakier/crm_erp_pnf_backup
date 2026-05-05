@@ -15,6 +15,7 @@ export default function ReceiptRelatedDocuments({
   moneySettings,
   embedded = false,
   showDisplayControl = true,
+  defaultCurrencyCode,
 }: {
   purchaseRequisitions: Array<{
     id: string
@@ -22,6 +23,7 @@ export default function ReceiptRelatedDocuments({
     status: string
     total: number
     createdAt: string | Date
+    currencyCode?: string | null
   }>
   purchaseOrders: Array<{
     id: string
@@ -29,6 +31,7 @@ export default function ReceiptRelatedDocuments({
     status: string
     total: number
     createdAt: string | Date
+    currencyCode?: string | null
   }>
   bills: Array<{
     id: string
@@ -38,6 +41,7 @@ export default function ReceiptRelatedDocuments({
     status: string
     total: number
     notes: string | null
+    currencyCode?: string | null
   }>
   billPayments: Array<{
     id: string
@@ -47,11 +51,15 @@ export default function ReceiptRelatedDocuments({
     amount: number
     reference: string | null
     billNumber: string
+    currencyCode?: string | null
   }>
   moneySettings?: Parameters<typeof fmtCurrency>[2]
   embedded?: boolean
   showDisplayControl?: boolean
+  defaultCurrencyCode?: string | null
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined, moneySettings)
   const tabs: TransactionRelatedDocumentsTab[] = [
     {
       key: 'purchase-requisitions',
@@ -67,13 +75,13 @@ export default function ReceiptRelatedDocuments({
             {req.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${req.id}-status`} status={req.status} />,
-          fmtCurrency(req.total, undefined, moneySettings),
+          formatAmount(req.total, req.currencyCode),
           fmtDocumentDate(req.createdAt, moneySettings),
         ],
         filterValues: [
           req.number,
           req.status,
-          fmtCurrency(req.total, undefined, moneySettings),
+          formatAmount(req.total, req.currencyCode),
           fmtDocumentDate(req.createdAt, moneySettings),
         ],
       })),
@@ -92,13 +100,13 @@ export default function ReceiptRelatedDocuments({
             {po.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${po.id}-status`} status={po.status} />,
-          fmtCurrency(po.total, undefined, moneySettings),
+          formatAmount(po.total, po.currencyCode),
           fmtDocumentDate(po.createdAt, moneySettings),
         ],
         filterValues: [
           po.number,
           po.status,
-          fmtCurrency(po.total, undefined, moneySettings),
+          formatAmount(po.total, po.currencyCode),
           fmtDocumentDate(po.createdAt, moneySettings),
         ],
       })),
@@ -117,7 +125,7 @@ export default function ReceiptRelatedDocuments({
             {bill.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${bill.id}-status`} status={bill.status} />,
-          fmtCurrency(bill.total, undefined, moneySettings),
+          formatAmount(bill.total, bill.currencyCode),
           fmtDocumentDate(bill.date, moneySettings),
           bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '-',
           bill.notes ?? '-',
@@ -125,7 +133,7 @@ export default function ReceiptRelatedDocuments({
         filterValues: [
           bill.number,
           bill.status,
-          fmtCurrency(bill.total, undefined, moneySettings),
+          formatAmount(bill.total, bill.currencyCode),
           fmtDocumentDate(bill.date, moneySettings),
           bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '-',
           bill.notes ?? '-',
@@ -146,7 +154,7 @@ export default function ReceiptRelatedDocuments({
             {payment.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${payment.id}-status`} status={payment.status} />,
-          fmtCurrency(payment.amount, undefined, moneySettings),
+          formatAmount(payment.amount, payment.currencyCode),
           fmtDocumentDate(payment.date, moneySettings),
           payment.billNumber,
           payment.reference ?? '-',
@@ -154,7 +162,7 @@ export default function ReceiptRelatedDocuments({
         filterValues: [
           payment.number,
           payment.status,
-          fmtCurrency(payment.amount, undefined, moneySettings),
+          formatAmount(payment.amount, payment.currencyCode),
           fmtDocumentDate(payment.date, moneySettings),
           payment.billNumber,
           payment.reference ?? '-',

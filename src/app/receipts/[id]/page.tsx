@@ -22,6 +22,7 @@ import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
 import TransactionActionStack from '@/components/TransactionActionStack'
 import DeleteButton from '@/components/DeleteButton'
 import ReceiptRelatedDocuments from '@/components/ReceiptRelatedDocuments'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import { parseCommunicationSummary, parseFieldChangeSummary } from '@/lib/activity'
 import { canReceivePurchaseOrderLine } from '@/lib/item-business-rules'
 import {
@@ -153,13 +154,16 @@ export default async function ReceiptDetailPage({
 
   if (!receipt) notFound()
 
+  const purchaseOrderCurrencyCode =
+    receipt.purchaseOrder.currency?.code ?? receipt.purchaseOrder.currency?.currencyId ?? undefined
+
   const glImpactEntries = await prisma.journalEntry.findMany({
     where: { sourceId: receipt.id },
     include: {
       lineItems: {
         include: {
           account: {
-            select: { accountId: true, name: true },
+            select: { accountId: true, accountNumber: true, name: true },
           },
         },
       },
@@ -340,6 +344,34 @@ export default async function ReceiptDetailPage({
       subsectionTitle: 'Document Identity',
       subsectionDescription: 'Receipt numbering and source purchase-order context for this receipt.',
       href: `/purchase-orders/${receipt.purchaseOrder.id}`,
+    },
+    subsidiaryId: {
+      key: 'subsidiaryId',
+      label: 'Subsidiary',
+      value: receipt.subsidiaryId ?? receipt.purchaseOrder.subsidiaryId ?? '',
+      displayValue: receipt.purchaseOrder.subsidiary
+        ? `${receipt.purchaseOrder.subsidiary.subsidiaryId} - ${receipt.purchaseOrder.subsidiary.name}`
+        : '-',
+      helpText: 'Subsidiary derived from the linked purchase order posting context.',
+      fieldType: 'list',
+      sourceText: 'Purchase order transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Receipt numbering and source purchase-order context for this receipt.',
+      href: receipt.purchaseOrder.subsidiaryId ? `/subsidiaries/${receipt.purchaseOrder.subsidiaryId}` : undefined,
+    },
+    currencyId: {
+      key: 'currencyId',
+      label: 'Currency',
+      value: receipt.currencyId ?? receipt.purchaseOrder.currencyId ?? '',
+      displayValue: receipt.purchaseOrder.currency
+        ? `${receipt.purchaseOrder.currency.code ?? receipt.purchaseOrder.currency.currencyId} - ${receipt.purchaseOrder.currency.name}`
+        : '-',
+      helpText: 'Transaction currency derived from the linked purchase order posting context.',
+      fieldType: 'list',
+      sourceText: 'Purchase order transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Receipt numbering and source purchase-order context for this receipt.',
+      href: receipt.purchaseOrder.currencyId ? `/currencies/${receipt.purchaseOrder.currencyId}` : undefined,
     },
     quantity: {
       key: 'quantity',
@@ -537,14 +569,34 @@ export default async function ReceiptDetailPage({
         ) : null
       }
       actions={
-        isCustomizing ? null : (
-          <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
-            cancelHref={detailHref}
-            formId={`inline-record-form-${receipt.id}`}
-            recordId={receipt.id}
-            primaryActions={
-              isEditing ? (
+        <TransactionActionStack
+          mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
+          cancelHref={detailHref}
+          formId={`inline-record-form-${receipt.id}`}
+          recordId={receipt.id}
+          primaryActions={
+            isEditing ? (
+              <Link
+                href={`${detailHref}?customize=1`}
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+              >
+                Customize
+              </Link>
+            ) : (
+              <>
+                <MasterDataDetailCreateMenu
+                  newHref="/receipts/new"
+                  duplicateHref={`/receipts/new?duplicateFrom=${encodeURIComponent(receipt.id)}`}
+                />
+                <MasterDataDetailExportMenu
+                  title={receiptLabel}
+                  fileName={`receipt-${receiptLabel}`}
+                  sections={headerSections.map((section) => ({
+                    title: section.title,
+                    fields: buildTransactionExportHeaderFields([section]),
+                  }))}
+                />
                 <Link
                   href={`${detailHref}?customize=1`}
                   className="rounded-md border px-3 py-2 text-sm"
@@ -552,40 +604,18 @@ export default async function ReceiptDetailPage({
                 >
                   Customize
                 </Link>
-              ) : (
-                <>
-                  <MasterDataDetailCreateMenu
-                    newHref="/receipts/new"
-                    duplicateHref={`/receipts/new?duplicateFrom=${encodeURIComponent(receipt.id)}`}
-                  />
-                  <MasterDataDetailExportMenu
-                    title={receiptLabel}
-                    fileName={`receipt-${receiptLabel}`}
-                    sections={headerSections.map((section) => ({
-                      title: section.title,
-                      fields: buildTransactionExportHeaderFields([section]),
-                    }))}
-                  />
-                  <Link
-                    href={`${detailHref}?customize=1`}
-                    className="rounded-md border px-3 py-2 text-sm"
-                    style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-                  >
-                    Customize
-                  </Link>
-                  <Link
-                    href={`${detailHref}?edit=1`}
-                    className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                    style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                  >
-                    Edit
-                  </Link>
-                  <DeleteButton endpoint="/api/receipts" id={receipt.id} label={receiptLabel} />
-                </>
-              )
-            }
-          />
-        )
+                <Link
+                  href={`${detailHref}?edit=1`}
+                  className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                  style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+                >
+                  Edit
+                </Link>
+                <DeleteButton endpoint="/api/receipts" id={receipt.id} label={receiptLabel} />
+              </>
+            )
+          }
+        />
       }
     >
       <TransactionDetailFrame
@@ -659,9 +689,38 @@ export default async function ReceiptDetailPage({
           )
         }
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'vendor',
+                label: 'Vendor',
+                count: 1,
+                emptyMessage: 'No related vendor is linked to this receipt.',
+                rows: [
+                  {
+                    id: receipt.purchaseOrder.vendor.id,
+                    type: 'Vendor',
+                    reference: receipt.purchaseOrder.vendor.vendorNumber ?? receipt.purchaseOrder.vendor.id,
+                    name: receipt.purchaseOrder.vendor.name,
+                    details:
+                      [receipt.purchaseOrder.vendor.email, receipt.purchaseOrder.vendor.phone]
+                        .filter(Boolean)
+                        .join(' | ') || '-',
+                    href: `/vendors/${receipt.purchaseOrder.vendor.id}`,
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={1}
+        relatedDocuments={isCustomizing ? null : (
           <ReceiptRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={purchaseOrderCurrencyCode}
             purchaseRequisitions={
               receipt.purchaseOrder.requisition
                 ? [
@@ -671,6 +730,7 @@ export default async function ReceiptDetailPage({
                       status: receipt.purchaseOrder.requisition.status,
                       total: Number(receipt.purchaseOrder.requisition.total),
                       createdAt: receipt.purchaseOrder.requisition.createdAt.toISOString(),
+                      currencyCode: purchaseOrderCurrencyCode,
                     },
                   ]
                 : []
@@ -682,6 +742,7 @@ export default async function ReceiptDetailPage({
                 status: receipt.purchaseOrder.status,
                 total: Number(receipt.purchaseOrder.total),
                 createdAt: receipt.purchaseOrder.createdAt.toISOString(),
+                currencyCode: purchaseOrderCurrencyCode,
               },
             ]}
             bills={receipt.purchaseOrder.bills.map((bill) => ({
@@ -692,6 +753,7 @@ export default async function ReceiptDetailPage({
               status: bill.status,
               total: Number(bill.total),
               notes: bill.notes ?? null,
+              currencyCode: purchaseOrderCurrencyCode,
             }))}
             billPayments={receipt.purchaseOrder.bills.flatMap((bill) =>
               bill.billPayments.map((payment) => ({
@@ -702,23 +764,18 @@ export default async function ReceiptDetailPage({
                 amount: Number(payment.amount),
                 reference: payment.reference ?? null,
                 billNumber: bill.number,
+                currencyCode: purchaseOrderCurrencyCode,
               })),
             )}
             moneySettings={moneySettings}
           />
         )}
-        relatedRecordsCount={
+        relatedDocumentsCount={
           (receipt.purchaseOrder.requisition ? 1 : 0) +
           1 +
           receipt.purchaseOrder.bills.length +
           receipt.purchaseOrder.bills.reduce((sum, bill) => sum + bill.billPayments.length, 0)
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this receipt yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         supplementarySections={
           isCustomizing ? null : (
             <ReceiptGlImpactSection

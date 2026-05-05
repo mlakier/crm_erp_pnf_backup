@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
 import { generateNextCurrencyId } from '@/lib/currency-number'
 import { generateNextLocationId } from '@/lib/location-number'
+import { deriveAccountRole, deriveRollforwardCategory } from '@/lib/chart-of-accounts-classification'
 import { normalizeItemOrderFlags, validateItemOrderFlags } from '@/lib/item-business-rules'
 import { getRequiredHeaders, isSupportedEntity } from '@/lib/master-data-import-schema'
 
@@ -179,7 +180,9 @@ async function importCurrencies(rows: Array<Record<string, string>>, mode: Impor
 async function importSubsidiaries(rows: Array<Record<string, string>>, mode: ImportMode, dryRun: boolean, errors: ImportError[]) {
   let succeeded = 0
 
-  const currencyCodes = Array.from(new Set(rows.map((row) => (row.defaultcurrencycode ?? '').toUpperCase()).filter(Boolean)))
+  const currencyCodes = Array.from(
+    new Set(rows.map((row) => (row.localcurrencycode ?? row.defaultcurrencycode ?? '').toUpperCase()).filter(Boolean))
+  )
   const currencies = await prisma.currency.findMany({
     where: { code: { in: currencyCodes } },
     select: { id: true, code: true },
@@ -191,7 +194,7 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
     const rowNumber = index + 2
     const code = (row.code ?? '').toUpperCase().trim()
     const name = (row.name ?? '').trim()
-    const defaultCurrencyCode = (row.defaultcurrencycode ?? '').toUpperCase().trim()
+    const localCurrencyCode = (row.localcurrencycode ?? row.defaultcurrencycode ?? '').toUpperCase().trim()
 
     if (!code) {
       errors.push({ row: rowNumber, message: 'code is required (cannot be empty)' })
@@ -203,11 +206,11 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
       continue
     }
 
-    if (defaultCurrencyCode && !currencyMap.has(defaultCurrencyCode)) {
+    if (localCurrencyCode && !currencyMap.has(localCurrencyCode)) {
       const availableCurrencies = Array.from(currencyMap.keys()).join(', ')
       errors.push({
         row: rowNumber,
-        message: `defaultCurrencyCode "${defaultCurrencyCode}" not found in system. Available: ${availableCurrencies || '(none - add currencies first)'}`,
+        message: `localCurrencyCode "${localCurrencyCode}" not found in system. Available: ${availableCurrencies || '(none - add currencies first)'}`,
       })
       continue
     }
@@ -234,7 +237,7 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
             entityType: (row.entitytype ?? '').trim() || null,
             taxId: (row.taxid ?? '').trim() || null,
             registrationNumber: (row.registrationnumber ?? '').trim() || null,
-            defaultCurrencyId: defaultCurrencyCode ? currencyMap.get(defaultCurrencyCode) ?? null : null,
+            localCurrencyId: localCurrencyCode ? currencyMap.get(localCurrencyCode) ?? null : null,
             active: parseBoolean(row.active, true),
           },
           create: {
@@ -244,7 +247,7 @@ async function importSubsidiaries(rows: Array<Record<string, string>>, mode: Imp
             entityType: row.entitytype || null,
             taxId: row.taxid || null,
             registrationNumber: row.registrationnumber || null,
-            defaultCurrencyId: defaultCurrencyCode ? currencyMap.get(defaultCurrencyCode) ?? null : null,
+            localCurrencyId: localCurrencyCode ? currencyMap.get(localCurrencyCode) ?? null : null,
             active: parseBoolean(row.active, true),
           },
         })
@@ -551,6 +554,25 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
       }
 
       if (mode === 'addOrUpdate' || (mode === 'add' && !exists) || (mode === 'update' && exists)) {
+        const providedRollforwardCategory = (row.rollforwardcategory ?? '').trim() || null
+        const resolvedRollforwardCategory =
+          providedRollforwardCategory
+          ?? deriveRollforwardCategory({
+            accountId: accountId || exists?.accountId || accountNumber,
+            accountNumber,
+            name,
+            accountType,
+          })
+        const providedAccountRole = (row.accountrole ?? '').trim() || null
+        const resolvedAccountRole =
+          providedAccountRole
+          ?? deriveAccountRole({
+            accountId: accountId || exists?.accountId || accountNumber,
+            accountNumber,
+            name,
+            accountType,
+            rollforwardCategory: resolvedRollforwardCategory,
+          })
         const upserted = await prisma.chartOfAccounts.upsert({
           where: { accountId: exists?.accountId ?? (accountId || `__missing__${rowNumber}`) },
           update: {
@@ -559,6 +581,8 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
             name,
             description: (row.description ?? '').trim() || null,
             accountType,
+            accountRole: resolvedAccountRole,
+            rollforwardCategory: resolvedRollforwardCategory,
             inventory: parseBoolean(row.inventory, false),
             revalueOpenBalance: parseBoolean(row.revalueopenbalance, false),
             eliminateIntercoTransactions: parseBoolean(row.eliminateintercotransactions, false),
@@ -572,6 +596,8 @@ async function importChartOfAccounts(rows: Array<Record<string, string>>, mode: 
             name,
             description: (row.description ?? '').trim() || null,
             accountType,
+            accountRole: resolvedAccountRole,
+            rollforwardCategory: resolvedRollforwardCategory,
             inventory: parseBoolean(row.inventory, false),
             revalueOpenBalance: parseBoolean(row.revalueopenbalance, false),
             eliminateIntercoTransactions: parseBoolean(row.eliminateintercotransactions, false),

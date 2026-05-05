@@ -48,12 +48,15 @@ export default async function NewJournalEntryPage({
         description: sourceEntry?.description ?? '',
         journalType: sourceEntry?.journalType ?? 'standard',
         status: sourceEntry?.status ?? formOptions.statusOptions[0]?.value ?? 'draft',
+        isOpenItemRelevant: sourceEntry?.isOpenItemRelevant ? 'true' : 'false',
         subsidiaryId: sourceEntry?.subsidiaryId ?? '',
         currencyId: sourceEntry?.currencyId ?? '',
         accountingPeriodId: initialAccountingPeriodId,
         total: sourceEntry?.total?.toString() ?? '0',
         sourceType: sourceEntry?.sourceType ?? '',
         sourceId: sourceEntry?.sourceId ?? '',
+        reversesJournalEntryId: sourceEntry?.reversesJournalEntryId ?? '',
+        reversalReasonCode: sourceEntry?.reversalReasonCode ?? '',
         userId: sourceEntry?.userId ?? '',
         postedByEmployeeId: sourceEntry?.postedByEmployeeId ?? '',
         approvedByEmployeeId: sourceEntry?.approvedByEmployeeId ?? '',
@@ -63,11 +66,12 @@ export default async function NewJournalEntryPage({
       createdByUserLabel="-"
       initialLineItems={
         sourceEntry?.lineItems.map((line) => ({
-          key: `dup-${line.id}`,
-          displayOrder: line.displayOrder,
-          accountId: line.accountId,
-          description: line.description ?? '',
-          debit: String(line.debit),
+        key: `dup-${line.id}`,
+        displayOrder: line.displayOrder,
+        accountId: line.accountId,
+        activityTypeCode: line.activityTypeCode ?? '',
+        description: line.description ?? '',
+        debit: String(line.debit),
           credit: String(line.credit),
           memo: line.memo ?? '',
           subsidiaryId: line.subsidiaryId ?? '',
@@ -78,6 +82,7 @@ export default async function NewJournalEntryPage({
           vendorId: line.vendorId ?? '',
           itemId: line.itemId ?? '',
           employeeId: line.employeeId ?? '',
+          settlesOpenItemId: line.settlesOpenItemId ?? '',
         })) ?? []
       }
       moneySettings={moneySettings}

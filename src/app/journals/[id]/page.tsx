@@ -6,6 +6,7 @@ import { loadJournalEntryFormOptions } from '@/lib/journal-entry-form-options'
 import { loadJournalDetailCustomization } from '@/lib/journal-detail-customization-store'
 import { fmtDocumentDate, toNumericValue } from '@/lib/format'
 import { parseFieldChangeSummary } from '@/lib/activity'
+import { loadDocumentRelationshipSummaries } from '@/lib/document-relationships'
 
 export default async function JournalEntryDetailPage({
   params,
@@ -18,7 +19,7 @@ export default async function JournalEntryDetailPage({
   const { edit, customize } = await searchParams
   const isEditing = edit === '1'
   const isCustomizing = customize === '1'
-  const [{ moneySettings }, formOptions, customization, entry, activities] = await Promise.all([
+  const [{ moneySettings }, formOptions, customization, entry, activities, linkedDocuments] = await Promise.all([
     loadCompanyDisplaySettings(),
     loadJournalEntryFormOptions(),
     loadJournalDetailCustomization(),
@@ -50,6 +51,10 @@ export default async function JournalEntryDetailPage({
         entityId: id,
       },
       orderBy: { createdAt: 'desc' },
+    }),
+    loadDocumentRelationshipSummaries({
+      recordType: 'journal-entry',
+      recordId: id,
     }),
   ])
 
@@ -102,12 +107,15 @@ export default async function JournalEntryDetailPage({
         description: entry.description ?? '',
         journalType: entry.journalType,
         status: entry.status,
+        isOpenItemRelevant: entry.isOpenItemRelevant ? 'true' : 'false',
         subsidiaryId: entry.subsidiaryId ?? '',
         currencyId: entry.currencyId ?? '',
         accountingPeriodId: entry.accountingPeriodId ?? '',
         total: entry.total.toString(),
         sourceType: entry.sourceType ?? '',
         sourceId: entry.sourceId ?? '',
+        reversesJournalEntryId: entry.reversesJournalEntryId ?? '',
+        reversalReasonCode: entry.reversalReasonCode ?? '',
         userId: entry.userId ?? '',
         postedByEmployeeId: entry.postedByEmployeeId ?? '',
         approvedByEmployeeId: entry.approvedByEmployeeId ?? '',
@@ -125,9 +133,16 @@ export default async function JournalEntryDetailPage({
         key: line.id,
         displayOrder: line.displayOrder,
         accountId: line.accountId,
+        activityTypeCode: line.activityTypeCode ?? '',
         description: line.description ?? '',
         debit: String(toNumericValue(line.debit, 0)),
         credit: String(toNumericValue(line.credit, 0)),
+        localDebit: String(toNumericValue(line.localDebit, 0)),
+        localCredit: String(toNumericValue(line.localCredit, 0)),
+        functionalDebit: String(toNumericValue(line.functionalDebit, 0)),
+        functionalCredit: String(toNumericValue(line.functionalCredit, 0)),
+        groupDebit: String(toNumericValue(line.groupDebit, 0)),
+        groupCredit: String(toNumericValue(line.groupCredit, 0)),
         memo: line.memo ?? '',
         subsidiaryId: line.subsidiaryId ?? '',
         departmentId: line.departmentId ?? '',
@@ -137,7 +152,9 @@ export default async function JournalEntryDetailPage({
         vendorId: line.vendorId ?? '',
         itemId: line.itemId ?? '',
         employeeId: line.employeeId ?? '',
+        settlesOpenItemId: line.settlesOpenItemId ?? '',
       }))}
+      linkedDocuments={linkedDocuments}
       moneySettings={moneySettings}
       systemNotes={systemNotes}
       {...formOptions}

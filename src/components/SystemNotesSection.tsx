@@ -38,8 +38,10 @@ export default function SystemNotesSection({
   })
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
-  const externalToolbarTarget =
-    toolbarTargetId && typeof document !== 'undefined' ? document.getElementById(toolbarTargetId) : null
+  const externalToolbarTarget = useMemo(() => {
+    if (typeof document === 'undefined' || !toolbarTargetId) return null
+    return document.getElementById(toolbarTargetId)
+  }, [toolbarTargetId])
 
   const filteredNotes = useMemo(
     () =>

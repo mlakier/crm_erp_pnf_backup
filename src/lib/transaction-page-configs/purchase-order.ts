@@ -3,6 +3,7 @@ import type { TransactionPageConfig } from '@/lib/transaction-page-config'
 
 export type PurchaseOrderPageConfigRecord = {
   total: number
+  currencyCode?: string | null
   lineCount: number
   receiptCount: number
   statusLabel: string
@@ -22,7 +23,7 @@ export const purchaseOrderPageConfig: TransactionPageConfig<PurchaseOrderPageCon
       id: 'total',
       label: 'Purchase Order Total',
       accent: true,
-      getValue: (record) => fmtCurrency(record.total, undefined, record.moneySettings),
+      getValue: (record) => fmtCurrency(record.total, record.currencyCode ?? undefined, record.moneySettings),
     },
     {
       id: 'lineCount',

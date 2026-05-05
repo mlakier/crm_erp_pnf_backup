@@ -7,6 +7,7 @@ import TransactionRelatedDocumentsTabs, {
 } from '@/components/TransactionRelatedDocumentsTabs'
 
 export default function InvoiceRelatedDocuments({
+  invoices,
   salesOrders,
   quotes,
   opportunities,
@@ -14,18 +15,29 @@ export default function InvoiceRelatedDocuments({
   moneySettings,
   embedded = false,
   showDisplayControl = true,
+  defaultActiveKey = 'opportunities',
+  defaultCurrencyCode,
 }: {
+  invoices?: Array<{
+    id: string
+    number: string
+    status: string
+    total: number
+    currencyCode?: string | null
+  }>
   salesOrders: Array<{
     id: string
     number: string
     status: string
     total: number
+    currencyCode?: string | null
   }>
   quotes: Array<{
     id: string
     number: string
     status: string
     total: number
+    currencyCode?: string | null
   }>
   opportunities: Array<{
     id: string
@@ -33,6 +45,7 @@ export default function InvoiceRelatedDocuments({
     name: string
     status: string
     total: number
+    currencyCode?: string | null
   }>
   cashReceipts: Array<{
     id: string
@@ -41,16 +54,21 @@ export default function InvoiceRelatedDocuments({
     date: string
     method: string
     reference: string | null
+    currencyCode?: string | null
   }>
   moneySettings?: Parameters<typeof fmtCurrency>[2]
   embedded?: boolean
   showDisplayControl?: boolean
+  defaultActiveKey?: string
+  defaultCurrencyCode?: string | null
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined, moneySettings)
   return (
     <TransactionRelatedDocumentsTabs
       embedded={embedded}
       showDisplayControl={showDisplayControl}
-      defaultActiveKey="opportunities"
+      defaultActiveKey={defaultActiveKey}
       tabs={[
         {
           key: 'opportunities',
@@ -72,13 +90,13 @@ export default function InvoiceRelatedDocuments({
               </Link>,
               opportunity.name,
               <RelatedDocumentsStatusBadge key="status" status={opportunity.status} />,
-              fmtCurrency(opportunity.total, undefined, moneySettings),
+              formatAmount(opportunity.total, opportunity.currencyCode),
             ],
             filterValues: [
               opportunity.number,
               opportunity.name,
               opportunity.status,
-              fmtCurrency(opportunity.total, undefined, moneySettings),
+              formatAmount(opportunity.total, opportunity.currencyCode),
             ],
           })),
         },
@@ -101,12 +119,12 @@ export default function InvoiceRelatedDocuments({
                 {quote.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={quote.status} />,
-              fmtCurrency(quote.total, undefined, moneySettings),
+              formatAmount(quote.total, quote.currencyCode),
             ],
             filterValues: [
               quote.number,
               quote.status,
-              fmtCurrency(quote.total, undefined, moneySettings),
+              formatAmount(quote.total, quote.currencyCode),
             ],
           })),
         },
@@ -129,12 +147,40 @@ export default function InvoiceRelatedDocuments({
                 {salesOrder.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={salesOrder.status} />,
-              fmtCurrency(salesOrder.total, undefined, moneySettings),
+              formatAmount(salesOrder.total, salesOrder.currencyCode),
             ],
             filterValues: [
               salesOrder.number,
               salesOrder.status,
-              fmtCurrency(salesOrder.total, undefined, moneySettings),
+              formatAmount(salesOrder.total, salesOrder.currencyCode),
+            ],
+          })),
+        },
+        {
+          key: 'invoices',
+          label: 'Invoices',
+          count: invoices?.length ?? 0,
+          tone: 'upstream',
+          emptyMessage: 'No linked invoices.',
+          headers: ['TXN ID', 'STATUS', 'TOTAL'],
+          rows: (invoices ?? []).map((invoice) => ({
+            id: invoice.id,
+            cells: [
+              <Link
+                key="link"
+                href={`/invoices/${invoice.id}`}
+                className="hover:underline"
+                style={{ color: 'var(--accent-primary-strong)' }}
+              >
+                {invoice.number}
+              </Link>,
+              <RelatedDocumentsStatusBadge key="status" status={invoice.status} />,
+              formatAmount(invoice.total, invoice.currencyCode),
+            ],
+            filterValues: [
+              invoice.number,
+              invoice.status,
+              formatAmount(invoice.total, invoice.currencyCode),
             ],
           })),
         },
@@ -156,14 +202,14 @@ export default function InvoiceRelatedDocuments({
               >
                 {receipt.number ?? receipt.id}
               </Link>,
-              fmtCurrency(receipt.amount, undefined, moneySettings),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date, moneySettings),
               receipt.method,
               receipt.reference ?? '-',
             ],
             filterValues: [
               receipt.number ?? receipt.id,
-              fmtCurrency(receipt.amount, undefined, moneySettings),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date, moneySettings),
               receipt.method,
               receipt.reference ?? '-',

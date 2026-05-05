@@ -3,8 +3,7 @@ import { prisma } from '@/lib/prisma'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
-import EditButton from '@/components/EditButton'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
@@ -184,11 +183,12 @@ export default async function EmployeesPage({
                   <MasterDataMutedCell columnId="created">{formatMasterDataDate(employee.createdAt)}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="last-modified">{formatMasterDataDate(employee.updatedAt)}</MasterDataMutedCell>
                   <MasterDataBodyCell columnId="actions">
-                    <div className="flex items-center gap-2">
-                      <EditButton
-                        resource="employees"
-                        id={employee.id}
-                        fields={[
+                    <ListRowActions
+                      viewHref={`/employees/${employee.id}`}
+                      editButton={{
+                        resource: 'employees',
+                        id: employee.id,
+                        fields: [
                           ...(formCustomization.fields.employeeId.visible ? [{ name: 'employeeId', label: 'Employee ID', value: employee.employeeId ?? '' }] : []),
                           ...(formCustomization.fields.eid.visible ? [{ name: 'eid', label: 'EID', value: employee.eid ?? '' }] : []),
                           ...(formCustomization.fields.firstName.visible ? [{ name: 'firstName', label: 'First Name', value: employee.firstName }] : []),
@@ -297,13 +297,13 @@ export default async function EmployeesPage({
                                 label: 'Inactive',
                                 value: String(!employee.active),
                                 type: 'select' as const,
-                                options: inactiveOptions,
-                              }]
-                            : []),
-                        ]}
-                      />
-                      <DeleteButton resource="employees" id={employee.id} />
-                    </div>
+                              options: inactiveOptions,
+                            }]
+                          : []),
+                        ],
+                      }}
+                      deleteButton={{ resource: 'employees', id: employee.id }}
+                    />
                   </MasterDataBodyCell>
                 </tr>
               ))

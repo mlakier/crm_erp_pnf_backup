@@ -324,9 +324,9 @@ const SUBSIDIARY_REFERENCE_FIELDS: SalesOrderReferenceFieldMeta[] = [
   { id: 'subsidiaryTaxId', label: 'Tax Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Tax identifier for the linked subsidiary.' },
   { id: 'subsidiaryRegistrationNumber', label: 'Registration Number', fieldType: 'text', source: 'Subsidiaries master data', description: 'Registration number for the linked subsidiary.' },
   { id: 'subsidiaryParentDbId', label: 'Parent Subsidiary DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal parent subsidiary linked to this subsidiary.' },
-  { id: 'subsidiaryDefaultCurrencyDbId', label: 'Default Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal default currency linked to the subsidiary.' },
+  { id: 'subsidiaryLocalCurrencyDbId', label: 'Local Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal local currency linked to the subsidiary.' },
   { id: 'subsidiaryFunctionalCurrencyDbId', label: 'Functional Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal functional currency linked to the subsidiary.' },
-  { id: 'subsidiaryReportingCurrencyDbId', label: 'Reporting Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal reporting currency linked to the subsidiary.' },
+  { id: 'subsidiaryGroupCurrencyDbId', label: 'Group Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal group currency linked to the subsidiary.' },
   { id: 'subsidiaryFiscalCalendarDbId', label: 'Fiscal Calendar DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal fiscal calendar linked to the subsidiary.' },
   { id: 'subsidiaryConsolidationMethod', label: 'Consolidation Method', fieldType: 'text', source: 'Subsidiaries master data', description: 'Consolidation method captured on the linked subsidiary.' },
   { id: 'subsidiaryOwnershipPercent', label: 'Ownership %', fieldType: 'number', source: 'Subsidiaries master data', description: 'Ownership percentage captured on the linked subsidiary.' },
@@ -472,7 +472,7 @@ const DEFAULT_SALES_ORDER_LINE_WIDTHS: Record<SalesOrderLineColumnKey, SalesOrde
 
 const DEFAULT_SALES_ORDER_LINE_EDIT_DISPLAY: Record<SalesOrderLineColumnKey, SalesOrderLineDisplayMode> = {
   line: 'label',
-  'item-id': 'idAndLabel',
+  'item-id': 'id',
   description: 'label',
   quantity: 'label',
   'fulfilled-qty': 'label',
@@ -487,6 +487,7 @@ const DEFAULT_SALES_ORDER_LINE_VIEW_DISPLAY: Record<SalesOrderLineColumnKey, Sal
 
 const DEFAULT_SALES_ORDER_LINE_DROPDOWN_DISPLAY: Record<SalesOrderLineColumnKey, SalesOrderLineDisplayMode> = {
   ...DEFAULT_SALES_ORDER_LINE_EDIT_DISPLAY,
+  'item-id': 'idAndLabel',
 }
 
 const DEFAULT_SALES_ORDER_LINE_DROPDOWN_SORT: Record<SalesOrderLineColumnKey, SalesOrderLineDropdownSortMode> = {

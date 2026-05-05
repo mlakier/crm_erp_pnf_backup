@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity, logCommunicationActivity, logFieldChangeActivities } from '@/lib/activity'
+import { logActivity, logCommunicationActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { generateNextInvoiceNumber } from '@/lib/invoice-number'
 import { generateNextJournalNumber } from '@/lib/journal-number'
 import { calcLineTotal, sumMoney } from '@/lib/money'
 import { toNumericValue } from '@/lib/format'
-import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
+import { loadCompanySetupSettings } from '@/lib/company-setup-settings-store'
+import { deriveOpenItemCurrencyContext } from '@/lib/open-item-currency-context'
+import { ensureOpenItemForSource } from '@/lib/open-item-service'
 import {
   coerceWorkflowValueForStep,
   getDefaultWorkflowStatus,
@@ -15,7 +17,7 @@ import {
 } from '@/lib/otc-workflow-runtime'
 
 async function findInvoicePostingAccounts(lineItemIds: string[]) {
-  const companySettings = await loadCompanyInformationSettings()
+  const companySettings = await loadCompanySetupSettings()
   const configuredArAccountId = companySettings.defaultArAccountId.trim() || null
   const configuredArAccount = configuredArAccountId
     ? await prisma.chartOfAccounts.findFirst({
@@ -164,6 +166,40 @@ async function postInvoiceApprovalJournal(invoiceId: string) {
     fallbackDeferredRevenueAccount,
   } = await findInvoicePostingAccounts(lineItemIds)
 
+  const invoiceCurrencyContext = await deriveOpenItemCurrencyContext({
+    subsidiaryId: invoice.subsidiaryId ?? null,
+    transactionCurrencyId: invoice.currencyId ?? null,
+    transactionAmount: invoice.total,
+    effectiveDate: invoice.createdAt,
+    rateType: 'spot',
+  })
+
+  await ensureOpenItemForSource({
+    openItemType: 'accounts_receivable',
+    accountType: 'Asset',
+    accountId: arAccount?.id ?? null,
+    subsidiaryId: invoice.subsidiaryId ?? null,
+    transactionCurrencyId: invoiceCurrencyContext.transactionCurrencyId,
+    localCurrencyId: invoiceCurrencyContext.localCurrencyId,
+    functionalCurrencyId: invoiceCurrencyContext.functionalCurrencyId,
+    groupCurrencyId: invoiceCurrencyContext.groupCurrencyId,
+    sourceTransactionType: 'invoice',
+    sourceTransactionId: invoice.id,
+    sourceNumber: invoice.number,
+    counterpartyType: 'customer',
+    counterpartyId: invoice.customerId,
+    documentDate: invoice.createdAt,
+    postingDate: invoice.createdAt,
+    dueDate: invoice.dueDate ?? null,
+    originalTransactionAmount: invoice.total,
+    originalLocalAmount: invoiceCurrencyContext.originalLocalAmount,
+    originalFunctionalAmount: invoiceCurrencyContext.originalFunctionalAmount,
+    originalGroupAmount: invoiceCurrencyContext.originalGroupAmount,
+    createdById: invoice.userId ?? null,
+  })
+
+  if (existingJournal) return
+
   if (!arAccount) return
 
   const revenueLines = invoice.lineItems
@@ -182,6 +218,7 @@ async function postInvoiceApprovalJournal(invoiceId: string) {
       return {
         displayOrder: index + 2,
         accountId: targetAccountId,
+        activityTypeCode: useDirectRevenue ? 'revenue_recognition' : 'deferred_revenue_addition',
         debit: 0,
         credit: lineTotal,
         memo: line.description || item?.name || `Revenue for invoice ${invoice.number}`,
@@ -214,6 +251,7 @@ async function postInvoiceApprovalJournal(invoiceId: string) {
           {
             displayOrder: 1,
             accountId: arAccount.id,
+            activityTypeCode: 'ar_addition',
             debit: totalCredit,
             credit: 0,
             memo: `AR for invoice ${invoice.number}`,
@@ -378,6 +416,24 @@ export async function POST(request: NextRequest) {
         summary: `Duplicated invoice ${sourceInvoice.number} into ${invoice.number}`,
         userId: invoice.userId,
       })
+      await logRecordSnapshotActivities({
+        entityType: 'invoice',
+        entityId: invoice.id,
+        userId: invoice.userId,
+        action: 'create',
+        context: 'Invoice Header',
+        fields: [
+          { fieldName: 'Invoice #', value: invoice.number },
+          { fieldName: 'Customer', value: invoice.customerId },
+          { fieldName: 'Sales Order', value: invoice.salesOrderId },
+          { fieldName: 'Status', value: invoice.status },
+          { fieldName: 'Total', value: invoice.total },
+          { fieldName: 'Due Date', value: invoice.dueDate },
+          { fieldName: 'Paid Date', value: invoice.paidDate },
+          { fieldName: 'Subsidiary', value: invoice.subsidiaryId },
+          { fieldName: 'Currency', value: invoice.currencyId },
+        ],
+      })
 
       return NextResponse.json(invoice, { status: 201 })
     }
@@ -427,6 +483,23 @@ export async function POST(request: NextRequest) {
         action: 'create',
         summary: `Created invoice ${invoice.number} for customer ${customer.customerId ?? customer.name}`,
         userId: customer.userId,
+      })
+      await logRecordSnapshotActivities({
+        entityType: 'invoice',
+        entityId: invoice.id,
+        userId: customer.userId,
+        action: 'create',
+        context: 'Invoice Header',
+        fields: [
+          { fieldName: 'Invoice #', value: invoice.number },
+          { fieldName: 'Customer', value: invoice.customerId },
+          { fieldName: 'Status', value: invoice.status },
+          { fieldName: 'Total', value: invoice.total },
+          { fieldName: 'Due Date', value: invoice.dueDate },
+          { fieldName: 'Paid Date', value: invoice.paidDate },
+          { fieldName: 'Subsidiary', value: invoice.subsidiaryId },
+          { fieldName: 'Currency', value: invoice.currencyId },
+        ],
       })
 
       return NextResponse.json(invoice, { status: 201 })
@@ -496,6 +569,24 @@ export async function POST(request: NextRequest) {
       action: 'create',
       summary: `Created invoice ${invoice.number} from sales order ${salesOrder.number}`,
       userId: salesOrder.userId,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'invoice',
+      entityId: invoice.id,
+      userId: salesOrder.userId,
+      action: 'create',
+      context: 'Invoice Header',
+      fields: [
+        { fieldName: 'Invoice #', value: invoice.number },
+        { fieldName: 'Customer', value: invoice.customerId },
+        { fieldName: 'Sales Order', value: invoice.salesOrderId },
+        { fieldName: 'Status', value: invoice.status },
+        { fieldName: 'Total', value: invoice.total },
+        { fieldName: 'Due Date', value: invoice.dueDate },
+        { fieldName: 'Paid Date', value: invoice.paidDate },
+        { fieldName: 'Subsidiary', value: invoice.subsidiaryId },
+        { fieldName: 'Currency', value: invoice.currencyId },
+      ],
     })
 
     return NextResponse.json(invoice, { status: 201 })
@@ -689,6 +780,16 @@ export async function DELETE(request: NextRequest) {
       action: 'delete',
       summary: `Deleted invoice ${existing.number}`,
       userId: existing.userId ?? existing.salesOrder?.userId,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'invoice',
+      entityId: id,
+      userId: existing.userId ?? existing.salesOrder?.userId,
+      action: 'delete',
+      context: 'Invoice Header',
+      fields: [
+        { fieldName: 'Invoice #', value: existing.number },
+      ],
     })
 
     return NextResponse.json({ success: true })

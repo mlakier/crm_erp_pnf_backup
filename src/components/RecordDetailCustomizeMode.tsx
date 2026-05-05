@@ -283,15 +283,35 @@ export default function RecordDetailCustomizeMode({
         }
       }
 
-      normalizedSectionRows[section] = Math.min(12, Math.max(rows, maxVisibleRow + 2, 1))
+      normalizedSectionRows[section] = Math.min(12, Math.max(rows, maxVisibleRow + 1, 1))
     }
 
-    return {
+    const normalizedLayout = {
       ...nextLayout,
       formColumns: normalizedColumns,
       sectionRows: normalizedSectionRows,
       fields: normalizedFields,
+    } as LayoutConfig & {
+      glImpactSettings?: Record<string, string>
+      glImpactColumns?: Record<string, { visible: boolean; order: number; [key: string]: unknown }>
     }
+
+    if (nextLayout.secondarySettings) {
+      normalizedLayout.glImpactSettings = {
+        ...nextLayout.secondarySettings,
+      }
+    }
+
+    if (nextLayout.secondaryColumns) {
+      normalizedLayout.glImpactColumns = Object.fromEntries(
+        Object.entries(nextLayout.secondaryColumns).map(([columnId, config]) => [
+          columnId,
+          { ...config },
+        ]),
+      ) as Record<string, { visible: boolean; order: number; [key: string]: unknown }>
+    }
+
+    return normalizedLayout
   }
 
   const [layout, setLayout] = useState<LayoutConfig>(() => normalizeDetailLayout(initialLayout))

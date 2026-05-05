@@ -141,7 +141,13 @@ export default async function IntercompanyJournalsPage({
                   <td data-column="date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.date, moneySettings)}</td>
                   <td data-column="description" className="px-4 py-2 text-sm truncate max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>{row.description ?? '\u2014'}</td>
                   <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.status}</td>
-                  <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(row.total, undefined, moneySettings)}</td>
+                  <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {fmtCurrency(
+                      row.total,
+                      row.currency?.code ?? row.currency?.currencyId ?? undefined,
+                      moneySettings,
+                    )}
+                  </td>
                   <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.subsidiary?.name ?? '\u2014'}</td>
                   <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.currency?.code ?? '\u2014'}</td>
                   <td data-column="period" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.accountingPeriod?.name ?? '\u2014'}</td>

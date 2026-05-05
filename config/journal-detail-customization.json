@@ -7,10 +7,10 @@
     "System Dates"
   ],
   "sectionRows": {
-    "Document Identity": 1,
-    "Posting & Financials": 2,
-    "Source & Approval": 1,
-    "System Dates": 1
+    "Document Identity": 2,
+    "Posting & Financials": 3,
+    "Source & Approval": 3,
+    "System Dates": 2
   },
   "lineSettings": {
     "fontSize": "xs"
@@ -42,6 +42,12 @@
       "section": "Posting & Financials",
       "order": 0,
       "column": 2
+    },
+    "isOpenItemRelevant": {
+      "visible": true,
+      "section": "Posting & Financials",
+      "order": 1,
+      "column": 3
     },
     "subsidiaryId": {
       "visible": true,
@@ -85,17 +91,29 @@
       "order": 0,
       "column": 2
     },
-    "userId": {
+    "reversesJournalEntryId": {
       "visible": true,
       "section": "Source & Approval",
       "order": 0,
       "column": 3
     },
-    "postedByEmployeeId": {
+    "reversalReasonCode": {
       "visible": true,
       "section": "Source & Approval",
       "order": 0,
       "column": 4
+    },
+    "userId": {
+      "visible": true,
+      "section": "Source & Approval",
+      "order": 1,
+      "column": 1
+    },
+    "postedByEmployeeId": {
+      "visible": true,
+      "section": "Source & Approval",
+      "order": 1,
+      "column": 2
     },
     "approvedByEmployeeId": {
       "visible": true,
@@ -135,25 +153,25 @@
       "dropdownDisplay": "idAndLabel",
       "dropdownSort": "id"
     },
-    "description": {
+    "activityTypeCode": {
       "visible": true,
       "order": 2,
       "widthMode": "normal",
       "editDisplay": "label",
-      "viewDisplay": "idAndLabel",
+      "viewDisplay": "label",
       "dropdownDisplay": "label",
       "dropdownSort": "label"
     },
-    "debit": {
+    "description": {
       "visible": true,
       "order": 3,
       "widthMode": "normal",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
-      "dropdownSort": "id"
+      "dropdownSort": "label"
     },
-    "credit": {
+    "debit": {
       "visible": true,
       "order": 4,
       "widthMode": "normal",
@@ -162,7 +180,7 @@
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "subsidiaryId": {
+    "credit": {
       "visible": true,
       "order": 5,
       "widthMode": "normal",
@@ -171,43 +189,43 @@
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "departmentId": {
+    "localDebit": {
       "visible": true,
       "order": 6,
-      "widthMode": "compact",
+      "widthMode": "normal",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "locationId": {
+    "localCredit": {
       "visible": true,
       "order": 7,
-      "widthMode": "compact",
+      "widthMode": "normal",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "projectId": {
+    "functionalDebit": {
       "visible": true,
       "order": 8,
-      "widthMode": "compact",
+      "widthMode": "normal",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
-      "dropdownSort": "label"
+      "dropdownSort": "id"
     },
-    "customerId": {
+    "functionalCredit": {
       "visible": true,
       "order": 9,
       "widthMode": "normal",
       "editDisplay": "label",
-      "viewDisplay": "idAndLabel",
+      "viewDisplay": "label",
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "vendorId": {
+    "groupDebit": {
       "visible": true,
       "order": 10,
       "widthMode": "normal",
@@ -216,7 +234,7 @@
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "itemId": {
+    "groupCredit": {
       "visible": true,
       "order": 11,
       "widthMode": "normal",
@@ -225,7 +243,7 @@
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "employeeId": {
+    "subsidiaryId": {
       "visible": true,
       "order": 12,
       "widthMode": "normal",
@@ -234,9 +252,81 @@
       "dropdownDisplay": "label",
       "dropdownSort": "id"
     },
-    "memo": {
+    "departmentId": {
       "visible": true,
       "order": 13,
+      "widthMode": "compact",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "id"
+    },
+    "locationId": {
+      "visible": true,
+      "order": 14,
+      "widthMode": "compact",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "id"
+    },
+    "projectId": {
+      "visible": true,
+      "order": 15,
+      "widthMode": "compact",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "label"
+    },
+    "customerId": {
+      "visible": true,
+      "order": 16,
+      "widthMode": "normal",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "id"
+    },
+    "vendorId": {
+      "visible": true,
+      "order": 17,
+      "widthMode": "normal",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "id"
+    },
+    "itemId": {
+      "visible": true,
+      "order": 18,
+      "widthMode": "normal",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "id"
+    },
+    "employeeId": {
+      "visible": true,
+      "order": 19,
+      "widthMode": "normal",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "id"
+    },
+    "settlesOpenItemId": {
+      "visible": true,
+      "order": 20,
+      "widthMode": "wide",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "id"
+    },
+    "memo": {
+      "visible": true,
+      "order": 21,
       "widthMode": "normal",
       "editDisplay": "label",
       "viewDisplay": "label",
@@ -254,13 +344,13 @@
     "accountId": {
       "visible": true,
       "order": 1,
-      "widthMode": "wide",
+      "widthMode": "auto",
       "viewDisplay": "idAndLabel"
     },
     "description": {
       "visible": true,
       "order": 2,
-      "widthMode": "wide",
+      "widthMode": "auto",
       "viewDisplay": "label"
     },
     "subsidiaryId": {
@@ -270,43 +360,43 @@
       "viewDisplay": "idAndLabel"
     },
     "departmentId": {
-      "visible": true,
+      "visible": false,
       "order": 4,
       "widthMode": "compact",
       "viewDisplay": "idAndLabel"
     },
     "locationId": {
-      "visible": true,
+      "visible": false,
       "order": 5,
       "widthMode": "compact",
       "viewDisplay": "idAndLabel"
     },
     "projectId": {
-      "visible": true,
+      "visible": false,
       "order": 6,
       "widthMode": "normal",
       "viewDisplay": "idAndLabel"
     },
     "customerId": {
-      "visible": true,
+      "visible": false,
       "order": 7,
       "widthMode": "wide",
       "viewDisplay": "idAndLabel"
     },
     "vendorId": {
-      "visible": true,
+      "visible": false,
       "order": 8,
       "widthMode": "wide",
       "viewDisplay": "idAndLabel"
     },
     "itemId": {
-      "visible": true,
+      "visible": false,
       "order": 9,
       "widthMode": "wide",
       "viewDisplay": "idAndLabel"
     },
     "employeeId": {
-      "visible": true,
+      "visible": false,
       "order": 10,
       "widthMode": "normal",
       "viewDisplay": "idAndLabel"
@@ -322,6 +412,42 @@
       "order": 12,
       "widthMode": "normal",
       "viewDisplay": "label"
+    },
+    "localDebit": {
+      "visible": true,
+      "order": 13,
+      "widthMode": "normal",
+      "viewDisplay": "label"
+    },
+    "localCredit": {
+      "visible": true,
+      "order": 14,
+      "widthMode": "normal",
+      "viewDisplay": "label"
+    },
+    "functionalDebit": {
+      "visible": true,
+      "order": 15,
+      "widthMode": "normal",
+      "viewDisplay": "label"
+    },
+    "functionalCredit": {
+      "visible": true,
+      "order": 16,
+      "widthMode": "normal",
+      "viewDisplay": "label"
+    },
+    "groupDebit": {
+      "visible": true,
+      "order": 17,
+      "widthMode": "normal",
+      "viewDisplay": "label"
+    },
+    "groupCredit": {
+      "visible": true,
+      "order": 18,
+      "widthMode": "normal",
+      "viewDisplay": "label"
     }
   },
   "statCards": [
@@ -329,25 +455,37 @@
       "id": "slot-1",
       "metric": "totalDebits",
       "visible": true,
-      "order": 0
+      "order": 0,
+      "size": "md",
+      "colorized": true,
+      "linked": true
     },
     {
       "id": "slot-2",
       "metric": "totalCredits",
       "visible": true,
-      "order": 1
+      "order": 1,
+      "size": "md",
+      "colorized": true,
+      "linked": true
     },
     {
       "id": "slot-3",
       "metric": "balance",
       "visible": true,
-      "order": 2
+      "order": 2,
+      "size": "md",
+      "colorized": true,
+      "linked": true
     },
     {
       "id": "slot-4",
       "metric": "journalLines",
       "visible": true,
-      "order": 3
+      "order": 3,
+      "size": "md",
+      "colorized": true,
+      "linked": true
     }
   ]
 }

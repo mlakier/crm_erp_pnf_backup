@@ -47,7 +47,10 @@ That means every module must be classified up front as one of:
 
 And every module must explicitly decide:
 
-- business id / numbering
+- `DB Id`
+- `Business Id`
+- `Description`
+- optional domain number / code or external reference where applicable
 - status lifecycle
 - posting behavior
 - source / target links
@@ -100,6 +103,41 @@ Existing pages that are still on older list implementations should be migrated d
 - GL impact where applicable
 - status / posting locks where applicable
 
+### Record identity rule
+
+Every master-data record and every transaction record should carry:
+
+- `DB Id`
+- `Business Id`
+- `Description`
+
+`Business Id` should follow Company Preferences / id-settings behavior where that record family is numbered.
+
+Master-data families may also carry an additional domain-specific number / code.
+
+Transaction families may also carry an additional external or domain-specific reference.
+
+The display rule should be:
+
+- detail pages show all identity fields when they exist
+- master-data lists and dropdowns prefer:
+  - number / code + description
+  - otherwise business id + description
+- transaction lists and dropdowns prefer:
+  - external / domain reference + description where that is the working identifier
+  - otherwise business id + description
+
+`DB Id` is the true system identifier and should not be the normal user-facing selector value.
+
+This rule should be reflected consistently in:
+
+- schema design
+- create/edit flows
+- detail pages
+- customize layouts
+- list pages
+- import/export contracts
+
 ### Edit / create pages
 
 - shared list field sourcing model
@@ -124,6 +162,50 @@ The enterprise platform should also expect shared administration surfaces for:
 - metadata and configuration deployment
 
 ## Data Modeling Standard
+
+### Transaction posting context rule
+
+Every transaction document must carry both:
+
+- `subsidiaryId`
+- transaction `currencyId`
+
+This is a hard platform rule for posted and posting-capable transactions. We do not have consolidation-grade accounting without explicit legal-entity and transaction-currency context on the transaction itself.
+
+This applies across the full transaction chain, including but not limited to:
+
+- `Opportunity`
+- `Quote`
+- `Sales Order`
+- `Fulfillment`
+- `Invoice`
+- `Invoice Receipt`
+- `Credit Memo`
+- `Customer Refund`
+- `Purchase Requisition`
+- `Purchase Order`
+- `Receipt`
+- `Bill`
+- `Bill Payment`
+- `Bill Credit`
+- `Vendor Refund`
+- `Journal Entry`
+- `Intercompany Journal`
+- `Clearing Document`
+- `Open Item`
+
+Inheritance should flow downstream where applicable:
+
+- `Opportunity -> Quote -> Sales Order -> Invoice -> Invoice Receipt`
+- `Purchase Requisition -> Purchase Order -> Receipt -> Bill -> Bill Payment`
+
+Implementation rules:
+
+- the transaction header must store both fields directly
+- downstream documents may derive them from the upstream source, but the derived values must still be persisted on the transaction
+- create/update APIs must validate and preserve a single posting context
+- shared customize pages must show these fields as required, checked, and locked/greyed out
+- transaction detail pages must expose them as first-class transaction fields, not hidden inferred context
 
 ### Core ledger and transaction storage requirement
 
@@ -173,7 +255,7 @@ Most enterprise records should consider these fields:
 - `status`
 - `subsidiaryId`
 - `currencyId` where relevant
-- `transactionCurrencyId`, `localCurrencyId`, and `functionalCurrencyId` where relevant
+- `transactionCurrencyId`, `localCurrencyId`, `functionalCurrencyId`, and `groupCurrencyId` where relevant
 - `createdAt`
 - `updatedAt`
 - `createdBy`
@@ -186,11 +268,23 @@ Most enterprise records should consider these fields:
 
 Currency-aware transactions should not rely on a single currency field.
 
-The accounting foundation should support three currency contexts where relevant:
+The accounting foundation should support four currency contexts where relevant:
 
 - `transaction currency`
 - `local currency`
 - `functional currency`
+- `group currency`
+
+Interpretation:
+
+- `transaction currency`
+  entry or settlement currency of the business event
+- `local currency`
+  statutory / company-code / legal-book currency of the entity
+- `functional currency`
+  primary economic-environment currency of the entity
+- `group currency`
+  consolidated reporting currency used across the enterprise
 
 This is required for:
 
@@ -210,11 +304,72 @@ The platform should support:
 - historical rates
 - average rates
 - current / closing rates
+- historical rates for equity and other historical-basis cases
 - realized FX calculations
 - unrealized FX remeasurement
 - CTA handling
 - month-end FX process runs
 - FX rate auditability
+
+### Transaction-by-transaction 4-currency recommendation
+
+To keep the Phase 0 rollout disciplined, transaction families should be prioritized by accounting impact rather than upgraded uniformly.
+
+#### Highest-priority transaction families
+
+- `Invoices`
+  - require full transaction / local / functional / group currency ids
+  - require posted amount context in each bucket when truly known
+  - open customer open items and therefore anchor later realized FX
+- `Bills`
+  - require full transaction / local / functional / group currency ids
+  - require posted amount context in each bucket when truly known
+  - open vendor open items and therefore anchor later realized FX
+- `Invoice Receipts`
+  - require full 4-currency settlement context
+  - should drive realized FX against invoices where rates differ
+- `Bill Payments`
+  - require full 4-currency settlement context
+  - should drive realized FX against bills where rates differ
+- `Journals`
+  - require strong 4-currency support wherever they create monetary/open-item effects
+- `Intercompany Journals`
+  - should be treated as one of the strongest 4-currency families because consolidation and intercompany balancing depend on them
+
+#### Next priority
+
+- `Customer Refunds`
+  - full 4-currency settlement context
+- `Clearing Documents`
+  - full 4-currency settlement context
+  - readable FX and settlement lineage even before every GL edge case is complete
+
+#### Medium priority
+
+- `Sales Orders`
+  - useful 4-currency reporting context
+  - lower priority than invoices
+- `Purchase Orders`
+  - useful 4-currency reporting context
+  - lower priority than bills
+- `Receipts`
+  - medium priority where value-bearing inventory/accounting logic depends on them
+- `Fulfillments`
+  - medium-to-lower priority unless value-bearing posting depends on them
+
+#### Lower Phase 0 priority
+
+- `Quotes`
+  - transaction currency matters
+  - full translated amount handling can come later
+- `Purchase Requisitions`
+  - transaction/reporting context matters
+  - full translated amount handling can come later
+
+#### Non-negotiable implementation rule
+
+- If the system does not actually know a translated local, functional, or group amount yet, that bucket should remain null.
+- The platform must not fake multi-currency completeness by copying transaction amounts into the other currency columns.
 
 ### Line-bearing transactions
 
@@ -457,6 +612,23 @@ Reconciliations should integrate directly with this roll-forward foundation and 
 - open-item management
 - clearing and settlement lineage
 - AI-assisted matching and exception handling
+
+Important boundary for current scope:
+
+- do not force the future account-reconciliation workbench into the Phase 0 clearing-document entry page
+- keep Phase 0 focused on:
+  - unified clearing-document tables
+  - open-item application lifecycle
+  - readable system-generated clearing detail pages
+  - manual clearing as a structural exception path
+- plan the richer account-reconciliation workbench for a later phase where it can properly support:
+  - GL-account-driven filtering
+  - custom-dimension filtering
+  - debit / credit selection panes
+  - balancing checks
+  - reconciliation-oriented exception handling
+
+That later workbench should create or feed clearing documents rather than introduce a separate clearing backend.
 
 Journal adjustments and journal reversals should be modeled and posted in a way that makes accounts easy to reconcile.
 

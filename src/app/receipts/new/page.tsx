@@ -17,6 +17,14 @@ export default async function NewReceiptPage({
         id: true,
         number: true,
         userId: true,
+        subsidiaryId: true,
+        currencyId: true,
+        subsidiary: {
+          select: { subsidiaryId: true, name: true },
+        },
+        currency: {
+          select: { currencyId: true, code: true, name: true },
+        },
         lineItems: {
           orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
           select: {
@@ -59,6 +67,14 @@ export default async function NewReceiptPage({
         id: purchaseOrder.id,
         number: purchaseOrder.number,
         userId: purchaseOrder.userId,
+        subsidiaryId: purchaseOrder.subsidiaryId,
+        subsidiaryLabel: purchaseOrder.subsidiary
+          ? `${purchaseOrder.subsidiary.subsidiaryId} - ${purchaseOrder.subsidiary.name}`
+          : null,
+        currencyId: purchaseOrder.currencyId,
+        currencyLabel: purchaseOrder.currency
+          ? `${purchaseOrder.currency.code ?? purchaseOrder.currency.currencyId} - ${purchaseOrder.currency.name}`
+          : null,
         lineOptions: purchaseOrder.lineItems.map((line, index) => ({
           id: line.id,
           lineNumber: index + 1,
@@ -80,6 +96,8 @@ export default async function NewReceiptPage({
         duplicateSource
           ? {
               purchaseOrderId: duplicateSource.purchaseOrderId,
+              subsidiaryId: '',
+              currencyId: '',
               quantity: String(duplicateSource.quantity),
               date: duplicateSource.date.toISOString().slice(0, 10),
               status: duplicateSource.status,

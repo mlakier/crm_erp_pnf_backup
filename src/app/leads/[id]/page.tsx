@@ -166,6 +166,7 @@ export default async function LeadDetailPage({
   const statusOptions = (leadStatusListDetail?.rows ?? []).map((row) => ({ value: row.value, label: row.value }))
   const sourceOptions = leadSourceOptions.map((option) => ({ value: option.value, label: option.label }))
   const ratingOptions = leadRatingOptions.map((option) => ({ value: option.value, label: option.label }))
+  const leadCurrencyCode = lead.currency?.code ?? lead.currency?.currencyId ?? undefined
 
   const activityUserIds = Array.from(new Set(activities.map((activity) => activity.userId).filter(Boolean))) as string[]
   const activityUsers = activityUserIds.length
@@ -344,7 +345,7 @@ export default async function LeadDetailPage({
       key: 'expectedValue',
       label: 'Expected Value',
       value: lead.expectedValue?.toString() ?? '',
-      displayValue: lead.expectedValue != null ? fmtCurrency(lead.expectedValue, undefined, moneySettings) : '-',
+      displayValue: lead.expectedValue != null ? fmtCurrency(lead.expectedValue, leadCurrencyCode, moneySettings) : '-',
       editable: true,
       type: 'number',
       helpText: 'Estimated commercial value associated with the lead.',
@@ -547,7 +548,7 @@ export default async function LeadDetailPage({
       leadNumber: lead.leadNumber ?? '',
       phone: fmtPhone(lead.phone),
       status: formatLeadStatus(lead.status),
-      expectedValue: lead.expectedValue != null ? fmtCurrency(lead.expectedValue, undefined, moneySettings) : '-',
+      expectedValue: lead.expectedValue != null ? fmtCurrency(lead.expectedValue, leadCurrencyCode, moneySettings) : '-',
       subsidiaryId: lead.subsidiary ? `${lead.subsidiary.subsidiaryId} - ${lead.subsidiary.name}` : '-',
       currencyId: lead.currency ? `${lead.currency.code ?? lead.currency.currencyId} - ${lead.currency.name}` : '-',
       inactive: lead.inactive ? 'Yes' : 'No',
@@ -563,6 +564,7 @@ export default async function LeadDetailPage({
     company: lead.company ?? null,
     source: lead.source ?? null,
     expectedValue: Number(lead.expectedValue ?? 0),
+    currencyCode: leadCurrencyCode ?? null,
     statusLabel: formatLeadStatus(lead.status),
     statusTone: getLeadStatusToneKey(lead.status, leadStatusColors),
     createdAt: fmtDocumentDate(lead.createdAt, moneySettings),
@@ -721,9 +723,8 @@ export default async function LeadDetailPage({
         ) : null
       }
       actions={
-        isCustomizing ? null : (
           <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
+            mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
             cancelHref={detailHref}
             formId={`inline-record-form-${lead.id}`}
             recordId={lead.id}
@@ -771,7 +772,6 @@ export default async function LeadDetailPage({
               )
             }
           />
-        )
       }
     >
       <TransactionDetailFrame
@@ -853,7 +853,7 @@ export default async function LeadDetailPage({
               counterpartyEmail: lead.email ?? null,
               fromEmail: lead.user?.email ?? null,
               status: formatLeadStatus(lead.status),
-              total: lead.expectedValue != null ? fmtCurrency(lead.expectedValue, undefined, moneySettings) : '-',
+              total: lead.expectedValue != null ? fmtCurrency(lead.expectedValue, leadCurrencyCode, moneySettings) : '-',
               lineItems: [],
               sendEmailEndpoint: '/api/leads?action=send-email',
               recordIdFieldName: 'leadId',

@@ -13,6 +13,7 @@ import RecordHeaderDetails, { type RecordHeaderField } from '@/components/Record
 import TransactionLineItemsSection from '@/components/TransactionLineItemsSection'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import SystemNotesSection from '@/components/SystemNotesSection'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import TransactionDetailFrame from '@/components/TransactionDetailFrame'
 import TransactionStatsRow from '@/components/TransactionStatsRow'
 import CommunicationsSection from '@/components/CommunicationsSection'
@@ -139,15 +140,16 @@ export default async function OpportunityDetailPage({
                     notes: true,
                   },
                 },
-                invoices: {
-                  orderBy: { createdAt: 'desc' },
-                  select: {
-                    id: true,
-                    number: true,
-                    status: true,
-                    total: true,
-                    dueDate: true,
-                    createdAt: true,
+            invoices: {
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                number: true,
+                status: true,
+                total: true,
+                currencyId: true,
+                dueDate: true,
+                createdAt: true,
                     cashReceipts: {
                       orderBy: { date: 'desc' },
                       select: {
@@ -225,6 +227,7 @@ export default async function OpportunityDetailPage({
     value: currency.id,
     label: `${currency.code ?? currency.currencyId} - ${currency.name}`,
   }))
+  const currencyCodeById = new Map(currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]))
   const lineRows = opportunity.lineItems.map((line, index) => ({
     id: line.id,
     lineNumber: index + 1,
@@ -365,7 +368,11 @@ export default async function OpportunityDetailPage({
       key: 'amount',
       label: 'Amount',
       value: String(toNumericValue(opportunity.amount, 0)),
-      displayValue: fmtCurrency(opportunity.amount, undefined, moneySettings),
+      displayValue: fmtCurrency(
+        opportunity.amount,
+        opportunity.currency?.code ?? opportunity.currency?.currencyId ?? undefined,
+        moneySettings,
+      ),
       editable: true,
       type: 'number',
       helpText: 'Current estimated amount or total of the opportunity.',
@@ -517,6 +524,7 @@ export default async function OpportunityDetailPage({
   const visibleLineColumns = getOrderedVisibleTransactionLineColumns(OPPORTUNITY_LINE_COLUMNS, customization)
   const statsRecord = {
     amount: toNumericValue(opportunity.amount, 0),
+    currencyCode: opportunity.currency?.code ?? opportunity.currency?.currencyId ?? null,
     closeDate: opportunity.closeDate,
     lineCount: lineRows.length,
     quoteNumber: opportunity.quote?.number ?? null,
@@ -629,9 +637,8 @@ export default async function OpportunityDetailPage({
         ) : null
       }
       actions={
-        isCustomizing ? null : (
           <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
+            mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
             cancelHref={detailHref}
             formId={`inline-record-form-${opportunity.id}`}
             recordId={opportunity.id}
@@ -679,7 +686,6 @@ export default async function OpportunityDetailPage({
               )
             }
           />
-        )
       }
     >
       <TransactionDetailFrame
@@ -777,9 +783,49 @@ export default async function OpportunityDetailPage({
           )
         }
         relatedRecords={isCustomizing ? null : (
-          <OpportunityRelatedDocumentsSection
+          <RelatedRecordsSection
             embedded
             showDisplayControl={false}
+            tabs={[
+              {
+                key: 'customer',
+                label: 'Customer',
+                count: 1,
+                emptyMessage: 'No related customer is linked to this opportunity.',
+                rows: [
+                  {
+                    id: opportunity.customer.id,
+                    type: 'Customer',
+                    reference: opportunity.customer.customerId ?? opportunity.customer.id,
+                    name: opportunity.customer.name,
+                    details: [opportunity.customer.email, opportunity.customer.phone].filter(Boolean).join(' | ') || '-',
+                    href: `/customers/${opportunity.customer.id}`,
+                  },
+                ],
+              },
+              {
+                key: 'contacts',
+                label: 'Contacts',
+                count: opportunity.customer.contacts.length,
+                emptyMessage: 'No related contacts are linked to this opportunity.',
+                rows: opportunity.customer.contacts.map((contact) => ({
+                  id: contact.id,
+                  type: 'Contact',
+                  reference: contact.contactNumber ?? contact.id,
+                  name: `${contact.firstName} ${contact.lastName}`.trim(),
+                  details: [contact.email, contact.position].filter(Boolean).join(' | ') || '-',
+                  href: `/contacts/${contact.id}`,
+                })),
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={1 + opportunity.customer.contacts.length}
+        relatedDocuments={isCustomizing ? null : (
+            <OpportunityRelatedDocumentsSection
+              embedded
+              showDisplayControl={false}
+              defaultCurrencyCode={opportunity.currency?.code ?? opportunity.currency?.currencyId ?? null}
             quote={
               opportunity.quote
                 ? {
@@ -788,6 +834,7 @@ export default async function OpportunityDetailPage({
                     number: opportunity.quote.number,
                     status: opportunity.quote.status ?? '-',
                     total: toNumericValue(opportunity.quote.total, 0),
+                    currencyCode: currencyCodeById.get(opportunity.quote.currencyId ?? '') ?? null,
                   }
                 : null
             }
@@ -800,6 +847,7 @@ export default async function OpportunityDetailPage({
                       number: opportunity.quote.salesOrder.number,
                       status: opportunity.quote.salesOrder.status,
                       total: toNumericValue(opportunity.quote.salesOrder.total, 0),
+                      currencyCode: currencyCodeById.get(opportunity.quote.salesOrder.currencyId ?? '') ?? null,
                     },
                   ]
                 : []
@@ -821,6 +869,7 @@ export default async function OpportunityDetailPage({
                 number: invoice.number,
                 status: invoice.status,
                 total: toNumericValue(invoice.total, 0),
+                currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                 dueDate: invoice.dueDate?.toISOString() ?? null,
                 createdAt: invoice.createdAt.toISOString(),
               })) ?? []
@@ -832,29 +881,17 @@ export default async function OpportunityDetailPage({
                   href: `/invoice-receipts/${receipt.id}`,
                   number: receipt.number ?? 'Pending',
                   amount: toNumericValue(receipt.amount, 0),
+                  currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                   date: receipt.date.toISOString(),
                   method: receipt.method,
                   reference: receipt.reference,
                 })),
               ) ?? []
             }
-            contacts={opportunity.customer.contacts.map((contact) => ({
-              id: contact.id,
-              href: `/contacts/${contact.id}`,
-              number: contact.contactNumber ?? 'Pending',
-              name: `${contact.firstName} ${contact.lastName}`.trim(),
-              email: contact.email ?? '-',
-              position: contact.position ?? '-',
-            }))}
+            contacts={[]}
           />
         )}
-        relatedRecordsCount={relatedDocumentsCount}
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this opportunity yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
+        relatedDocumentsCount={relatedDocumentsCount}
         supplementarySections={isCustomizing ? null : []}
         communications={isCustomizing ? null : (
           <CommunicationsSection
@@ -870,7 +907,11 @@ export default async function OpportunityDetailPage({
               counterpartyEmail: opportunity.customer.email ?? null,
               fromEmail: opportunity.user?.email ?? null,
               status: formatStage(opportunity.stage),
-              total: fmtCurrency(opportunity.amount, undefined, moneySettings),
+              total: fmtCurrency(
+                opportunity.amount,
+                opportunity.currency?.code ?? opportunity.currency?.currencyId ?? undefined,
+                moneySettings,
+              ),
               lineItems: lineRows.map((row) => ({
                 line: row.lineNumber,
                 itemId: row.itemId ?? '-',

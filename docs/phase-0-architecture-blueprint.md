@@ -126,6 +126,44 @@ External BI tools may be supported as optional integrations, but the core enterp
 - board and management decks
 - drill-through reporting
 
+### 10. Treat navigable document ids and linked record ids as first-class links
+
+When a page or page-detail surface shows a document identifier or linked-record identifier that supports navigation, it should render as:
+
+- a real link
+- in the shared accent/link color treatment
+- with consistent hover affordance
+
+This applies across:
+
+- list pages
+- detail pages
+- reference layouts
+- related records/documents sections
+- stats and summary surfaces where drill-through exists
+
+The platform should prefer shared renderers for this behavior so page-by-page styling drift does not occur.
+
+### 11. Standardize record identity across master data and transactions
+
+Every master-data family and every transaction family should include a consistent record-identity contract:
+
+- `DB Id`
+- `Business Id`
+- `Description`
+
+Where a family uses numbering, the `Business Id` should be driven by Company Preferences / id settings rather than hidden page-local generation logic.
+
+Master-data families may also expose an additional domain-specific `Number/Code` field when the business actually works from that identifier.
+
+Transaction families may also expose an additional external or domain-specific reference when the business actually works from that identifier.
+
+Identity fields should not be overloaded:
+
+- `DB Id` is the true system identifier
+- `Business Id` is the internal operational identifier users work with
+- `Description` is the human-readable business meaning of the record
+
 ## Model Families
 
 ## A. Operational Transaction Model
@@ -156,7 +194,10 @@ Examples:
 
 Every transaction family should define:
 
-- business id / number
+- `DB Id`
+- `Business Id`
+- `Description`
+- optional external / domain reference where applicable
 - source entity links
 - status lifecycle
 - transaction date
@@ -165,9 +206,30 @@ Every transaction family should define:
 - transaction currency
 - local currency
 - functional currency
+- group currency
 - header memo / reference
 - actor fields where relevant
 - source links and downstream links
+
+### Transaction identity and display rule
+
+Every transaction family should follow this user-facing identity contract:
+
+- `DB Id`
+- `Business Id`
+- `Description`
+- optional external / domain reference
+
+Detail pages should show all identity fields when they exist.
+
+List pages and dropdowns should prefer the identifier users actually work from:
+
+1. external / domain reference + description where operationally appropriate
+2. otherwise business id + description
+
+For most finance/accounting transactions, `Description` should come from memo.
+
+For CRM-style transactions such as leads and opportunities, `Description` may come from name, title, company, or a derived business-facing display value instead of memo.
 
 For recurring-revenue-capable flows, the architecture should also support downstream reporting for:
 
@@ -517,7 +579,7 @@ because one clearing event may:
 - clearing date
 - posting date
 - subsidiary
-- transaction / local / functional currency context
+- transaction / local / functional / group currency context
 - source settlement transaction reference where applicable
 - realized FX summary fields where applicable
 - reversal linkage
@@ -527,7 +589,7 @@ because one clearing event may:
 - one cleared component of the settlement
 - source open-item reference
 - target open-item reference where applicable
-- cleared transaction/local/functional amounts
+- cleared transaction/local/functional/group amounts
 - original rate context reference
 - settlement rate context reference
 - realized FX local/functional amounts where applicable
@@ -563,6 +625,33 @@ Expose through:
 - historical clearing reports
 - reversal traceability
 
+### Manual clearing vs reconciliation workbench
+
+Phase 0 should keep the clearing-document domain model unified, but it should not force the long-term account-reconciliation workbench into the same entry form.
+
+For Phase 0:
+
+- use `ClearingDocumentHeader`, `ClearingDocumentLine`, and `OpenItemApplication` as the shared clearing foundation
+- use shared list and shared detail pages for both system-generated and manual clearing documents
+- allow manual clearing documents as a structural exception path
+- make system-generated clearing detail pages easy for a human to read through summary sections, linked source context, and field-level help text
+
+For a later phase:
+
+- introduce a dedicated `Account Reconciliation` / `Reconciliation Workbench`
+- support account-driven filtering by:
+  - GL account
+  - subsidiary
+  - currency
+  - date range
+  - counterparty
+  - custom dimensions
+  - source transaction type
+- support debit-side and credit-side selection panes, balancing totals, and exception validation
+- allow the workbench to generate manual clearing documents rather than replacing the underlying clearing-document tables
+
+This keeps the backend clearing model stable while reserving the richer reconciliation UX for the phase where that broader workbench belongs.
+
 ## H. Multi-Currency and FX Model
 
 ### Purpose
@@ -576,12 +665,14 @@ Currency-aware records should support:
 - `transactionCurrencyId`
 - `localCurrencyId`
 - `functionalCurrencyId`
+- `groupCurrencyId`
 
 Amounts where relevant:
 
 - transaction amount
 - local amount
 - functional amount
+- group amount
 
 ### Core supporting tables
 
@@ -606,10 +697,179 @@ Support:
 
 Users must be able to see:
 
-- the 3 currency contexts
+- the 4 currency contexts
 - applied rates / rate source
 - month-end FX runs
 - FX reporting outputs
+
+### Transaction-family 4-currency matrix
+
+The platform should not try to force the exact same FX depth into every transaction family at once. Phase 0 should prioritize the posted and open-item-relevant transactions first.
+
+#### Hard rules
+
+- Every posted transaction family should carry:
+  - `transactionCurrencyId`
+  - `localCurrencyId`
+  - `functionalCurrencyId`
+  - `groupCurrencyId`
+- When translated amounts are not actually known yet, leave them null.
+- Do not copy transaction amounts into local, functional, or group buckets just to make fields look populated.
+- `OpenItem`, `OpenItemEntry`, and `OpenItemApplication` should inherit the same 4-currency contract from the source transaction when the transaction opens or settles an item.
+
+#### Priority 1: full Phase 0 4-currency coverage
+
+- `Invoice`
+  - must carry full 4-currency ids and posted amount context
+  - opens customer open items
+  - realized FX later comes from settlement against receipts/refunds
+- `Bill`
+  - must carry full 4-currency ids and posted amount context
+  - opens vendor open items
+  - realized FX later comes from settlement against payments/credits
+- `Invoice Receipt`
+  - must carry full 4-currency ids and settlement amount context
+  - key realized-FX source against invoices
+- `Bill Payment`
+  - must carry full 4-currency ids and settlement amount context
+  - key realized-FX source against bills
+- `Journal`
+  - must carry full 4-currency ids wherever journal logic creates monetary/open-item effects
+  - especially important for accruals, reversals, reclasses, and manual corrections
+- `Intercompany Journal`
+  - should be one of the strongest 4-currency families
+  - intercompany and consolidation logic depends on this
+
+#### Priority 2: full 4-currency support where settlement or refund logic matters
+
+- `Customer Refund`
+  - should carry full 4-currency ids and settlement context
+  - behaves like a reverse settlement event
+- `Clearing Document`
+  - should carry full 4-currency settlement context even before dedicated GL impact is complete
+  - should make rate context and realized-FX implications readable on detail pages
+
+#### Priority 3: supporting transaction families where reporting context matters more than realized FX
+
+- `Sales Order`
+  - should carry transaction and enterprise reporting currency context
+  - lower priority than invoices because it does not open the receivable itself
+- `Purchase Order`
+  - should carry transaction and enterprise reporting currency context
+  - lower priority than bills because it does not open the payable itself
+- `Receipt`
+  - should carry currency context where inventory/receipt accounting uses it
+  - medium priority unless value-bearing inventory flows are fully live
+- `Fulfillment`
+  - operationally important but lower 4-currency priority unless value-bearing posting depends on it
+
+#### Priority 4: planning / pre-posting families
+
+- `Quote`
+  - transaction currency is important
+  - full translated amount context is lower priority in Phase 0
+- `Purchase Requisition`
+  - transaction/reporting context is useful
+  - full translated amount support is lower priority in Phase 0
+
+#### Readability expectation
+
+Where a transaction or settlement page shows currency-aware accounting results, the detail surface should eventually expose:
+
+- transaction currency and amount
+- local currency and amount
+- functional currency and amount
+- group currency and amount
+- rate source / rate type when known
+- realized FX or remeasurement linkage when applicable
+
+#### Current implementation snapshot
+
+This snapshot is intentionally blunt. It reflects what the live code is doing today, not the target model.
+
+- `Invoice`
+  - current state:
+    - open-item creation sets:
+      - `transactionCurrencyId = invoice.currencyId`
+      - `localCurrencyId = invoice.currencyId`
+      - `functionalCurrencyId = invoice.currencyId`
+    - original transaction, local, and functional amounts are all copied from invoice total
+    - no `groupCurrencyId` / `originalGroupAmount` is supplied at creation time
+  - assessment:
+    - not yet compliant with the 4-currency target
+- `Bill`
+  - current state:
+    - open-item creation sets:
+      - `transactionCurrencyId = bill.currencyId`
+      - `localCurrencyId = bill.currencyId`
+      - `functionalCurrencyId = bill.currencyId`
+    - original transaction, local, and functional amounts are all copied from bill total
+    - no `groupCurrencyId` / `originalGroupAmount` is supplied at creation time
+  - assessment:
+    - not yet compliant with the 4-currency target
+- `Invoice Receipt`
+  - current state:
+    - receipt open items and invoice-side ensured open items both use invoice currency as transaction/local/functional currency
+    - receipt settlement logic does not currently derive local/functional/group from subsidiary context
+    - no group currency/amount is supplied in the open-item creation path shown today
+  - assessment:
+    - not yet compliant with the 4-currency target
+- `Bill Payment`
+  - current state:
+    - payment open items and bill-side ensured open items both use bill currency as transaction/local/functional currency
+    - settlement path does not currently derive local/functional/group from subsidiary context
+    - no group currency/amount is supplied in the open-item creation path shown today
+  - assessment:
+    - not yet compliant with the 4-currency target
+- `Customer Refund`
+  - current state:
+    - refund-related open-item settlement still derives transaction/local/functional from the linked invoice currency
+    - no group currency/amount is supplied in the current open-item path
+  - assessment:
+    - not yet compliant with the 4-currency target
+- `Journal`
+  - current state:
+    - open-item-relevant journal lines create open items with:
+      - `transactionCurrencyId = journal.currencyId`
+      - `localCurrencyId = journal.currencyId`
+      - `functionalCurrencyId = journal.currencyId`
+    - no group currency/amount is supplied in the journal open-item creation path
+  - assessment:
+    - not yet compliant with the 4-currency target
+- `Clearing Document` / `OpenItemApplication`
+  - current state:
+    - the shared open-item service and clearing-document model support:
+      - `groupCurrencyId`
+      - `groupAmount`
+      - `originalGroupAmount`
+    - reversal and clearing-document creation paths preserve group fields when they are provided
+    - however, upstream transaction creators are still not consistently supplying real local/functional/group context
+  - assessment:
+    - data model is ahead of transaction-source population
+
+#### Phase 0 remediation order
+
+The next implementation work should fix the transaction creators in this order:
+
+1. `Invoice`
+2. `Bill`
+3. `Invoice Receipt`
+4. `Bill Payment`
+5. `Journal`
+6. `Customer Refund`
+7. `Clearing Document` readability and drill-through
+
+#### Important implementation note
+
+The platform should use one shared source of truth for deriving:
+
+- subsidiary local currency
+- subsidiary functional currency
+- subsidiary group currency
+- which translated amounts are safe to auto-populate
+- which translated amounts should remain null until real FX conversion logic is available
+
+That shared helper now exists, but the broader retrofit is still in progress. Transaction families that have not yet been moved onto it should be treated as incomplete rather than assumed 4-currency-ready.
 
 ## I. Intercompany Model
 
@@ -830,6 +1090,13 @@ Use the right shared container for the record type:
 - line section
 - allocation/applications section
 - schedule line section
+
+Shared line-item sections should also follow a consistent readability rule:
+
+- lookup-heavy columns such as item, account, project, customer, vendor, and other selected-reference fields should auto-fit or use wide enough shared defaults so the selected value remains readable after selection
+- line-item selectors should not collapse selected values into unreadable truncation by default
+- shared line-item components should prefer reusable width behavior at the component level instead of per-page manual widening
+- if a line-item field is selection-driven, the chosen value should remain understandable without requiring hover as the primary way to identify it
 
 ## 4. Shared customize contract
 

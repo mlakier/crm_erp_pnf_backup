@@ -30,6 +30,28 @@ export async function logActivity({
   }
 }
 
+function formatActivityValue(value: unknown): string {
+  if (value == null) return ''
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : ''
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => formatActivityValue(entry))
+      .filter(Boolean)
+      .join(', ')
+  }
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return ''
+    }
+  }
+  return String(value)
+}
+
 type FieldChangeActivityPayload = {
   context: string
   fieldName: string
@@ -92,10 +114,72 @@ export async function logFieldChangeActivities({
   context: string
   changes: Array<{
     fieldName: string
-    oldValue: string
-    newValue: string
+    oldValue: unknown
+    newValue: unknown
   }>
 }) {
+  const normalizedChanges = changes
+    .map((change) => ({
+      fieldName: change.fieldName,
+      oldValue: formatActivityValue(change.oldValue),
+      newValue: formatActivityValue(change.newValue),
+    }))
+    .filter((change) => change.oldValue !== change.newValue)
+
+  if (normalizedChanges.length === 0) return
+
+  try {
+    await prisma.activity.createMany({
+      data: normalizedChanges.map((change) => ({
+        entityType,
+        entityId,
+        action: 'update',
+        summary: createFieldChangeSummary({
+          context,
+          fieldName: change.fieldName,
+          oldValue: change.oldValue,
+          newValue: change.newValue,
+        }),
+        userId: userId ?? null,
+      })),
+    })
+  } catch {
+    // Activity logging must never block business operations.
+  }
+}
+
+export async function logRecordSnapshotActivities({
+  entityType,
+  entityId,
+  userId,
+  context,
+  action,
+  fields,
+}: {
+  entityType: string
+  entityId: string
+  userId?: string | null
+  context: string
+  action: 'create' | 'delete'
+  fields: Array<{
+    fieldName: string
+    value: unknown
+    context?: string
+  }>
+}) {
+  const changes = fields
+    .map((field) => {
+      const formattedValue = formatActivityValue(field.value)
+      if (!formattedValue) return null
+      return {
+        fieldName: field.fieldName,
+        context: field.context ?? context,
+        oldValue: action === 'delete' ? formattedValue : '',
+        newValue: action === 'create' ? formattedValue : '',
+      }
+    })
+    .filter((change): change is { fieldName: string; context: string; oldValue: string; newValue: string } => Boolean(change))
+
   if (changes.length === 0) return
 
   try {
@@ -103,9 +187,9 @@ export async function logFieldChangeActivities({
       data: changes.map((change) => ({
         entityType,
         entityId,
-        action: 'update',
+        action,
         summary: createFieldChangeSummary({
-          context,
+          context: change.context,
           fieldName: change.fieldName,
           oldValue: change.oldValue,
           newValue: change.newValue,

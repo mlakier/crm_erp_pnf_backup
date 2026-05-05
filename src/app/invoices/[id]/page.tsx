@@ -17,12 +17,14 @@ import {
 import RecordHeaderDetails, { type RecordHeaderField } from '@/components/RecordHeaderDetails'
 import CommunicationsSection from '@/components/CommunicationsSection'
 import SystemNotesSection from '@/components/SystemNotesSection'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import TransactionDetailFrame from '@/components/TransactionDetailFrame'
 import TransactionStatsRow from '@/components/TransactionStatsRow'
 import DeleteButton from '@/components/DeleteButton'
 import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
 import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
 import TransactionActionStack from '@/components/TransactionActionStack'
+import TransactionFourCurrencySection from '@/components/TransactionFourCurrencySection'
 import { parseCommunicationSummary, parseFieldChangeSummary } from '@/lib/activity'
 import {
   buildLinkedReferenceFieldDefinitions,
@@ -45,6 +47,10 @@ import {
   buildTransactionCustomizePreviewFields,
   getOrderedVisibleTransactionLineColumns,
 } from '@/lib/transaction-detail-helpers'
+import {
+  buildPostedCurrencyReadoutSection,
+  CURRENCY_READOUT_SECTION_TITLE,
+} from '@/lib/four-currency-readout'
 import { loadManagedListDetail } from '@/lib/manage-lists'
 import {
   getAvailableWorkflowStatusActions,
@@ -116,7 +122,7 @@ export default async function InvoiceDetailPage({
   const isCustomizing = customize === '1'
   const { moneySettings } = await loadCompanyDisplaySettings()
 
-  const [invoice, activities, customization, subsidiaries, currencies, items, statusListDetail, workflow] = await Promise.all([
+  const [invoice, invoiceOpenItem, activities, customization, subsidiaries, currencies, items, statusListDetail, workflow] = await Promise.all([
     prisma.invoice.findUnique({
       where: { id },
       include: {
@@ -153,6 +159,27 @@ export default async function InvoiceDetailPage({
         },
       },
     }),
+    prisma.openItem.findFirst({
+      where: {
+        sourceTransactionType: 'invoice',
+        sourceTransactionId: id,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        openItemNumber: true,
+        transactionCurrencyId: true,
+        localCurrencyId: true,
+        functionalCurrencyId: true,
+        groupCurrencyId: true,
+        originalTransactionAmount: true,
+        originalLocalAmount: true,
+        originalFunctionalAmount: true,
+        originalGroupAmount: true,
+        isOpen: true,
+        status: true,
+      },
+    }),
     prisma.activity.findMany({
       where: {
         entityType: 'invoice',
@@ -186,7 +213,7 @@ export default async function InvoiceDetailPage({
       lineItems: {
         include: {
           account: {
-            select: { accountId: true, name: true },
+            select: { accountId: true, accountNumber: true, name: true },
           },
         },
       },
@@ -213,6 +240,12 @@ export default async function InvoiceDetailPage({
     value: currency.id,
     label: `${currency.code ?? currency.currencyId} - ${currency.name}`,
   }))
+  const currencyLabelById = new Map(
+    currencies.map((currency) => [currency.id, `${currency.code ?? currency.currencyId} - ${currency.name}`]),
+  )
+  const currencyCodeById = new Map(
+    currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]),
+  )
   const invoiceStatusColors = Object.fromEntries(
     (statusListDetail?.rows ?? []).map((row) => [row.value.toLowerCase(), row.colorTone ?? 'default']),
   ) as Record<string, TransactionStatusColorTone>
@@ -280,7 +313,7 @@ export default async function InvoiceDetailPage({
     })
     .filter((communication): communication is Exclude<typeof communication, null> => Boolean(communication))
 
-  const headerFieldDefinitions: Record<InvoiceDetailFieldKey, InvoiceHeaderField> = {
+  const headerFieldDefinitions: Record<string, InvoiceHeaderField> = {
     customerName: {
       key: 'customerName',
       label: 'Customer Name',
@@ -358,6 +391,7 @@ export default async function InvoiceDetailPage({
       key: 'customerId',
       label: 'Customer Id',
       value: invoice.customer.customerId ?? '',
+      href: `/customers/${invoice.customer.id}`,
       helpText: 'Customer identifier linked to this invoice.',
       fieldType: 'text',
       sourceText: 'Customers master data',
@@ -368,6 +402,7 @@ export default async function InvoiceDetailPage({
       key: 'salesOrderId',
       label: 'Sales Order Id',
       value: invoice.salesOrder?.number ?? '',
+      href: invoice.salesOrder ? `/sales-orders/${invoice.salesOrder.id}` : null,
       helpText: 'Sales order identifier linked to this invoice.',
       fieldType: 'text',
       sourceText: 'Source transaction',
@@ -378,6 +413,7 @@ export default async function InvoiceDetailPage({
       key: 'userId',
       label: 'User Id',
       value: invoice.user?.userId ?? '',
+      href: invoice.user ? `/users/${invoice.user.id}` : null,
       helpText: 'User identifier for the invoice creator/owner.',
       fieldType: 'text',
       sourceText: 'Users master data',
@@ -461,6 +497,7 @@ export default async function InvoiceDetailPage({
       label: 'Subsidiary',
       value: invoice.subsidiaryId ?? '',
       displayValue: invoice.subsidiary ? `${invoice.subsidiary.subsidiaryId} - ${invoice.subsidiary.name}` : '-',
+      href: invoice.subsidiary ? `/subsidiaries/${invoice.subsidiary.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...subsidiaryOptions],
@@ -475,6 +512,7 @@ export default async function InvoiceDetailPage({
       label: 'Currency',
       value: invoice.currencyId ?? '',
       displayValue: invoice.currency ? `${invoice.currency.code ?? invoice.currency.currencyId} - ${invoice.currency.name}` : '-',
+      href: invoice.currency ? `/currencies/${invoice.currency.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...currencyOptions],
@@ -502,7 +540,7 @@ export default async function InvoiceDetailPage({
       key: 'total',
       label: 'Total',
       value: String(invoice.total),
-      displayValue: fmtCurrency(invoice.total, undefined, moneySettings),
+      displayValue: fmtCurrency(invoice.total, invoice.currency?.code ?? invoice.currency?.currencyId ?? undefined, moneySettings),
       helpText: 'Document total based on all invoice line amounts.',
       fieldType: 'currency',
       subsectionTitle: 'Financial Terms',
@@ -576,12 +614,6 @@ export default async function InvoiceDetailPage({
   headerFieldDefinitions.subsidiaryId.href = subsidiaryHref
   headerFieldDefinitions.currencyId.href = currencyHref
 
-  const headerSections = buildConfiguredTransactionSections({
-    fields: INVOICE_DETAIL_FIELDS,
-    layout: customization,
-    fieldDefinitions: headerFieldDefinitions,
-    sectionDescriptions: invoicePageConfig.sectionDescriptions,
-  })
   const referenceFieldDefinitions = buildLinkedReferenceFieldDefinitions(INVOICE_REFERENCE_SOURCES, {
     customer: invoice.customer,
     salesOrder: invoice.salesOrder,
@@ -599,33 +631,30 @@ export default async function InvoiceDetailPage({
     ...headerFieldDefinitions,
     ...referenceFieldDefinitions,
   }
-  const customizeFields = buildTransactionCustomizePreviewFields({
-    fields: INVOICE_DETAIL_FIELDS,
-    fieldDefinitions: headerFieldDefinitions,
-    previewOverrides: {
-      id: invoice.id,
-      customerId: invoice.customer.customerId ?? '',
-      salesOrderId: invoice.salesOrder?.number ?? '',
-      userId: invoice.user?.userId ?? '',
-      createdBy: createdByLabel,
-      createdFrom: invoice.salesOrder?.number ?? '',
-      quoteId: invoice.salesOrder?.quote?.number ?? '',
-      opportunityId: invoice.salesOrder?.quote?.opportunity?.opportunityNumber ?? '',
-      subsidiaryId: invoice.subsidiary ? `${invoice.subsidiary.subsidiaryId} - ${invoice.subsidiary.name}` : '',
-      currencyId: invoice.currency ? `${invoice.currency.code ?? invoice.currency.currencyId} - ${invoice.currency.name}` : '',
-      status: formatInvoiceStatus(invoice.status),
-      total: fmtCurrency(invoice.total, undefined, moneySettings),
-      dueDate: invoice.dueDate ? fmtDocumentDate(invoice.dueDate, moneySettings) : '-',
-      paidDate: invoice.paidDate ? fmtDocumentDate(invoice.paidDate, moneySettings) : '-',
-      createdAt: fmtDocumentDate(invoice.createdAt, moneySettings),
-      updatedAt: fmtDocumentDate(invoice.updatedAt, moneySettings),
-    },
-  })
+  const customizePreviewOverrides = {
+    id: invoice.id,
+    customerId: invoice.customer.customerId ?? '',
+    salesOrderId: invoice.salesOrder?.number ?? '',
+    userId: invoice.user?.userId ?? '',
+    createdBy: createdByLabel,
+    createdFrom: invoice.salesOrder?.number ?? '',
+    quoteId: invoice.salesOrder?.quote?.number ?? '',
+    opportunityId: invoice.salesOrder?.quote?.opportunity?.opportunityNumber ?? '',
+    subsidiaryId: invoice.subsidiary ? `${invoice.subsidiary.subsidiaryId} - ${invoice.subsidiary.name}` : '',
+    currencyId: invoice.currency ? `${invoice.currency.code ?? invoice.currency.currencyId} - ${invoice.currency.name}` : '',
+    status: formatInvoiceStatus(invoice.status),
+    total: fmtCurrency(invoice.total, invoice.currency?.code ?? invoice.currency?.currencyId ?? undefined, moneySettings),
+    dueDate: invoice.dueDate ? fmtDocumentDate(invoice.dueDate, moneySettings) : '-',
+    paidDate: invoice.paidDate ? fmtDocumentDate(invoice.paidDate, moneySettings) : '-',
+    createdAt: fmtDocumentDate(invoice.createdAt, moneySettings),
+    updatedAt: fmtDocumentDate(invoice.updatedAt, moneySettings),
+  } satisfies Partial<Record<InvoiceDetailFieldKey, string>>
 
   const visibleLineColumns = getOrderedVisibleTransactionLineColumns(INVOICE_LINE_COLUMNS, customization)
   const statusTone = getInvoiceStatusTone(invoice.status, invoiceStatusColors)
   const statsRecord = {
     total: Number(invoice.total),
+    currencyCode: invoice.currency?.code ?? invoice.currency?.currencyId ?? null,
     statusLabel: formatInvoiceStatus(invoice.status),
     statusTone: getInvoiceStatusToneKey(invoice.status, invoiceStatusColors),
     dueDate: invoice.dueDate,
@@ -682,6 +711,69 @@ export default async function InvoiceDetailPage({
     .filter((section): section is NonNullable<typeof section> => Boolean(section))
   const referenceColumns = Math.max(1, ...referenceSections.map((section) => section.columns))
   const invoiceStatusActions = getAvailableWorkflowStatusActions(workflow, 'invoice', invoice.status)
+  const formatMonetaryValue = (
+    value: number | string | null | undefined | { toString(): string; toNumber?: () => number },
+    currencyCode?: string | null,
+  ) => fmtCurrency(value, currencyCode ?? undefined, moneySettings)
+  const currencyReadoutSection = buildPostedCurrencyReadoutSection({
+    postingStatus: invoiceOpenItem
+      ? invoiceOpenItem.isOpen
+        ? `Posted to open item (${invoiceOpenItem.status})`
+        : `Posted and settled (${invoiceOpenItem.status})`
+      : 'Not posted to open items yet',
+    openItemId: invoiceOpenItem?.id ?? null,
+    openItemNumber: invoiceOpenItem?.openItemNumber ?? null,
+    transactionAmount: invoiceOpenItem?.originalTransactionAmount ?? invoice.total,
+    transactionCurrencyCode: currencyCodeById.get(invoiceOpenItem?.transactionCurrencyId ?? invoice.currencyId ?? '') ?? null,
+    transactionCurrencyLabel:
+      currencyLabelById.get(invoiceOpenItem?.transactionCurrencyId ?? invoice.currencyId ?? '') ??
+      (invoice.currency ? `${invoice.currency.code ?? invoice.currency.currencyId} - ${invoice.currency.name}` : null),
+    localAmount: invoiceOpenItem?.originalLocalAmount ?? null,
+    localCurrencyCode: currencyCodeById.get(invoiceOpenItem?.localCurrencyId ?? '') ?? null,
+    localCurrencyLabel: currencyLabelById.get(invoiceOpenItem?.localCurrencyId ?? '') ?? null,
+    functionalAmount: invoiceOpenItem?.originalFunctionalAmount ?? null,
+    functionalCurrencyCode: currencyCodeById.get(invoiceOpenItem?.functionalCurrencyId ?? '') ?? null,
+    functionalCurrencyLabel: currencyLabelById.get(invoiceOpenItem?.functionalCurrencyId ?? '') ?? null,
+    groupAmount: invoiceOpenItem?.originalGroupAmount ?? null,
+    groupCurrencyCode: currencyCodeById.get(invoiceOpenItem?.groupCurrencyId ?? '') ?? null,
+    groupCurrencyLabel: currencyLabelById.get(invoiceOpenItem?.groupCurrencyId ?? '') ?? null,
+    fxRateType:
+      invoiceOpenItem?.originalFunctionalAmount != null || invoiceOpenItem?.originalGroupAmount != null ? 'spot' : null,
+    fxRateSource:
+      invoiceOpenItem?.originalFunctionalAmount != null || invoiceOpenItem?.originalGroupAmount != null
+        ? 'Configured exchange rates'
+        : null,
+    formatCurrency: formatMonetaryValue,
+  })
+  const fieldDefinitionsWithCurrency: Record<string, RecordHeaderField> = {
+    ...allFieldDefinitions,
+    ...Object.fromEntries(currencyReadoutSection.fields.map((field) => [field.key, field])),
+  }
+  const customizeFields = buildTransactionCustomizePreviewFields({
+    fields: INVOICE_DETAIL_FIELDS,
+    fieldDefinitions: fieldDefinitionsWithCurrency,
+    previewOverrides: customizePreviewOverrides,
+  })
+  const customizeFieldsWithCurrency = [
+    ...customizeFields,
+  ]
+  const configuredHeaderSections = buildConfiguredTransactionSections({
+    fields: INVOICE_DETAIL_FIELDS,
+    layout: customization,
+    fieldDefinitions: fieldDefinitionsWithCurrency,
+    sectionDescriptions: {
+      ...invoicePageConfig.sectionDescriptions,
+      [CURRENCY_READOUT_SECTION_TITLE]: 'Read the transaction, local, functional, and group amounts from the posted invoice context.',
+    },
+  })
+  const configuredCurrencySection =
+    configuredHeaderSections.find((section) => section.title === CURRENCY_READOUT_SECTION_TITLE) ?? currencyReadoutSection
+  const headerSections = configuredHeaderSections.filter((section) => section.title !== CURRENCY_READOUT_SECTION_TITLE)
+  const transactionCurrencyCode =
+    currencyCodeById.get(invoiceOpenItem?.transactionCurrencyId ?? invoice.currencyId ?? '') ?? null
+  const localCurrencyCode = currencyCodeById.get(invoiceOpenItem?.localCurrencyId ?? '') ?? null
+  const functionalCurrencyCode = currencyCodeById.get(invoiceOpenItem?.functionalCurrencyId ?? '') ?? null
+  const groupCurrencyCode = currencyCodeById.get(invoiceOpenItem?.groupCurrencyId ?? '') ?? null
 
   return (
     <RecordDetailPageShell
@@ -726,14 +818,39 @@ export default async function InvoiceDetailPage({
         ) : null
       }
       actions={
-        isCustomizing ? null : (
-          <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
-            cancelHref={detailHref}
-            formId={`inline-record-form-${invoice.id}`}
-            recordId={invoice.id}
-            primaryActions={
-              isEditing ? (
+        <TransactionActionStack
+          mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
+          cancelHref={detailHref}
+          formId={`inline-record-form-${invoice.id}`}
+          recordId={invoice.id}
+          primaryActions={
+            isEditing ? (
+              <Link
+                href={`${detailHref}?customize=1`}
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+              >
+                Customize
+              </Link>
+            ) : (
+              <>
+                <MasterDataDetailCreateMenu
+                  newHref="/invoices/new"
+                  duplicateHref={`/invoices/new?duplicateFrom=${encodeURIComponent(invoice.id)}`}
+                />
+                <MasterDataDetailExportMenu
+                  title={invoice.number}
+                  fileName={`invoice-${invoice.number}`}
+                  sections={headerSections.map((section) => ({
+                    title: section.title,
+                    fields: section.fields.map((field) => ({
+                      label: field.label,
+                      value: field.value ?? '',
+                      type: field.type,
+                      options: field.options,
+                    })),
+                  }))}
+                />
                 <Link
                   href={`${detailHref}?customize=1`}
                   className="rounded-md border px-3 py-2 text-sm"
@@ -741,45 +858,18 @@ export default async function InvoiceDetailPage({
                 >
                   Customize
                 </Link>
-              ) : (
-                <>
-                  <MasterDataDetailCreateMenu
-                    newHref="/invoices/new"
-                    duplicateHref={`/invoices/new?duplicateFrom=${encodeURIComponent(invoice.id)}`}
-                  />
-                  <MasterDataDetailExportMenu
-                    title={invoice.number}
-                    fileName={`invoice-${invoice.number}`}
-                    sections={headerSections.map((section) => ({
-                      title: section.title,
-                      fields: section.fields.map((field) => ({
-                        label: field.label,
-                        value: field.value ?? '',
-                        type: field.type,
-                        options: field.options,
-                      })),
-                    }))}
-                  />
-                  <Link
-                    href={`${detailHref}?customize=1`}
-                    className="rounded-md border px-3 py-2 text-sm"
-                    style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-                  >
-                    Customize
-                  </Link>
-                  <Link
-                    href={`${detailHref}?edit=1`}
-                    className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                    style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                  >
-                    Edit
-                  </Link>
-                  <DeleteButton resource="invoices" id={invoice.id} />
-                </>
-              )
-            }
-          />
-        )
+                <Link
+                  href={`${detailHref}?edit=1`}
+                  className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                  style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+                >
+                  Edit
+                </Link>
+                <DeleteButton resource="invoices" id={invoice.id} />
+              </>
+            )
+          }
+        />
       }
     >
       <TransactionDetailFrame
@@ -796,17 +886,22 @@ export default async function InvoiceDetailPage({
         header={
           isCustomizing ? (
             <div className="mb-7">
-              <InvoiceDetailCustomizeMode
-                detailHref={detailHref}
-                initialLayout={customization}
-                fields={customizeFields}
-                referenceSourceDefinitions={referenceSourceDefinitions}
-                sectionDescriptions={invoicePageConfig.sectionDescriptions}
-                statPreviewCards={statPreviewCards}
-              />
+                <InvoiceDetailCustomizeMode
+                  detailHref={detailHref}
+                  initialLayout={customization}
+                  fields={customizeFieldsWithCurrency}
+                  referenceSourceDefinitions={referenceSourceDefinitions}
+                  sectionDescriptions={invoicePageConfig.sectionDescriptions}
+                  statPreviewCards={statPreviewCards}
+                />
             </div>
           ) : (
             <div className="space-y-6">
+              <TransactionFourCurrencySection
+                section={configuredCurrencySection}
+                layout={customization}
+                description="Read the transaction, local, functional, and group amounts from the posted invoice context."
+              />
               {referenceSections.length > 0 ? (
                 <RecordHeaderDetails
                   editing={false}
@@ -856,6 +951,7 @@ export default async function InvoiceDetailPage({
               purchaseOrderId={invoice.id}
               userId={invoice.userId ?? ''}
               itemOptions={itemOptions}
+              currencyCode={transactionCurrencyCode}
               lineSettings={customization.lineSettings}
               lineColumnCustomization={customization.lineColumns}
               lineColumns={visibleLineColumns
@@ -904,6 +1000,7 @@ export default async function InvoiceDetailPage({
                               columnId: column.id,
                               index,
                               line,
+                              currencyCode: transactionCurrencyCode,
                               moneySettings,
                             })}
                           </RecordDetailCell>
@@ -917,9 +1014,35 @@ export default async function InvoiceDetailPage({
           )
         }
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'customer',
+                label: 'Customer',
+                count: 1,
+                emptyMessage: 'No related customer is linked to this invoice.',
+                rows: [
+                  {
+                    id: invoice.customer.id,
+                    type: 'Customer',
+                    reference: invoice.customer.customerId ?? invoice.customer.id,
+                    name: invoice.customer.name,
+                    details: [invoice.customer.email, invoice.customer.phone].filter(Boolean).join(' | ') || '-',
+                    href: `/customers/${invoice.customer.id}`,
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={1}
+        relatedDocuments={isCustomizing ? null : (
           <InvoiceRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={transactionCurrencyCode}
             salesOrders={
               invoice.salesOrder
                 ? [
@@ -928,6 +1051,7 @@ export default async function InvoiceDetailPage({
                       number: invoice.salesOrder.number,
                       status: invoice.salesOrder.status,
                       total: Number(invoice.salesOrder.total),
+                      currencyCode: transactionCurrencyCode,
                     },
                   ]
                 : []
@@ -940,6 +1064,7 @@ export default async function InvoiceDetailPage({
                       number: invoice.salesOrder.quote.number,
                       status: invoice.salesOrder.quote.status,
                       total: Number(invoice.salesOrder.quote.total),
+                      currencyCode: transactionCurrencyCode,
                     },
                   ]
                 : []
@@ -953,6 +1078,7 @@ export default async function InvoiceDetailPage({
                       name: invoice.salesOrder.quote.opportunity.name,
                       status: invoice.salesOrder.quote.opportunity.stage,
                       total: Number(invoice.salesOrder.quote.opportunity.amount ?? 0),
+                      currencyCode: transactionCurrencyCode,
                     },
                   ]
                 : []
@@ -964,28 +1090,29 @@ export default async function InvoiceDetailPage({
               date: receipt.date.toISOString(),
               method: receipt.method,
               reference: receipt.reference ?? null,
+              currencyCode: transactionCurrencyCode,
             }))}
             moneySettings={moneySettings}
           />
         )}
-        relatedRecordsCount={
+        relatedDocumentsCount={
           (invoice.salesOrder ? 1 : 0) +
           (invoice.salesOrder?.quote ? 1 : 0) +
           (invoice.salesOrder?.quote?.opportunity ? 1 : 0) +
           invoice.cashReceipts.length
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this invoice yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         supplementarySections={
           isCustomizing ? null : (
             <InvoiceGlImpactSection
               rows={glImpactRows}
               settings={customization.glImpactSettings}
               columnCustomization={customization.glImpactColumns}
+              currencyCodes={{
+                transaction: transactionCurrencyCode,
+                local: localCurrencyCode,
+                functional: functionalCurrencyCode,
+                group: groupCurrencyCode,
+              }}
             />
           )
         }
@@ -1003,7 +1130,7 @@ export default async function InvoiceDetailPage({
               counterpartyEmail: invoice.customer.email,
               fromEmail: invoice.user?.email ?? null,
               status: formatInvoiceStatus(invoice.status),
-              total: fmtCurrency(invoice.total, undefined, moneySettings),
+              total: fmtCurrency(invoice.total, invoice.currency?.code ?? invoice.currency?.currencyId ?? undefined, moneySettings),
               lineItems: invoice.lineItems.map((line, index) => ({
                 line: index + 1,
                 itemId: line.item?.itemId ?? '-',
@@ -1042,6 +1169,7 @@ function renderLineValue({
   columnId,
   index,
   line,
+  currencyCode,
   moneySettings,
 }: {
   columnId: InvoiceLineColumnKey
@@ -1063,6 +1191,7 @@ function renderLineValue({
     standaloneSellingPrice: Parameters<typeof fmtCurrency>[0] | null
     allocatedAmount: Parameters<typeof fmtCurrency>[0] | null
   }
+  currencyCode?: string | null
   moneySettings: Parameters<typeof fmtCurrency>[2]
 }) {
   switch (columnId) {
@@ -1075,9 +1204,9 @@ function renderLineValue({
     case 'quantity':
       return line.quantity
     case 'unit-price':
-      return fmtCurrency(line.unitPrice, undefined, moneySettings)
+      return fmtCurrency(line.unitPrice, currencyCode ?? undefined, moneySettings)
     case 'line-total':
-      return fmtCurrency(line.lineTotal, undefined, moneySettings)
+      return fmtCurrency(line.lineTotal, currencyCode ?? undefined, moneySettings)
     case 'notes':
       return line.notes ?? '-'
     case 'department':
@@ -1095,9 +1224,9 @@ function renderLineValue({
     case 'performance-obligation-code':
       return line.performanceObligationCode ?? '-'
     case 'ssp':
-      return line.standaloneSellingPrice != null ? fmtCurrency(line.standaloneSellingPrice, undefined, moneySettings) : '-'
+      return line.standaloneSellingPrice != null ? fmtCurrency(line.standaloneSellingPrice, currencyCode ?? undefined, moneySettings) : '-'
     case 'allocated-amount':
-      return line.allocatedAmount != null ? fmtCurrency(line.allocatedAmount, undefined, moneySettings) : '-'
+      return line.allocatedAmount != null ? fmtCurrency(line.allocatedAmount, currencyCode ?? undefined, moneySettings) : '-'
     default:
       return '-'
   }

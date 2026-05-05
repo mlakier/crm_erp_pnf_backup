@@ -18,6 +18,7 @@ export default function BillPaymentApplicationsSection({
   onChange,
   editing = false,
   moneySettings,
+  paymentCurrencyCode,
   title = 'Bill Applications',
 }: {
   bills: BillApplicationCandidate[]
@@ -27,6 +28,7 @@ export default function BillPaymentApplicationsSection({
   onChange?: (applications: BillPaymentApplicationInput[]) => void
   editing?: boolean
   moneySettings?: Parameters<typeof fmtCurrency>[2]
+  paymentCurrencyCode?: string | null
   title?: string
 }) {
   const draftAmounts = useMemo(
@@ -87,6 +89,7 @@ export default function BillPaymentApplicationsSection({
         totalAmount: bill.total,
         openAmount: bill.openAmount,
         allocatedAmount: applications.find((application) => application.billId === bill.id)?.appliedAmount ?? 0,
+        currencyCode: bill.currencyCode ?? null,
       })),
     [appliedRows, applications],
   )
@@ -97,7 +100,7 @@ export default function BillPaymentApplicationsSection({
   } else if (editing && normalizedPaymentAmount <= 0) {
     helperText = 'Enter the bill payment amount above before allocating it across bills.'
   } else if (editing && overappliedAmount > 0) {
-    helperText = `Applied amounts exceed the entered payment amount by ${fmtCurrency(overappliedAmount, undefined, moneySettings)}.`
+    helperText = `Applied amounts exceed the entered payment amount by ${fmtCurrency(overappliedAmount, paymentCurrencyCode ?? undefined, moneySettings)}.`
   } else {
     helperText = 'Allocate the payment total across one or more open vendor bills.'
   }
@@ -112,7 +115,7 @@ export default function BillPaymentApplicationsSection({
       summary={
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: 'var(--badge-background)', color: 'var(--accent-primary-strong)' }}>
-            Applied {fmtCurrency(totalApplied, undefined, moneySettings)}
+            Applied {fmtCurrency(totalApplied, paymentCurrencyCode ?? undefined, moneySettings)}
           </span>
           {editing && normalizedPaymentAmount > 0 ? (
             <span
@@ -123,8 +126,8 @@ export default function BillPaymentApplicationsSection({
               }}
             >
               {overappliedAmount > 0
-                ? `Overapplied ${fmtCurrency(overappliedAmount, undefined, moneySettings)}`
-                : `Unapplied ${fmtCurrency(unappliedAmount, undefined, moneySettings)}`}
+                ? `Overapplied ${fmtCurrency(overappliedAmount, paymentCurrencyCode ?? undefined, moneySettings)}`
+                : `Unapplied ${fmtCurrency(unappliedAmount, paymentCurrencyCode ?? undefined, moneySettings)}`}
             </span>
           ) : null}
         </div>

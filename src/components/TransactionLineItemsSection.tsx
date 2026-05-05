@@ -2,18 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import ColumnSelector from '@/components/ColumnSelector'
 import DeleteButton from '@/components/DeleteButton'
+import SearchableSelect from '@/components/SearchableSelect'
 import { fmtCurrency } from '@/lib/format'
 import { calcLineTotal, parseMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
 import type { PurchaseOrderLineColumnKey } from '@/lib/purchase-order-detail-customization'
 
+type TransactionLineColumnKey = PurchaseOrderLineColumnKey | 'notes' | 'line-type' | 'expense-account'
+
 type PurchaseOrderLineItemRow = {
   id: string
   displayOrder: number
+  lineType?: 'item' | 'expense'
   itemRecordId: string | null
   itemId: string | null
   itemName: string | null
+  expenseAccountRecordId?: string | null
+  expenseAccountId?: string | null
+  expenseAccountName?: string | null
   description: string
   notes?: string | null
   quantity: number
@@ -32,9 +38,19 @@ type ItemOption = {
   itemDrivenValues?: Partial<Pick<EditableRowState, 'description' | 'unitPrice'>>
 }
 
+type AccountOption = {
+  id: string
+  accountId: string
+  accountNumber?: string | null
+  name: string
+}
+
 type EditableRowState = {
+  lineType: 'item' | 'expense'
   itemRecordId: string | null
   itemSearch: string
+  expenseAccountRecordId: string | null
+  expenseAccountSearch: string
   description: string
   notes: string
   quantity: string
@@ -53,9 +69,10 @@ type LineSectionSettings = {
   fontSize?: 'xs' | 'sm'
 }
 type LineColumnSettings = Partial<Record<
-  PurchaseOrderLineColumnKey | 'notes',
+  TransactionLineColumnKey,
   {
     widthMode?: LineWidthMode
+    showColumnMode?: 'always' | 'itemOnly' | 'expenseOnly'
     editDisplay?: LineDisplayMode
     viewDisplay?: LineDisplayMode
     dropdownDisplay?: LineDisplayMode
@@ -72,7 +89,9 @@ declare global {
 
 const COLUMN_DEFINITIONS = [
   { id: 'line', label: 'Line', locked: true },
+  { id: 'line-type', label: 'Line Type', defaultVisible: true },
   { id: 'item-id', label: 'Item Id', locked: true },
+  { id: 'expense-account', label: 'Expense Account', defaultVisible: true },
   { id: 'description', label: 'Description', defaultVisible: true },
   { id: 'quantity', label: 'Qty', defaultVisible: true },
   { id: 'received-qty', label: "Rec'd Qty", defaultVisible: true },
@@ -83,27 +102,47 @@ const COLUMN_DEFINITIONS = [
   { id: 'notes', label: 'Notes', defaultVisible: true },
 ] as const
 
-const EDIT_COLUMN_DEFINITION = { id: 'actions', label: 'Actions', locked: true } as const
-
 const BASE_COLUMN_LAYOUT: Record<
-  PurchaseOrderLineColumnKey | 'notes',
+  TransactionLineColumnKey,
   { align?: 'left' | 'center' | 'right'; width?: number; pinned?: boolean }
 > = {
   line: { align: 'center', width: 72, pinned: true },
-  'item-id': { width: 132, pinned: true },
-  description: {},
+  'line-type': { width: 140 },
+  'item-id': { width: 240, pinned: true },
+  'expense-account': { width: 240 },
+  description: { width: 280 },
   quantity: { align: 'right' },
   'received-qty': { align: 'right' },
   'billed-qty': { align: 'right' },
   'open-qty': { align: 'right' },
-  'unit-price': { align: 'right' },
-  'line-total': { align: 'right' },
+  'unit-price': { align: 'right', width: 120 },
+  'line-total': { align: 'right', width: 150 },
   notes: { width: 220 },
+}
+
+const AUTO_FIT_COLUMN_LIMITS: Partial<Record<TransactionLineColumnKey, { min: number; max: number }>> = {
+  'item-id': { min: 180, max: 520 },
+  'expense-account': { min: 120, max: 520 },
+  description: { min: 140, max: 420 },
+  notes: { min: 160, max: 420 },
+}
+
+const FIXED_WIDTH_COLUMNS: Partial<Record<TransactionLineColumnKey, number>> = {
+  line: 56,
+  'line-type': 120,
+  quantity: 72,
+  'received-qty': 88,
+  'billed-qty': 88,
+  'open-qty': 88,
+  'unit-price': 120,
+  'line-total': 140,
 }
 
 const HEADER_TOOLTIPS: Record<string, string> = {
   line: 'Sequential line number for this purchase order.',
+  'line-type': 'Controls whether the line is item-driven or posts directly to an expense account.',
   'item-id': 'Search and select the linked item using Item ID or Item Name.',
+  'expense-account': 'Search and select the posting expense account for expense-type lines.',
   description: 'Description of the goods or services being purchased on this line.',
   quantity: 'Ordered quantity for this line item.',
   'received-qty': 'Derived received quantity for this line based on total receipts recorded against the purchase order.',
@@ -116,10 +155,24 @@ const HEADER_TOOLTIPS: Record<string, string> = {
 
 function buildItemSelectionUpdates(item: ItemOption): Partial<EditableRowState> {
   return {
+    lineType: 'item',
     itemRecordId: item.id,
     itemSearch: item.itemId,
+    expenseAccountRecordId: null,
+    expenseAccountSearch: '',
     description: item.itemDrivenValues?.description ?? item.name,
     unitPrice: item.itemDrivenValues?.unitPrice ?? String(item.unitPrice ?? 0),
+    error: '',
+  }
+}
+
+function buildExpenseAccountSelectionUpdates(account: AccountOption): Partial<EditableRowState> {
+  return {
+    lineType: 'expense',
+    itemRecordId: null,
+    itemSearch: '',
+    expenseAccountRecordId: account.id,
+    expenseAccountSearch: account.accountNumber ?? account.accountId,
     error: '',
   }
 }
@@ -135,8 +188,44 @@ function formatLookupValue(
   return id ?? label ?? ''
 }
 
-function getItemSortValue(item: ItemOption, mode: LineDropdownSortMode) {
-  return (mode === 'label' ? item.name : item.itemId).toLowerCase()
+function getLookupSortValue(option: { value: string; label: string }, mode: LineDropdownSortMode) {
+  return (mode === 'label' ? option.label : option.value).toLowerCase()
+}
+
+function estimateAutoFitWidth({
+  values,
+  min,
+  max,
+}: {
+  values: Array<string | null | undefined>
+  min: number
+  max: number
+}) {
+  const longestLength = values.reduce((currentMax, value) => {
+    const normalized = String(value ?? '').trim()
+    return normalized.length > currentMax ? normalized.length : currentMax
+  }, 0)
+
+  if (longestLength === 0) return min
+
+  const estimated = Math.round(longestLength * 6.7 + 24)
+  return Math.max(min, Math.min(max, estimated))
+}
+
+function estimateEditableControlWidth({
+  value,
+  min,
+  max,
+  fallback,
+}: {
+  value: string | null | undefined
+  min: number
+  max: number
+  fallback: string
+}) {
+  const normalized = (value && value.trim()) || fallback
+  const estimated = Math.round(normalized.length * 6.7 + 28)
+  return Math.max(min, Math.min(max, estimated))
 }
 
 export default function TransactionLineItemsSection({
@@ -149,6 +238,7 @@ export default function TransactionLineItemsSection({
   lineSettings,
   lineColumnCustomization,
   draftMode,
+  initialDraftRows,
   onDraftRowsChange,
   lineItemApiBasePath = '/api/purchase-order-line-items',
   deleteResource = 'purchase-order-line-items',
@@ -157,19 +247,34 @@ export default function TransactionLineItemsSection({
   emptyMessage = 'No line items yet.',
   tableId = 'purchase-order-line-items',
   allowAddLines = editing,
+  accountOptions = [],
+  currencyCode,
 }: {
   rows: PurchaseOrderLineItemRow[]
   editing: boolean
   purchaseOrderId: string
   userId: string
   itemOptions: ItemOption[]
-  lineColumns?: Array<{ id: PurchaseOrderLineColumnKey | 'notes'; label: string }>
+  lineColumns?: Array<{ id: TransactionLineColumnKey; label: string }>
   lineSettings?: LineSectionSettings
   lineColumnCustomization?: LineColumnSettings
   draftMode?: boolean
+  initialDraftRows?: Array<{
+    lineType: 'item' | 'expense'
+    itemId: string | null
+    expenseAccountId?: string | null
+    description: string
+    notes?: string | null
+    quantity: number
+    unitPrice: number
+    lineTotal: number
+    displayOrder: number
+  }>
   onDraftRowsChange?: (
     rows: Array<{
+      lineType: 'item' | 'expense'
       itemId: string | null
+      expenseAccountId?: string | null
       description: string
       notes?: string | null
       quantity: number
@@ -185,9 +290,33 @@ export default function TransactionLineItemsSection({
   emptyMessage?: string
   tableId?: string
   allowAddLines?: boolean
+  accountOptions?: AccountOption[]
+  currencyCode?: string | null
 }) {
   const [editableRows, setEditableRows] = useState<Record<string, EditableRowState>>({})
-  const [draftRows, setDraftRows] = useState<DraftRowState[]>([])
+  const [draftRows, setDraftRows] = useState<DraftRowState[]>(
+    () =>
+      (initialDraftRows ?? []).map((row, index) => {
+        const linkedItem = row.lineType === 'expense' ? null : itemOptions.find((item) => item.id === row.itemId)
+        const linkedAccount =
+          row.lineType === 'expense' && row.expenseAccountId
+            ? accountOptions.find((account) => account.id === row.expenseAccountId)
+            : null
+        return {
+          id: `draft-initial-${index}`,
+          lineType: row.lineType,
+          itemRecordId: row.lineType === 'expense' ? null : row.itemId,
+          itemSearch: linkedItem ? formatLookupValue(linkedItem.itemId, linkedItem.name, lineColumnCustomization?.['item-id']?.editDisplay ?? 'idAndLabel') : '',
+          expenseAccountRecordId: row.lineType === 'expense' ? row.expenseAccountId ?? null : null,
+          expenseAccountSearch: linkedAccount ? formatLookupValue(linkedAccount.accountNumber ?? linkedAccount.accountId, linkedAccount.name, lineColumnCustomization?.['expense-account']?.editDisplay ?? 'idAndLabel') : '',
+          description: row.description,
+          notes: row.notes ?? '',
+          quantity: String(row.quantity),
+          unitPrice: String(row.unitPrice),
+          error: '',
+        }
+      }),
+  )
   const [rowOrder, setRowOrder] = useState<string[]>(() => rows.map((row) => row.id))
   const [draggedRowId, setDraggedRowId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(true)
@@ -196,37 +325,40 @@ export default function TransactionLineItemsSection({
   const tableFontSize = lineFontSize === 'xs' ? '0.75rem' : '0.875rem'
   const tableInputClass = lineFontSize === 'xs' ? 'text-xs' : 'text-sm'
 
-  const orderedVisibleLineColumns = useMemo(
+  const baseVisibleLineColumns = useMemo(
     () =>
       (lineColumns && lineColumns.length > 0 ? lineColumns : [...COLUMN_DEFINITIONS])
         .filter((column) => COLUMN_DEFINITIONS.some((definition) => definition.id === column.id)),
     [lineColumns]
   )
 
-  const columns = editing
-    ? [...orderedVisibleLineColumns, EDIT_COLUMN_DEFINITION]
-    : orderedVisibleLineColumns
+  const activeLineTypes = useMemo(() => {
+    const types = new Set<'item' | 'expense'>()
 
-  const getColumnLayout = useCallback(
-    (columnId: PurchaseOrderLineColumnKey | 'notes') => {
-      const base = BASE_COLUMN_LAYOUT[columnId]
-      const widthMode = lineColumnCustomization?.[columnId]?.widthMode ?? 'normal'
-      const baseWidth = base.width
-      const width =
-        widthMode === 'auto'
-          ? base.pinned
-            ? baseWidth ?? 120
-            : undefined
-          : widthMode === 'compact'
-            ? Math.max(72, Math.round((baseWidth ?? 140) * 0.7))
-            : widthMode === 'wide'
-              ? Math.round((baseWidth ?? 140) * 1.35)
-              : baseWidth
+    for (const row of rows) {
+      const nextType = editableRows[row.id]?.lineType ?? row.lineType ?? 'item'
+      types.add(nextType)
+    }
 
-      return { ...base, width }
-    },
-    [lineColumnCustomization],
-  )
+    for (const draftRow of draftRows) {
+      types.add(draftRow.lineType)
+    }
+
+    if (types.size === 0) types.add('item')
+    return types
+  }, [draftRows, editableRows, rows])
+
+  const orderedVisibleLineColumns = useMemo(() => {
+    const hasItemLines = activeLineTypes.has('item')
+    const hasExpenseLines = activeLineTypes.has('expense')
+
+    return baseVisibleLineColumns.filter((column) => {
+      const showColumnMode = lineColumnCustomization?.[column.id]?.showColumnMode ?? 'always'
+      if (showColumnMode === 'itemOnly' && !hasItemLines) return false
+      if (showColumnMode === 'expenseOnly' && !hasExpenseLines) return false
+      return true
+    })
+  }, [activeLineTypes, baseVisibleLineColumns, lineColumnCustomization])
 
   const orderedRows = useMemo(() => {
     if (!editing) return rows
@@ -249,12 +381,20 @@ export default function TransactionLineItemsSection({
         const lineTotal = calcLineTotal(quantity, unitPrice)
         const selectedItem =
           state?.itemRecordId != null ? itemOptions.find((item) => item.id === state.itemRecordId) : null
+        const selectedExpenseAccount =
+          state?.expenseAccountRecordId != null
+            ? accountOptions.find((account) => account.id === state.expenseAccountRecordId)
+            : null
 
         return {
           ...row,
+          lineType: state?.lineType ?? row.lineType ?? 'item',
           itemRecordId: state?.itemRecordId ?? row.itemRecordId,
           itemId: selectedItem?.itemId ?? row.itemId,
           itemName: selectedItem?.name ?? row.itemName,
+          expenseAccountRecordId: state?.expenseAccountRecordId ?? row.expenseAccountRecordId,
+          expenseAccountId: selectedExpenseAccount?.accountNumber ?? selectedExpenseAccount?.accountId ?? row.expenseAccountId,
+          expenseAccountName: selectedExpenseAccount?.name ?? row.expenseAccountName,
           description: state?.description ?? row.description,
           notes: state?.notes ?? row.notes ?? '',
           quantity,
@@ -264,7 +404,7 @@ export default function TransactionLineItemsSection({
           openQuantity: Math.max(0, quantity - row.receivedQuantity),
         }
       }),
-    [editing, editableRows, orderedRows, itemOptions]
+    [accountOptions, editing, editableRows, orderedRows, itemOptions]
   )
 
   const draftRowsForSave = useMemo(
@@ -273,7 +413,9 @@ export default function TransactionLineItemsSection({
         const quantity = parseQuantity(row.quantity, 1, 1)
         const unitPrice = parseMoneyValue(row.unitPrice)
         return {
+          lineType: row.lineType,
           itemId: row.itemRecordId,
+          expenseAccountId: row.expenseAccountRecordId,
           description: row.description,
           notes: row.notes || null,
           quantity,
@@ -287,13 +429,152 @@ export default function TransactionLineItemsSection({
   const total = sumMoney([...displayRows, ...draftRowsForSave].map((row) => row.lineTotal))
   const totalCount = rows.length + draftRows.length
 
+  const columnAutoWidths = useMemo(() => {
+    const widths: Partial<Record<TransactionLineColumnKey, number>> = {}
+    const itemDisplayMode = editing
+      ? lineColumnCustomization?.['item-id']?.editDisplay ?? 'idAndLabel'
+      : lineColumnCustomization?.['item-id']?.viewDisplay ?? 'idAndLabel'
+    const accountDisplayMode = editing
+      ? lineColumnCustomization?.['expense-account']?.editDisplay ?? 'idAndLabel'
+      : lineColumnCustomization?.['expense-account']?.viewDisplay ?? 'idAndLabel'
+
+    for (const [columnId, limits] of Object.entries(AUTO_FIT_COLUMN_LIMITS) as Array<
+      [TransactionLineColumnKey, { min: number; max: number }]
+    >) {
+      const values: Array<string | null | undefined> = [COLUMN_DEFINITIONS.find((column) => column.id === columnId)?.label]
+
+      for (const row of displayRows) {
+        switch (columnId) {
+          case 'line':
+            values.push(String(row.displayOrder))
+            break
+          case 'line-type':
+            values.push(row.lineType === 'expense' ? 'Expense' : 'Item')
+            break
+          case 'item-id':
+            values.push(row.lineType === 'expense' ? '' : formatLookupValue(row.itemId, row.itemName, itemDisplayMode))
+            break
+          case 'expense-account':
+            values.push(
+              row.lineType === 'expense'
+                ? formatLookupValue(row.expenseAccountId, row.expenseAccountName, accountDisplayMode)
+                : '-',
+            )
+            break
+          case 'description':
+            values.push(row.description)
+            break
+          case 'quantity':
+            values.push(String(row.quantity))
+            break
+          case 'received-qty':
+            values.push(String(row.receivedQuantity))
+            break
+          case 'billed-qty':
+            values.push(String(row.billedQuantity))
+            break
+          case 'open-qty':
+            values.push(String(row.openQuantity))
+            break
+          case 'unit-price':
+            values.push(fmtCurrency(row.unitPrice, currencyCode ?? undefined))
+            break
+          case 'line-total':
+            values.push(fmtCurrency(row.lineTotal, currencyCode ?? undefined))
+            break
+          case 'notes':
+            values.push(row.notes ?? '-')
+            break
+        }
+      }
+
+      for (const draftRow of draftRows) {
+        switch (columnId) {
+          case 'line':
+            values.push(String(rows.length + 1))
+            break
+          case 'line-type':
+            values.push(draftRow.lineType === 'expense' ? 'Expense' : 'Item')
+            break
+          case 'item-id':
+            values.push(draftRow.lineType === 'expense' ? '' : draftRow.itemSearch || 'Select or search item')
+            break
+          case 'expense-account':
+            values.push(
+              draftRow.lineType === 'expense'
+                ? draftRow.expenseAccountSearch || 'Select expense account'
+                : '-',
+            )
+            break
+          case 'description':
+            values.push(draftRow.description || 'Description')
+            break
+          case 'quantity':
+            values.push(String(parseQuantity(draftRow.quantity, 1, 1)))
+            break
+          case 'received-qty':
+          case 'billed-qty':
+            values.push('0')
+            break
+          case 'open-qty':
+            values.push(String(parseQuantity(draftRow.quantity, 1, 1)))
+            break
+          case 'unit-price':
+            values.push(fmtCurrency(parseMoneyValue(draftRow.unitPrice), currencyCode ?? undefined))
+            break
+          case 'line-total':
+            values.push(fmtCurrency(calcLineTotal(parseQuantity(draftRow.quantity, 1, 1), draftRow.unitPrice), currencyCode ?? undefined))
+            break
+          case 'notes':
+            values.push(draftRow.notes || 'Notes')
+            break
+        }
+      }
+
+      widths[columnId] = estimateAutoFitWidth({
+        values,
+        min: limits.min,
+        max: limits.max,
+      })
+    }
+
+    return widths
+  }, [currencyCode, displayRows, draftRows, editing, lineColumnCustomization, rows.length])
+
+  const getColumnLayout = useCallback(
+    (columnId: TransactionLineColumnKey) => {
+      const base = BASE_COLUMN_LAYOUT[columnId]
+      const widthMode = lineColumnCustomization?.[columnId]?.widthMode ?? 'auto'
+      const contentWidth = columnAutoWidths[columnId]
+      const baseWidth = FIXED_WIDTH_COLUMNS[columnId] ?? contentWidth ?? base.width
+      const width =
+        widthMode === 'auto'
+          ? baseWidth ?? 120
+          : widthMode === 'compact'
+            ? Math.max(72, Math.round((baseWidth ?? 140) * 0.7))
+            : widthMode === 'wide'
+              ? Math.round((baseWidth ?? 140) * 1.35)
+              : baseWidth
+
+      return { ...base, width, pinned: false }
+    },
+    [columnAutoWidths, lineColumnCustomization],
+  )
+
   function getExistingRowState(row: PurchaseOrderLineItemRow): EditableRowState {
     return editableRows[row.id] ?? {
+      lineType: row.lineType ?? 'item',
       itemRecordId: row.itemRecordId,
       itemSearch: formatLookupValue(
         row.itemId,
         row.itemName,
         lineColumnCustomization?.['item-id']?.editDisplay ?? 'idAndLabel',
+      ),
+      expenseAccountRecordId: row.expenseAccountRecordId ?? null,
+      expenseAccountSearch: formatLookupValue(
+        row.expenseAccountId,
+        row.expenseAccountName,
+        lineColumnCustomization?.['expense-account']?.editDisplay ?? 'idAndLabel',
       ),
       description: row.description,
       notes: row.notes ?? '',
@@ -320,7 +601,9 @@ export default function TransactionLineItemsSection({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          lineType: state.lineType,
           itemId: state.itemRecordId,
+          expenseAccountId: state.expenseAccountRecordId,
           description: state.description,
           notes: state.notes || null,
           quantity: state.quantity,
@@ -362,8 +645,11 @@ export default function TransactionLineItemsSection({
       ...prev,
       {
         id: `draft-${Date.now()}-${prev.length}`,
+        lineType: 'item',
         itemRecordId: null,
         itemSearch: '',
+        expenseAccountRecordId: null,
+        expenseAccountSearch: '',
         description: '',
         notes: '',
         quantity: '1',
@@ -384,7 +670,9 @@ export default function TransactionLineItemsSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           [parentIdFieldName]: purchaseOrderId,
+          lineType: state.lineType,
           itemId: state.itemRecordId,
+          expenseAccountId: state.expenseAccountRecordId,
           description: state.description,
           notes: state.notes || null,
           quantity: state.quantity,
@@ -470,11 +758,11 @@ export default function TransactionLineItemsSection({
 
   return (
     <div
-      className="mb-6 overflow-hidden rounded-xl border"
+      className="relative z-0 mb-6 overflow-hidden rounded-xl border"
       style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}
     >
       <div
-        className="flex items-center justify-between gap-3 border-b px-6 py-4"
+        className="relative z-30 flex items-center justify-between gap-3 border-b px-6 py-4"
         style={{ borderColor: 'var(--border-muted)' }}
       >
         <div className="flex items-center gap-2">
@@ -500,7 +788,7 @@ export default function TransactionLineItemsSection({
               Add Line
             </button>
           ) : null}
-          <span className="text-xs font-semibold text-white">Total {fmtCurrency(total)}</span>
+          <span className="text-xs font-semibold text-white">Total {fmtCurrency(total, currencyCode ?? undefined)}</span>
           <span
             className="rounded-full px-2.5 py-0.5 text-xs font-medium"
             style={{
@@ -510,7 +798,6 @@ export default function TransactionLineItemsSection({
           >
             {totalCount}
           </span>
-          <ColumnSelector tableId={tableId} columns={columns.map((column) => ({ ...column }))} />
         </div>
       </div>
 
@@ -520,8 +807,8 @@ export default function TransactionLineItemsSection({
         </p>
       ) : (
         <>
-          <div id={tableId} className="overflow-x-auto overflow-y-visible" data-column-selector-table={tableId}>
-            <table className="min-w-[1200px] w-full" data-disable-filter-sort="true" style={{ fontSize: tableFontSize }}>
+          <div id={tableId} className="relative z-0 overflow-x-auto overflow-y-hidden" data-column-selector-table={tableId}>
+            <table className="min-w-max w-max" data-disable-filter-sort="true" data-line-items-table="true" style={{ fontSize: tableFontSize }}>
               <thead>
                 <tr>
                   {orderedVisibleLineColumns.map((column) => {
@@ -582,7 +869,9 @@ export default function TransactionLineItemsSection({
                               state,
                               updateExistingRow,
                               itemOptions,
+                              accountOptions,
                               lineColumnCustomization,
+                              currencyCode,
                               tableInputClass,
                             })}
                           </BodyCell>
@@ -642,7 +931,9 @@ export default function TransactionLineItemsSection({
                                   draftRow,
                                   updateDraftRow,
                                   itemOptions,
+                                  accountOptions,
                                   lineColumnCustomization,
+                                  currencyCode,
                                   tableInputClass,
                                 })}
                               </BodyCell>
@@ -687,7 +978,7 @@ export default function TransactionLineItemsSection({
                         {column.id === 'line' ? (
                           <span className="font-semibold text-white">Total</span>
                         ) : column.id === 'line-total' ? (
-                          <span className="font-semibold text-white">{fmtCurrency(total)}</span>
+                          <span className="font-semibold text-white">{fmtCurrency(total, currencyCode ?? undefined)}</span>
                         ) : null}
                       </FooterCell>
                     )
@@ -704,8 +995,8 @@ export default function TransactionLineItemsSection({
 }
 
 function getPinnedLeft(
-  visibleColumns: Array<{ id: PurchaseOrderLineColumnKey | 'notes' }>,
-  columnId: PurchaseOrderLineColumnKey | 'notes'
+  visibleColumns: Array<{ id: TransactionLineColumnKey }>,
+  columnId: TransactionLineColumnKey
 ) {
   let offset = 0
   for (const column of visibleColumns) {
@@ -725,31 +1016,100 @@ function renderLineCell({
   state,
   updateExistingRow,
   itemOptions,
+  accountOptions,
   lineColumnCustomization,
+  currencyCode,
   tableInputClass,
 }: {
-  columnId: PurchaseOrderLineColumnKey | 'notes'
+  columnId: TransactionLineColumnKey
   row: PurchaseOrderLineItemRow
   rowIndex: number
   editing: boolean
   state: EditableRowState
   updateExistingRow: (row: PurchaseOrderLineItemRow, updates: Partial<EditableRowState>) => void
   itemOptions: ItemOption[]
+  accountOptions: AccountOption[]
   lineColumnCustomization?: LineColumnSettings
+  currencyCode?: string | null
   tableInputClass: string
 }) {
   const itemEditDisplay = lineColumnCustomization?.['item-id']?.editDisplay ?? 'idAndLabel'
   const itemViewDisplay = lineColumnCustomization?.['item-id']?.viewDisplay ?? 'idAndLabel'
   const itemDropdownDisplay = lineColumnCustomization?.['item-id']?.dropdownDisplay ?? 'idAndLabel'
   const itemDropdownSort = lineColumnCustomization?.['item-id']?.dropdownSort ?? 'id'
+  const accountEditDisplay = lineColumnCustomization?.['expense-account']?.editDisplay ?? 'idAndLabel'
+  const accountViewDisplay = lineColumnCustomization?.['expense-account']?.viewDisplay ?? 'idAndLabel'
+  const accountDropdownDisplay = lineColumnCustomization?.['expense-account']?.dropdownDisplay ?? 'idAndLabel'
+  const accountDropdownSort = lineColumnCustomization?.['expense-account']?.dropdownSort ?? 'id'
   const fullItemValue = formatLookupValue(row.itemId, row.itemName, 'idAndLabel')
+  const fullAccountValue = formatLookupValue(row.expenseAccountId, row.expenseAccountName, 'idAndLabel')
+  const itemInputWidth = estimateEditableControlWidth({
+    value: state.itemSearch,
+    min: 260,
+    max: 640,
+    fallback: 'Select or search item',
+  })
+  const expenseAccountInputWidth = estimateEditableControlWidth({
+    value: state.expenseAccountSearch,
+    min: 180,
+    max: 560,
+    fallback: 'Select expense account',
+  })
+  const descriptionInputWidth = estimateEditableControlWidth({
+    value: state.description,
+    min: 240,
+    max: 560,
+    fallback: 'Description',
+  })
+  const notesInputWidth = estimateEditableControlWidth({
+    value: state.notes,
+    min: 180,
+    max: 420,
+    fallback: 'Notes',
+  })
   switch (columnId) {
     case 'line':
       return rowIndex + 1
+    case 'line-type':
+      return editing ? (
+        <div className="w-28">
+          <SearchableSelect
+            selectedValue={state.lineType}
+            options={[
+              { value: 'item', label: 'Item', searchText: 'item' },
+              { value: 'expense', label: 'Expense', searchText: 'expense' },
+            ]}
+            placeholder="Select line type"
+            searchPlaceholder="Search line type"
+            dropdownWidthMode="trigger"
+            textClassName={tableInputClass}
+            onSelect={(value) => {
+              const nextType = value === 'expense' ? 'expense' : 'item'
+              updateExistingRow(row, nextType === 'expense'
+                ? {
+                    lineType: 'expense',
+                    itemRecordId: null,
+                    itemSearch: '',
+                    error: '',
+                  }
+                : {
+                    lineType: 'item',
+                    expenseAccountRecordId: null,
+                    expenseAccountSearch: '',
+                    error: '',
+                  })
+            }}
+          />
+        </div>
+      ) : (
+        row.lineType === 'expense' ? 'Expense' : 'Item'
+      )
     case 'item-id':
+      if (state.lineType === 'expense') return null
       return editing ? (
         <ItemLookupInput
           value={state.itemSearch}
+          widthPx={itemInputWidth}
           itemOptions={itemOptions}
           dropdownDisplay={itemDropdownDisplay}
           dropdownSort={itemDropdownSort}
@@ -769,20 +1129,64 @@ function renderLineCell({
           }}
         />
       ) : (
-        <span className="block truncate whitespace-nowrap" title={fullItemValue || '-'}>
+        <span className="block whitespace-nowrap" title={fullItemValue || '-'}>
           {formatLookupValue(row.itemId, row.itemName, itemViewDisplay) || '-'}
+        </span>
+      )
+    case 'expense-account':
+      if (editing) {
+        if (state.lineType !== 'expense') {
+          return <span style={{ color: 'var(--text-muted)' }}>-</span>
+        }
+        return (
+          <LookupInput
+            value={state.expenseAccountSearch}
+            widthPx={expenseAccountInputWidth}
+            options={accountOptions.map((account) => ({
+              id: account.id,
+              value: account.accountNumber ?? account.accountId,
+              label: account.name,
+            }))}
+            dropdownDisplay={accountDropdownDisplay}
+            dropdownSort={accountDropdownSort}
+            inputClassName={tableInputClass}
+            placeholder="Select expense account"
+            onChange={(value) => {
+              updateExistingRow(row, {
+                expenseAccountRecordId: null,
+                expenseAccountSearch: value,
+                error: '',
+              })
+            }}
+            onSelect={(account) => {
+              updateExistingRow(row, {
+                ...buildExpenseAccountSelectionUpdates({
+                  id: account.id,
+                  accountId: account.value,
+                  accountNumber: account.value,
+                  name: account.label,
+                }),
+                expenseAccountSearch: formatLookupValue(account.value, account.label, accountEditDisplay),
+              })
+            }}
+          />
+        )
+      }
+      return (
+        <span className="block whitespace-nowrap" title={fullAccountValue || '-'}>
+          {row.lineType === 'expense' ? formatLookupValue(row.expenseAccountId, row.expenseAccountName, accountViewDisplay) || '-' : '-'}
         </span>
       )
     case 'description':
       return editing ? (
-        <div className="space-y-1">
+        <div className="inline-flex flex-col items-start space-y-1">
           <input
             value={state.description}
             onChange={(event) => updateExistingRow(row, { description: event.target.value, error: '' })}
-            disabled={state.itemRecordId != null}
+            disabled={state.lineType === 'item' && state.itemRecordId != null}
             title={state.description}
-            className={`w-full rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
-            style={{ borderColor: 'var(--border-muted)' }}
+            className={`rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
+            style={{ borderColor: 'var(--border-muted)', width: `${descriptionInputWidth}px` }}
           />
           {state.error ? (
             <p className="text-xs" style={{ color: 'var(--danger)' }}>
@@ -791,7 +1195,7 @@ function renderLineCell({
           ) : null}
         </div>
       ) : (
-        <span className="block truncate whitespace-nowrap" title={row.description} style={{ color: 'var(--text-secondary)' }}>{row.description}</span>
+        <span className="block whitespace-nowrap" title={row.description} style={{ color: 'var(--text-secondary)' }}>{row.description}</span>
       )
     case 'notes':
       return editing ? (
@@ -799,11 +1203,11 @@ function renderLineCell({
           value={state.notes}
           onChange={(event) => updateExistingRow(row, { notes: event.target.value, error: '' })}
           title={state.notes}
-          className={`w-full rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
-          style={{ borderColor: 'var(--border-muted)' }}
+          className={`rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
+          style={{ borderColor: 'var(--border-muted)', width: `${notesInputWidth}px` }}
         />
       ) : (
-        <span className="block truncate whitespace-nowrap" title={row.notes ?? '-'} style={{ color: 'var(--text-secondary)' }}>{row.notes ?? '-'}</span>
+        <span className="block whitespace-nowrap" title={row.notes ?? '-'} style={{ color: 'var(--text-secondary)' }}>{row.notes ?? '-'}</span>
       )
     case 'quantity':
       return editing ? (
@@ -836,10 +1240,10 @@ function renderLineCell({
           style={{ borderColor: 'var(--border-muted)' }}
         />
       ) : (
-        fmtCurrency(row.unitPrice)
+        fmtCurrency(row.unitPrice, currencyCode ?? undefined)
       )
     case 'line-total':
-      return <span className="font-semibold text-white">{fmtCurrency(row.lineTotal)}</span>
+      return <span className="font-semibold text-white">{fmtCurrency(row.lineTotal, currencyCode ?? undefined)}</span>
     default:
       return null
   }
@@ -853,29 +1257,97 @@ function renderDraftLineCell({
   draftRow,
   updateDraftRow,
   itemOptions,
+  accountOptions,
   lineColumnCustomization,
+  currencyCode,
   tableInputClass,
 }: {
-  columnId: PurchaseOrderLineColumnKey | 'notes'
+  columnId: TransactionLineColumnKey
   lineNumber: number
   quantity: number
   lineTotal: number
   draftRow: DraftRowState
   updateDraftRow: (draftId: string, updates: Partial<DraftRowState>) => void
   itemOptions: ItemOption[]
+  accountOptions: AccountOption[]
   lineColumnCustomization?: LineColumnSettings
+  currencyCode?: string | null
   tableInputClass: string
 }) {
   const itemEditDisplay = lineColumnCustomization?.['item-id']?.editDisplay ?? 'idAndLabel'
   const itemDropdownDisplay = lineColumnCustomization?.['item-id']?.dropdownDisplay ?? 'idAndLabel'
   const itemDropdownSort = lineColumnCustomization?.['item-id']?.dropdownSort ?? 'id'
+  const accountEditDisplay = lineColumnCustomization?.['expense-account']?.editDisplay ?? 'idAndLabel'
+  const accountDropdownDisplay = lineColumnCustomization?.['expense-account']?.dropdownDisplay ?? 'idAndLabel'
+  const accountDropdownSort = lineColumnCustomization?.['expense-account']?.dropdownSort ?? 'id'
+  const itemInputWidth = estimateEditableControlWidth({
+    value: draftRow.itemSearch,
+    min: 260,
+    max: 640,
+    fallback: 'Select or search item',
+  })
+  const expenseAccountInputWidth = estimateEditableControlWidth({
+    value: draftRow.expenseAccountSearch,
+    min: 180,
+    max: 560,
+    fallback: 'Select expense account',
+  })
+  const descriptionInputWidth = estimateEditableControlWidth({
+    value: draftRow.description,
+    min: 240,
+    max: 560,
+    fallback: 'Description',
+  })
+  const notesInputWidth = estimateEditableControlWidth({
+    value: draftRow.notes,
+    min: 180,
+    max: 420,
+    fallback: 'Notes',
+  })
   switch (columnId) {
     case 'line':
       return lineNumber
+    case 'line-type':
+      return (
+        <div className="w-28">
+          <SearchableSelect
+            selectedValue={draftRow.lineType}
+            options={[
+              { value: 'item', label: 'Item', searchText: 'item' },
+              { value: 'expense', label: 'Expense', searchText: 'expense' },
+            ]}
+            placeholder="Select line type"
+            searchPlaceholder="Search line type"
+            dropdownWidthMode="trigger"
+            textClassName={tableInputClass}
+            onSelect={(value) => {
+              const nextType = value === 'expense' ? 'expense' : 'item'
+              updateDraftRow(
+                draftRow.id,
+                nextType === 'expense'
+                  ? {
+                      lineType: 'expense',
+                      itemRecordId: null,
+                      itemSearch: '',
+                      error: '',
+                    }
+                  : {
+                      lineType: 'item',
+                      expenseAccountRecordId: null,
+                      expenseAccountSearch: '',
+                      error: '',
+                    },
+              )
+            }}
+          />
+        </div>
+      )
     case 'item-id':
+      if (draftRow.lineType === 'expense') return null
       return (
         <ItemLookupInput
           value={draftRow.itemSearch}
+          widthPx={itemInputWidth}
           itemOptions={itemOptions}
           dropdownDisplay={itemDropdownDisplay}
           dropdownSort={itemDropdownSort}
@@ -895,16 +1367,53 @@ function renderDraftLineCell({
           }}
         />
       )
+    case 'expense-account':
+      if (draftRow.lineType !== 'expense') {
+        return <span style={{ color: 'var(--text-muted)' }}>-</span>
+      }
+      return (
+        <LookupInput
+          value={draftRow.expenseAccountSearch}
+          widthPx={expenseAccountInputWidth}
+          options={accountOptions.map((account) => ({
+            id: account.id,
+            value: account.accountNumber ?? account.accountId,
+            label: account.name,
+          }))}
+          dropdownDisplay={accountDropdownDisplay}
+          dropdownSort={accountDropdownSort}
+          inputClassName={tableInputClass}
+          placeholder="Select expense account"
+          onChange={(value) => {
+            updateDraftRow(draftRow.id, {
+              expenseAccountRecordId: null,
+              expenseAccountSearch: value,
+              error: '',
+            })
+          }}
+          onSelect={(account) => {
+            updateDraftRow(draftRow.id, {
+              ...buildExpenseAccountSelectionUpdates({
+                id: account.id,
+                accountId: account.value,
+                accountNumber: account.value,
+                name: account.label,
+              }),
+              expenseAccountSearch: formatLookupValue(account.value, account.label, accountEditDisplay),
+            })
+          }}
+        />
+      )
     case 'description':
       return (
         <input
           value={draftRow.description}
           onChange={(event) => updateDraftRow(draftRow.id, { description: event.target.value, error: '' })}
-          disabled={draftRow.itemRecordId != null}
+          disabled={draftRow.lineType === 'item' && draftRow.itemRecordId != null}
           placeholder="Description"
           title={draftRow.description}
-          className={`w-full rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
-          style={{ borderColor: 'var(--border-muted)' }}
+          className={`rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
+          style={{ borderColor: 'var(--border-muted)', width: `${descriptionInputWidth}px` }}
         />
       )
     case 'notes':
@@ -914,8 +1423,8 @@ function renderDraftLineCell({
           onChange={(event) => updateDraftRow(draftRow.id, { notes: event.target.value, error: '' })}
           placeholder="Notes"
           title={draftRow.notes}
-          className={`w-full rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
-          style={{ borderColor: 'var(--border-muted)' }}
+          className={`rounded-md border bg-transparent px-2 py-1.5 text-white ${tableInputClass}`}
+          style={{ borderColor: 'var(--border-muted)', width: `${notesInputWidth}px` }}
         />
       )
     case 'quantity':
@@ -948,7 +1457,7 @@ function renderDraftLineCell({
         />
       )
     case 'line-total':
-      return <span className="font-semibold text-white">{fmtCurrency(lineTotal)}</span>
+      return <span className="font-semibold text-white">{fmtCurrency(lineTotal, currencyCode ?? undefined)}</span>
     default:
       return null
   }
@@ -1091,28 +1600,41 @@ function FieldTooltip({ content }: { content: string }) {
   )
 }
 
-function ItemLookupInput({
+type LookupOption = {
+  id: string
+  value: string
+  label: string
+}
+
+function LookupInput({
   value,
-  itemOptions,
+  widthPx,
+  options,
   dropdownDisplay,
   dropdownSort,
   inputClassName,
+  placeholder,
   onChange,
   onSelect,
 }: {
   value: string
-  itemOptions: ItemOption[]
+  widthPx?: number
+  options: LookupOption[]
   dropdownDisplay: LineDisplayMode
   dropdownSort: LineDropdownSortMode
   inputClassName: string
+  placeholder: string
   onChange: (value: string) => void
-  onSelect: (item: ItemOption) => void
+  onSelect: (option: LookupOption) => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
+  const [showAllOnOpen, setShowAllOnOpen] = useState(false)
+  const [blurRequest, setBlurRequest] = useState(0)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const selectedOptionRef = useRef<HTMLButtonElement | null>(null)
   const [dropdownStyle, setDropdownStyle] = useState<{
     bottom: number
     left: number
@@ -1149,6 +1671,7 @@ function ItemLookupInput({
       const target = event.target as Node
       if (!containerRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
         setOpen(false)
+        setShowAllOnOpen(false)
       }
     }
 
@@ -1158,36 +1681,67 @@ function ItemLookupInput({
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    return [...itemOptions]
+    const sorted = [...options]
       .sort((left, right) =>
-        getItemSortValue(left, dropdownSort).localeCompare(getItemSortValue(right, dropdownSort), undefined, {
+        getLookupSortValue(left, dropdownSort).localeCompare(getLookupSortValue(right, dropdownSort), undefined, {
           sensitivity: 'base',
           numeric: true,
         })
       )
-      .filter((item) => `${item.itemId} ${item.name}`.toLowerCase().includes(normalizedQuery))
-  }, [dropdownSort, itemOptions, query])
+    if (showAllOnOpen && !normalizedQuery) return sorted
+    if (!normalizedQuery) return sorted
+    return sorted.filter((option) => `${option.value} ${option.label}`.toLowerCase().includes(normalizedQuery))
+  }, [dropdownSort, options, query, showAllOnOpen])
+
+  useEffect(() => {
+    if (!open) return
+    selectedOptionRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [open, query, value])
+
+  useEffect(() => {
+    if (blurRequest === 0) return
+    if (!inputRef.current) return
+    inputRef.current.blur()
+    requestAnimationFrame(() => {
+      if (inputRef.current) inputRef.current.scrollLeft = 0
+    })
+  }, [blurRequest])
 
   return (
-    <div ref={containerRef} className="relative z-50">
+    <div ref={containerRef} className="relative inline-block" style={widthPx ? { width: `${widthPx}px` } : undefined}>
       <div className="relative">
         <input
           ref={inputRef}
-          value={open ? query : value}
+          value={open ? (showAllOnOpen && !query ? value : query) : value}
           onFocus={() => {
             setOpen(true)
-            setQuery(value)
+            setQuery('')
+            setShowAllOnOpen(true)
+          }}
+          onMouseDown={() => {
+            if (open) return
+            setOpen(true)
+            setQuery('')
+            setShowAllOnOpen(true)
+          }}
+          onClick={() => {
+            if (open) return
+            setOpen(true)
+            setQuery('')
+            setShowAllOnOpen(true)
           }}
           onChange={(event) => {
             const nextQuery = event.target.value
             setQuery(nextQuery)
             onChange(nextQuery)
             setOpen(true)
+            setShowAllOnOpen(false)
           }}
-          placeholder="Select or search item"
-          title={value || 'Select or search item'}
-          className={`w-full rounded-md border bg-transparent px-2.5 py-1.5 pr-8 text-white ${inputClassName}`}
+          placeholder={placeholder}
+          title={value || placeholder}
+          className={`block rounded-md border bg-transparent px-2.5 py-1.5 pr-8 text-white ${inputClassName}`}
           style={{
+            width: widthPx ? `${widthPx}px` : undefined,
             borderColor: 'var(--border-muted)',
             color: 'white',
             backgroundColor: 'var(--card-elevated)',
@@ -1202,8 +1756,11 @@ function ItemLookupInput({
             const nextOpen = !open
             setOpen(nextOpen)
             if (nextOpen) {
-              setQuery(value)
+              setQuery('')
+              setShowAllOnOpen(true)
               inputRef.current?.focus()
+            } else {
+              setShowAllOnOpen(false)
             }
           }}
           className="absolute inset-y-0 right-0 flex w-8 items-center justify-center rounded-r-md"
@@ -1239,22 +1796,28 @@ function ItemLookupInput({
                 backgroundColor: 'var(--card-elevated)',
               }}
             >
-              {filtered.map((item) => (
+              {filtered.map((option) => (
                 <button
-                  key={item.id}
+                  key={option.id}
+                  ref={option.value === value ? selectedOptionRef : null}
                   type="button"
                   onMouseDown={(event) => {
                     event.preventDefault()
-                    onSelect(item)
-                    setQuery(formatLookupValue(item.itemId, item.name, dropdownDisplay))
+                    onSelect(option)
+                    setQuery(formatLookupValue(option.value, option.label, dropdownDisplay))
                     setOpen(false)
+                    setShowAllOnOpen(false)
+                    setBlurRequest((current) => current + 1)
                   }}
                   className={`block w-full whitespace-nowrap px-2.5 py-1.5 text-left hover:bg-white/5 ${inputClassName}`}
-                  style={{ color: 'var(--text-secondary)' }}
-                  title={formatLookupValue(item.itemId, item.name, 'idAndLabel')}
+                  style={{
+                    color: option.value === value ? 'white' : 'var(--text-secondary)',
+                    backgroundColor: option.value === value ? 'rgba(59,130,246,0.18)' : 'transparent',
+                  }}
+                  title={formatLookupValue(option.value, option.label, 'idAndLabel')}
                 >
                   <span className="block truncate whitespace-nowrap">
-                    {formatLookupValue(item.itemId, item.name, dropdownDisplay)}
+                    {formatLookupValue(option.value, option.label, dropdownDisplay)}
                   </span>
                 </button>
               ))}
@@ -1263,5 +1826,46 @@ function ItemLookupInput({
           )
         : null}
     </div>
+  )
+}
+
+function ItemLookupInput({
+  value,
+  widthPx,
+  itemOptions,
+  dropdownDisplay,
+  dropdownSort,
+  inputClassName,
+  onChange,
+  onSelect,
+}: {
+  value: string
+  widthPx?: number
+  itemOptions: ItemOption[]
+  dropdownDisplay: LineDisplayMode
+  dropdownSort: LineDropdownSortMode
+  inputClassName: string
+  onChange: (value: string) => void
+  onSelect: (item: ItemOption) => void
+}) {
+  return (
+    <LookupInput
+      value={value}
+      widthPx={widthPx}
+      options={itemOptions.map((item) => ({
+        id: item.id,
+        value: item.itemId,
+        label: item.name,
+      }))}
+      dropdownDisplay={dropdownDisplay}
+      dropdownSort={dropdownSort}
+      inputClassName={inputClassName}
+      placeholder="Select or search item"
+      onChange={onChange}
+      onSelect={(option) => {
+        const selected = itemOptions.find((item) => item.id === option.id)
+        if (selected) onSelect(selected)
+      }}
+    />
   )
 }

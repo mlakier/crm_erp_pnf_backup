@@ -14,6 +14,7 @@ import {
   type SavedSearchEmailSchedule,
   type SavedSearchFieldOption,
   type SavedSearchFilterDefinition,
+  type SavedSearchLinkedResultSource,
   type SavedSearchTableMetadata,
 } from '@/lib/saved-search-metadata'
 import type { SavedSearchBuiltInBaseline } from '@/lib/saved-search-builtins-store'
@@ -35,6 +36,13 @@ type DirectoryOption = {
 }
 
 type EditorTab = 'criteria' | 'results' | 'audience' | 'roles' | 'emails'
+const EDITOR_TABS: Array<[EditorTab, string]> = [
+  ['results', 'Results'],
+  ['criteria', 'Criteria'],
+  ['audience', 'Audience'],
+  ['roles', 'Roles'],
+  ['emails', 'Emails'],
+]
 
 const BUILT_IN_VIEW_ID = '__built-in-default'
 const ADD_NEW_VIEW_ID = '__add-new-view'
@@ -61,7 +69,6 @@ const EMAIL_FILE_TYPE_OPTIONS = [
 ]
 
 const BUILT_IN_DEFAULT_VISIBLE_COUNT = 8
-
 function buildTopValueVisibleIds<T extends { id: string; locked?: boolean; defaultVisible?: boolean }>(fields: T[]) {
   const lockedIds = fields.filter((field) => field.locked).map((field) => field.id)
   const lockedIdsThatCountTowardBuiltIn = lockedIds.filter((id) => id !== 'actions')
@@ -85,8 +92,16 @@ function buildDefaultColumnState(metadata: SavedSearchTableMetadata) {
 }
 
 function buildDefaultResultFieldState(resultFields: SavedSearchFieldOption[]) {
-  const visibleFieldIds = buildTopValueVisibleIds(resultFields)
   const lockedFieldIds = resultFields.filter((field) => field.locked).map((field) => field.id)
+  const lockedIdsThatCountTowardBuiltIn = lockedFieldIds.filter((id) => id !== 'actions')
+  const maxUnlockedVisible = Math.max(0, BUILT_IN_DEFAULT_VISIBLE_COUNT - lockedIdsThatCountTowardBuiltIn.length)
+  const visibleFieldIds = [
+    ...lockedFieldIds,
+    ...resultFields
+      .filter((field) => !field.locked && field.id !== 'actions' && field.defaultVisible === true)
+      .slice(0, maxUnlockedVisible)
+      .map((field) => field.id),
+  ]
   const unlockedOrder = resultFields.filter((field) => !field.locked).map((field) => field.id)
   return {
     visibleFieldIds,
@@ -95,9 +110,28 @@ function buildDefaultResultFieldState(resultFields: SavedSearchFieldOption[]) {
   }
 }
 
+function ensureLockedResultVisibility(visibleColumnIds: string[], resultFields: SavedSearchFieldOption[]) {
+  const lockedIds = resultFields.filter((field) => field.locked).map((field) => field.id)
+  const seen = new Set<string>()
+  const next: string[] = []
+
+  for (const id of [...lockedIds, ...visibleColumnIds]) {
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    next.push(id)
+  }
+
+  return next
+}
+
 function buildEditorMetadata(tableId: string, raw: Partial<SavedSearchTableMetadata> | null): SavedSearchTableMetadata {
   const columns = Array.isArray(raw?.columns) ? raw.columns : []
   const filters = Array.isArray(raw?.filters) ? raw.filters : []
+  const linkedResultSources =
+    Array.isArray(raw?.linkedResultSources) && raw.linkedResultSources.length > 0
+      ? raw.linkedResultSources
+      : []
+  const linkedFieldIds = new Set(linkedResultSources.flatMap((source) => source.fields.map((field) => field.id)))
   const criteriaFields =
     Array.isArray(raw?.criteriaFields) && raw.criteriaFields.length > 0
       ? raw.criteriaFields
@@ -107,7 +141,7 @@ function buildEditorMetadata(tableId: string, raw: Partial<SavedSearchTableMetad
         ]
   const resultFields =
     Array.isArray(raw?.resultFields) && raw.resultFields.length > 0
-      ? raw.resultFields
+      ? raw.resultFields.filter((field) => !linkedFieldIds.has(field.id))
       : columns.map((column) => ({
           id: column.id,
           label: column.label,
@@ -125,6 +159,7 @@ function buildEditorMetadata(tableId: string, raw: Partial<SavedSearchTableMetad
     filters,
     criteriaFields,
     resultFields,
+    linkedResultSources,
   }
 }
 
@@ -193,7 +228,7 @@ export default function SavedSearchEditorClient({
   const [availableFilterIds, setAvailableFilterIds] = useState<string[]>([])
   const [definition, setDefinition] = useState<SavedSearchDefinitionState>(defaultSavedSearchDefinitionState())
   const [defaultSelectionId, setDefaultSelectionId] = useState(BUILT_IN_VIEW_ID)
-  const [activeTab, setActiveTab] = useState<EditorTab>('criteria')
+  const [activeTab, setActiveTab] = useState<EditorTab>('results')
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -202,6 +237,8 @@ export default function SavedSearchEditorClient({
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null)
   const [dragCriterionId, setDragCriterionId] = useState<string | null>(null)
   const [dragOverCriterionId, setDragOverCriterionId] = useState<string | null>(null)
+  const [linkedSourceToAdd, setLinkedSourceToAdd] = useState('')
+  const [linkedFieldToAdd, setLinkedFieldToAdd] = useState('')
   const initialMetadataRef = useRef(initialMetadata)
   const requestedViewId = searchParams.get('view')?.trim() ?? ''
 
@@ -283,7 +320,7 @@ export default function SavedSearchEditorClient({
   const columns = useMemo(() => metadata?.columns ?? [], [metadata])
   const filters = useMemo(() => metadata?.filters ?? [], [metadata])
   const criteriaFields = useMemo(() => metadata?.criteriaFields ?? [], [metadata])
-  const resultFields = useMemo(() => metadata?.resultFields ?? columns.map((column) => ({
+  const baseResultFields = useMemo(() => metadata?.resultFields ?? columns.map((column) => ({
     id: column.id,
     label: column.label,
     source: 'Current Page',
@@ -291,13 +328,29 @@ export default function SavedSearchEditorClient({
     defaultVisible: column.defaultVisible,
     locked: column.locked,
   })), [columns, metadata])
+  const linkedResultSources = useMemo<SavedSearchLinkedResultSource[]>(() => metadata?.linkedResultSources ?? [], [metadata])
+  const linkedResultFieldMap = useMemo(() => new Map(
+    linkedResultSources.flatMap((source) => source.fields.map((field) => [field.id, field] as const)),
+  ), [linkedResultSources])
+  const activeAddedLinkedFields = useMemo(
+    () => definition.results.addedLinkedFieldIds.map((id) => linkedResultFieldMap.get(id)).filter((field): field is SavedSearchFieldOption => Boolean(field)),
+    [definition.results.addedLinkedFieldIds, linkedResultFieldMap],
+  )
+  const resultFields = useMemo(() => {
+    const seen = new Set<string>()
+    return [...baseResultFields, ...activeAddedLinkedFields].filter((field) => {
+      if (seen.has(field.id)) return false
+      seen.add(field.id)
+      return true
+    })
+  }, [activeAddedLinkedFields, baseResultFields])
   const defaultColumnState = useMemo(
     () => (metadata ? buildDefaultColumnState(metadata) : { visibleColumnIds: [], lockedColumnIds: [], unlockedOrder: [] }),
     [metadata],
   )
   const defaultResultFieldState = useMemo(
-    () => buildDefaultResultFieldState(resultFields),
-    [resultFields],
+    () => buildDefaultResultFieldState(baseResultFields),
+    [baseResultFields],
   )
   const lockedResultFields = useMemo(
     () => resultFields.filter((field) => defaultResultFieldState.lockedFieldIds.includes(field.id)),
@@ -311,18 +364,23 @@ export default function SavedSearchEditorClient({
     const remaining = resultFields.filter((field) => !field.locked && !ordered.some((entry) => entry.id === field.id))
     return [...ordered, ...remaining]
   }, [columnOrder, resultFields])
-  const pageColumnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns])
   const livePageResultFields = useMemo(
-    () => resultFields.filter((field) => pageColumnIds.has(field.id) && field.id !== 'actions'),
-    [pageColumnIds, resultFields],
+    () => resultFields.filter((field) => field.id !== 'actions'),
+    [resultFields],
+  )
+  const effectiveVisibleColumnIds = useMemo(
+    () => ensureLockedResultVisibility(visibleColumnIds, resultFields),
+    [resultFields, visibleColumnIds],
   )
   const livePageVisibleResultCount = useMemo(
-    () => livePageResultFields.filter((field) => visibleColumnIds.includes(field.id)).length,
-    [livePageResultFields, visibleColumnIds],
+    () => livePageResultFields.filter((field) => effectiveVisibleColumnIds.includes(field.id)).length,
+    [effectiveVisibleColumnIds, livePageResultFields],
   )
+  const resultFieldSummaryTotal = livePageResultFields.length
+  const resultFieldSummaryVisible = livePageVisibleResultCount
   const joinedOutputFieldCount = useMemo(
-    () => visibleColumnIds.filter((id) => !pageColumnIds.has(id)).length,
-    [pageColumnIds, visibleColumnIds],
+    () => activeAddedLinkedFields.length,
+    [activeAddedLinkedFields],
   )
   const allAudienceInternalRolesSelected =
     roles.length > 0 && roles.every((role) => definition.audience.internalRoleIds.includes(role.id))
@@ -348,6 +406,18 @@ export default function SavedSearchEditorClient({
     [availableFilterIds, definition, filters, metadata],
   )
   const isAddNewMode = selectedViewId === ADD_NEW_VIEW_ID
+  const selectedLinkedSource = useMemo(
+    () => linkedResultSources.find((source) => source.id === linkedSourceToAdd) ?? null,
+    [linkedResultSources, linkedSourceToAdd],
+  )
+  const linkedFieldAddOptions = useMemo(
+    () => (selectedLinkedSource?.fields ?? []).map((field) => ({
+      value: field.id,
+      label: field.label,
+      searchText: `${field.label} ${field.source ?? ''} ${field.group ?? ''}`,
+    })),
+    [selectedLinkedSource],
+  )
   const cancelHref = useMemo(() => {
     if (!metadata) return '/'
     const next = new URLSearchParams()
@@ -375,6 +445,33 @@ export default function SavedSearchEditorClient({
     return criteriaFields.find((field) => field.id === fieldId) ?? null
   }
 
+  const criteriaIntroText = linkedResultSources.length > 0
+    ? 'Build the page-level saved-search logic here. These criteria sit above the page filter bar for this page and can target both current-page fields and linked-record fields.'
+    : 'Build the page-level saved-search logic here. These criteria sit above the page filter bar for this page and target the current page fields.'
+
+  const resultsIntroText = linkedResultSources.length > 0
+    ? 'Current page fields live here by default. Added linked-record fields can also appear here once you bring them in below. Locked fields stay at the top, and you can drag the rest into the order you want.'
+    : 'Current page fields live here. Locked fields stay at the top, and you can drag the remaining configurable fields into the order you want.'
+  const showResultTypeColumn = linkedResultSources.length > 0
+  const resultGridClassName = showResultTypeColumn
+    ? 'grid gap-3 rounded-lg border px-4 py-3 md:grid-cols-[2rem_minmax(0,1fr)_12rem_10rem_16rem_8rem]'
+    : 'grid gap-3 rounded-lg border px-4 py-3 md:grid-cols-[2rem_minmax(0,1fr)_12rem_10rem_16rem]'
+
+  function getResultFieldSourceLabel(column: SavedSearchFieldOption) {
+    const source = column.source?.trim()
+    const group = column.group?.trim().toLowerCase()
+    if (
+      !source ||
+      source === 'Current Page' ||
+      source === metadata?.title ||
+      group === 'base record' ||
+      group?.startsWith('base record')
+    ) {
+      return 'Base'
+    }
+    return source
+  }
+
   function applyBuiltInDefault(nextMetadata: SavedSearchTableMetadata) {
     const defaults = buildDefaultColumnState(nextMetadata)
     const defaultResults = buildDefaultResultFieldState(nextMetadata.resultFields ?? [])
@@ -393,7 +490,7 @@ export default function SavedSearchEditorClient({
     setName('')
     setVisibleColumnIds(
       baseline.columnIds.length > 0
-        ? baseline.columnIds
+        ? ensureLockedResultVisibility(baseline.columnIds, nextMetadata.resultFields ?? [])
         : (defaultResults.visibleFieldIds.length > 0 ? defaultResults.visibleFieldIds : defaults.visibleColumnIds),
     )
     setColumnOrder(
@@ -414,7 +511,11 @@ export default function SavedSearchEditorClient({
     const defaultResults = buildDefaultResultFieldState(nextMetadata.resultFields ?? [])
     setSelectedViewId(view.id)
     setName(view.name)
-    setVisibleColumnIds(view.columnIds.length > 0 ? view.columnIds : (defaultResults.visibleFieldIds.length > 0 ? defaultResults.visibleFieldIds : defaults.visibleColumnIds))
+    setVisibleColumnIds(
+      view.columnIds.length > 0
+        ? ensureLockedResultVisibility(view.columnIds, nextMetadata.resultFields ?? [])
+        : (defaultResults.visibleFieldIds.length > 0 ? defaultResults.visibleFieldIds : defaults.visibleColumnIds),
+    )
     setColumnOrder(view.columnOrder.length > 0 ? view.columnOrder : (defaultResults.unlockedOrder.length > 0 ? defaultResults.unlockedOrder : defaults.unlockedOrder))
     setAvailableFilterIds(Array.isArray(view.availableFilterIds) ? view.availableFilterIds : nextMetadata.filters.map((filter) => filter.id))
     setDefinition(sanitizeSavedSearchDefinitionState(view.filterState))
@@ -438,11 +539,15 @@ export default function SavedSearchEditorClient({
 
   function toggleColumn(columnId: string) {
     if (defaultColumnState.lockedColumnIds.includes(columnId)) return
-    setVisibleColumnIds((current) =>
-      current.includes(columnId)
+    setVisibleColumnIds((current) => {
+      return current.includes(columnId)
         ? current.filter((id) => id !== columnId)
-        : [...current, columnId],
-    )
+        : [...current, columnId]
+    })
+  }
+
+  function showAllResultColumns() {
+    setVisibleColumnIds(resultFields.map((field) => field.id))
   }
 
   function updateColumnLabel(columnId: string, value: string) {
@@ -456,6 +561,39 @@ export default function SavedSearchEditorClient({
         },
       },
     }))
+  }
+
+  function addLinkedResultField() {
+    if (!linkedFieldToAdd) return
+    const linkedField = linkedResultFieldMap.get(linkedFieldToAdd)
+    if (!linkedField) return
+    setDefinition((current) => ({
+      ...current,
+      results: {
+        ...current.results,
+        addedLinkedFieldIds: current.results.addedLinkedFieldIds.includes(linkedField.id)
+          ? current.results.addedLinkedFieldIds
+          : [...current.results.addedLinkedFieldIds, linkedField.id],
+      },
+    }))
+    setVisibleColumnIds((current) => (current.includes(linkedField.id) ? current : [...current, linkedField.id]))
+    setColumnOrder((current) => (current.includes(linkedField.id) ? current : [...current, linkedField.id]))
+    setLinkedSourceToAdd('')
+    setLinkedFieldToAdd('')
+  }
+
+  function removeLinkedResultField(fieldId: string) {
+    setDefinition((current) => ({
+      ...current,
+      results: {
+        ...current.results,
+        addedLinkedFieldIds: current.results.addedLinkedFieldIds.filter((id) => id !== fieldId),
+        columnLabels: Object.fromEntries(Object.entries(current.results.columnLabels).filter(([id]) => id !== fieldId)),
+        columnPinning: {},
+      },
+    }))
+    setVisibleColumnIds((current) => current.filter((id) => id !== fieldId))
+    setColumnOrder((current) => current.filter((id) => id !== fieldId))
   }
 
   function addCriterion() {
@@ -663,6 +801,14 @@ export default function SavedSearchEditorClient({
     setErrorMessage(null)
     setStatusMessage('Saving...')
     try {
+      const normalizedDefinition: SavedSearchDefinitionState = {
+        ...definition,
+        results: {
+          ...definition.results,
+          columnPinning: {},
+        },
+      }
+      setDefinition(normalizedDefinition)
       if (selectedViewId === BUILT_IN_VIEW_ID && !canEditBuiltIn) {
         throw new Error('Only administrators can update Page Default.')
       }
@@ -678,9 +824,9 @@ export default function SavedSearchEditorClient({
           id: !isAddNewMode && selectedViewId !== BUILT_IN_VIEW_ID ? selectedViewId : undefined,
           tableId,
           name: nextName,
-          columnIds: visibleColumnIds,
+          columnIds: effectiveVisibleColumnIds,
           columnOrder,
-          filterState: definition,
+          filterState: normalizedDefinition,
           availableFilterIds,
           isDefault: nextIsDefault,
         }),
@@ -886,7 +1032,7 @@ export default function SavedSearchEditorClient({
               <dl className="mt-3 grid gap-2 text-sm">
                 <div className="flex items-center justify-between">
                   <dt style={{ color: 'var(--text-secondary)' }}>Result Fields</dt>
-                  <dd className="text-white">{visibleColumnIds.length} of {resultFields.length}</dd>
+                  <dd className="text-white">{resultFieldSummaryVisible} of {resultFieldSummaryTotal}</dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt style={{ color: 'var(--text-secondary)' }}>Live Page Columns</dt>
@@ -917,13 +1063,7 @@ export default function SavedSearchEditorClient({
 
         <div className="border-b" style={{ borderColor: 'var(--border-muted)' }}>
           <nav className="flex flex-wrap items-center gap-2">
-            {[
-              ['criteria', 'Criteria'],
-              ['results', 'Results'],
-              ['audience', 'Audience'],
-              ['roles', 'Roles'],
-              ['emails', 'Emails'],
-            ].map(([id, label]) => {
+            {EDITOR_TABS.map(([id, label]) => {
               const tabId = id as EditorTab
               return (
                 <button
@@ -952,7 +1092,7 @@ export default function SavedSearchEditorClient({
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Criteria</h2>
                 <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  Build the page-level saved-search logic here. These criteria sit above the page filter bar for this page and can target both current-page fields and joined-record fields.
+                  {criteriaIntroText}
                 </p>
               </div>
               <button
@@ -1100,25 +1240,39 @@ export default function SavedSearchEditorClient({
             <div className="mb-4">
               <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Results</h2>
               <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Base-page fields and joined-record fields both live here. Always-visible fields stay at the top, and you can drag the rest into the order you want.
+                {resultsIntroText}
               </p>
             </div>
 
             <div className="space-y-4">
+              <div className="flex justify-end">
+                <div className="w-56">
+                  <button
+                    type="button"
+                    onClick={showAllResultColumns}
+                    className="w-full rounded-md border px-3 py-2 text-sm font-medium"
+                    style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+                  >
+                    Show All
+                  </button>
+                </div>
+              </div>
+
               <div className="rounded-xl border" style={{ borderColor: 'var(--border-muted)' }}>
-                <div className="grid gap-3 border-b px-4 py-3 text-xs font-semibold uppercase tracking-wide md:grid-cols-[2rem_minmax(0,1fr)_12rem_10rem_16rem]" style={{ borderColor: 'var(--border-muted)', backgroundColor: 'var(--card-elevated)', color: 'var(--text-muted)' }}>
+                <div className={showResultTypeColumn ? 'grid gap-3 border-b px-4 py-3 text-xs font-semibold uppercase tracking-wide md:grid-cols-[2rem_minmax(0,1fr)_12rem_10rem_16rem_8rem]' : 'grid gap-3 border-b px-4 py-3 text-xs font-semibold uppercase tracking-wide md:grid-cols-[2rem_minmax(0,1fr)_12rem_10rem_16rem]'} style={{ borderColor: 'var(--border-muted)', backgroundColor: 'var(--card-elevated)', color: 'var(--text-muted)' }}>
                   <span />
                   <span>Result Field</span>
                   <span>Source</span>
                   <span>Visible</span>
                   <span>Custom Label</span>
+                  {showResultTypeColumn ? <span>Remove</span> : null}
                 </div>
 
                 <div className="space-y-2 p-3">
                   {lockedResultFields.map((column) => (
                     <div
                       key={column.id}
-                      className="grid gap-3 rounded-lg border px-4 py-3 md:grid-cols-[2rem_minmax(0,1fr)_12rem_10rem_16rem]"
+                      className={resultGridClassName}
                       style={{ borderColor: 'var(--border-muted)' }}
                     >
                       <span className="text-center text-xs" style={{ color: 'var(--text-muted)' }} aria-hidden>•</span>
@@ -1126,8 +1280,8 @@ export default function SavedSearchEditorClient({
                         <div className="text-sm font-medium text-white">{column.label}</div>
                         <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{column.group ?? 'Pinned field'}</div>
                       </div>
-                      <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{column.source ?? 'Current Page'}</div>
-                      <div className="flex items-center text-sm" style={{ color: 'var(--text-secondary)' }}>Pinned</div>
+                      <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{getResultFieldSourceLabel(column)}</div>
+                      <div className="flex items-center text-sm" style={{ color: 'var(--text-secondary)' }}>Always visible</div>
                       <input
                         value={definition.results.columnLabels[column.id] ?? ''}
                         onChange={(event) => updateColumnLabel(column.id, event.target.value)}
@@ -1135,11 +1289,16 @@ export default function SavedSearchEditorClient({
                         className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
                         style={{ borderColor: 'var(--border-muted)' }}
                       />
+                      {showResultTypeColumn ? (
+                        <div className="flex items-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                          Locked
+                        </div>
+                      ) : null}
                     </div>
                   ))}
 
                   {reorderableResultFields.map((column) => {
-                    const visible = visibleColumnIds.includes(column.id)
+                    const visible = effectiveVisibleColumnIds.includes(column.id)
                     const labelOverride = definition.results.columnLabels[column.id] ?? ''
                     const isDragging = dragColumnId === column.id
                     const isDragOver = dragOverColumnId === column.id && dragColumnId !== column.id
@@ -1150,14 +1309,16 @@ export default function SavedSearchEditorClient({
                         onDragStart={() => handleColumnDragStart(column.id)}
                         onDragOver={(event) => {
                           event.preventDefault()
-                          setDragOverColumnId(column.id)
+                          if (dragOverColumnId !== column.id) {
+                            setDragOverColumnId(column.id)
+                          }
                         }}
                         onDrop={() => handleColumnDrop(column.id)}
                         onDragEnd={() => {
                           setDragColumnId(null)
                           setDragOverColumnId(null)
                         }}
-                        className="grid gap-3 rounded-lg border px-4 py-3 md:grid-cols-[2rem_minmax(0,1fr)_12rem_10rem_16rem]"
+                        className={resultGridClassName}
                         style={{
                           borderColor: isDragOver ? 'var(--accent-primary-strong)' : 'var(--border-muted)',
                           opacity: isDragging ? 0.55 : 1,
@@ -1168,7 +1329,7 @@ export default function SavedSearchEditorClient({
                           <div className="text-sm font-medium text-white">{column.label}</div>
                           <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{column.group ?? 'Result field'} · {column.id}</div>
                         </div>
-                        <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{column.source ?? 'Current Page'}</div>
+                        <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{getResultFieldSourceLabel(column)}</div>
                         <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                           <input
                             type="checkbox"
@@ -1185,9 +1346,69 @@ export default function SavedSearchEditorClient({
                           className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
                           style={{ borderColor: 'var(--border-muted)' }}
                         />
+                        {showResultTypeColumn ? (
+                          <div className="flex items-center">
+                            {definition.results.addedLinkedFieldIds.includes(column.id) ? (
+                              <button
+                                type="button"
+                                onClick={() => removeLinkedResultField(column.id)}
+                                className="rounded-md border px-2 py-1 text-xs"
+                                style={{ borderColor: 'var(--border-muted)', color: 'var(--danger)' }}
+                              >
+                                Remove
+                              </button>
+                            ) : (
+                              <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Base</span>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     )
                   })}
+
+                  {linkedResultSources.length > 0 ? (
+                    <div
+                      className="grid gap-4 rounded-lg border px-4 py-3 md:grid-cols-[2rem_8rem_minmax(280px,1fr)_minmax(320px,1.2fr)_minmax(0,1fr)]"
+                      style={{ borderColor: 'var(--border-muted)' }}
+                    >
+                      <span />
+                      <div className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={addLinkedResultField}
+                          disabled={!linkedFieldToAdd}
+                          className="w-full rounded-md px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <div className="min-w-[280px]">
+                        <SearchableSelect
+                          selectedValue={linkedSourceToAdd}
+                          options={linkedResultSources.map((source) => ({ value: source.id, label: source.label }))}
+                          placeholder="Linked record"
+                          dropdownWidthMode="trigger"
+                          onSelect={(value) => {
+                            setLinkedSourceToAdd(value)
+                            setLinkedFieldToAdd('')
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-[320px]">
+                        <SearchableSelect
+                          selectedValue={linkedFieldToAdd}
+                          options={linkedFieldAddOptions}
+                          placeholder="Linked field"
+                          dropdownWidthMode="trigger"
+                          onSelect={setLinkedFieldToAdd}
+                        />
+                      </div>
+                      <div className="flex items-center text-sm" style={{ color: linkedFieldToAdd ? 'var(--text-muted)' : 'transparent' }}>
+                        {linkedFieldToAdd ? 'Added at end. Drag after add.' : ' '}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

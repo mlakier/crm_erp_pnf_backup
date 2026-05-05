@@ -71,6 +71,14 @@ export async function loadReceiptDetailCustomization(): Promise<ReceiptDetailCus
     return {
       ...defaults,
       ...parsed,
+      fields: {
+        ...defaults.fields,
+        ...(parsed.fields ?? {}),
+      },
+      sectionRows: {
+        ...defaults.sectionRows,
+        ...(parsed.sectionRows ?? {}),
+      },
       referenceLayouts: mergeTransactionReferenceLayouts(parsed.referenceLayouts, defaults.referenceLayouts, RECEIPT_REFERENCE_SOURCES),
       glImpactSettings:
         parsed.glImpactSettings && typeof parsed.glImpactSettings === 'object'
@@ -93,6 +101,14 @@ export async function saveReceiptDetailCustomization(nextConfig: ReceiptDetailCu
   const normalized = {
     ...defaults,
     ...nextConfig,
+    fields: {
+      ...defaults.fields,
+      ...(nextConfig.fields ?? {}),
+    },
+    sectionRows: {
+      ...defaults.sectionRows,
+      ...(nextConfig.sectionRows ?? {}),
+    },
     referenceLayouts: mergeTransactionReferenceLayouts(nextConfig.referenceLayouts, defaults.referenceLayouts, RECEIPT_REFERENCE_SOURCES),
     glImpactSettings:
       nextConfig.glImpactSettings && typeof nextConfig.glImpactSettings === 'object'

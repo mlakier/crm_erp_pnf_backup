@@ -7,6 +7,7 @@ export type QuotePageConfigRecord = {
   opportunityId: string | null
   opportunityHref: string | null
   total: number
+  currencyCode?: string | null
   validUntil: Date | null
   lineCount: number
   statusLabel: string
@@ -28,7 +29,7 @@ export const quotePageConfig: TransactionPageConfig<QuotePageConfigRecord> = {
       id: 'total',
       label: 'Quote Total',
       accent: true,
-      getValue: (record) => fmtCurrency(record.total, undefined, record.moneySettings),
+      getValue: (record) => fmtCurrency(record.total, record.currencyCode ?? undefined, record.moneySettings),
     },
     {
       id: 'customerId',

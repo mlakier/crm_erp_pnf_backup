@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateNextChartOfAccountId } from '@/lib/chart-of-account-id'
+import { deriveAccountRole, deriveRollforwardCategory } from '@/lib/chart-of-accounts-classification'
 
 type ScopeMode = 'selected' | 'parent'
 
@@ -78,6 +79,8 @@ export async function POST(request: NextRequest) {
     const financialStatementSection = String(body?.financialStatementSection ?? '').trim() || null
     const financialStatementGroup = String(body?.financialStatementGroup ?? '').trim() || null
     const financialStatementCategory = String(body?.financialStatementCategory ?? '').trim() || null
+    const accountRole = String(body?.accountRole ?? '').trim() || null
+    const rollforwardCategory = String(body?.rollforwardCategory ?? '').trim() || null
     const isPosting = body?.isPosting !== undefined ? parseBool(body?.isPosting) : !summary
     const isControlAccount = parseBool(body?.isControlAccount)
     const allowsManualPosting = body?.allowsManualPosting !== undefined ? parseBool(body?.allowsManualPosting) : true
@@ -104,6 +107,40 @@ export async function POST(request: NextRequest) {
     }
 
     const accountId = providedAccountId || await generateNextChartOfAccountId()
+    const parentAccount = parentAccountId
+      ? await prisma.chartOfAccounts.findUnique({
+          where: { id: parentAccountId },
+          select: {
+            accountId: true,
+            accountNumber: true,
+            name: true,
+            category: true,
+          },
+        })
+      : null
+    const resolvedRollforwardCategory = rollforwardCategory ?? deriveRollforwardCategory({
+      accountId,
+      accountNumber,
+      name,
+      accountType,
+      financialStatementCategory,
+      parentAccountId: parentAccount?.accountId ?? null,
+      parentAccountNumber: parentAccount?.accountNumber ?? null,
+      parentAccountName: parentAccount?.name ?? null,
+      parentAccountCategory: parentAccount?.category ?? null,
+    })
+    const resolvedAccountRole = accountRole ?? deriveAccountRole({
+      accountId,
+      accountNumber,
+      name,
+      accountType,
+      financialStatementCategory,
+      rollforwardCategory: resolvedRollforwardCategory,
+      parentAccountId: parentAccount?.accountId ?? null,
+      parentAccountNumber: parentAccount?.accountNumber ?? null,
+      parentAccountName: parentAccount?.name ?? null,
+      parentAccountCategory: parentAccount?.category ?? null,
+    })
 
     const created = await prisma.chartOfAccounts.create({
       data: {
@@ -120,6 +157,8 @@ export async function POST(request: NextRequest) {
         financialStatementSection,
         financialStatementGroup,
         financialStatementCategory,
+        accountRole: resolvedAccountRole,
+        rollforwardCategory: resolvedRollforwardCategory,
         isPosting,
         isControlAccount,
         allowsManualPosting,
@@ -166,6 +205,8 @@ export async function PUT(request: NextRequest) {
     const financialStatementSection = body?.financialStatementSection !== undefined ? (String(body.financialStatementSection).trim() || null) : undefined
     const financialStatementGroup = body?.financialStatementGroup !== undefined ? (String(body.financialStatementGroup).trim() || null) : undefined
     const financialStatementCategory = body?.financialStatementCategory !== undefined ? (String(body.financialStatementCategory).trim() || null) : undefined
+    const accountRole = body?.accountRole !== undefined ? (String(body.accountRole).trim() || null) : undefined
+    const rollforwardCategory = body?.rollforwardCategory !== undefined ? (String(body.rollforwardCategory).trim() || null) : undefined
     const isPosting = body?.isPosting !== undefined ? parseBool(body.isPosting) : undefined
     const isControlAccount = body?.isControlAccount !== undefined ? parseBool(body.isControlAccount) : undefined
     const allowsManualPosting = body?.allowsManualPosting !== undefined ? parseBool(body.allowsManualPosting) : undefined
@@ -193,6 +234,84 @@ export async function PUT(request: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.chartOfAccounts.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          accountId: true,
+          accountNumber: true,
+          name: true,
+          accountType: true,
+          category: true,
+          financialStatementCategory: true,
+          accountRole: true,
+          rollforwardCategory: true,
+          parentAccountId: true,
+          parentAccount: {
+            select: {
+              accountId: true,
+              accountNumber: true,
+              name: true,
+              category: true,
+            },
+          },
+        },
+      })
+      if (!existing) {
+        throw new Error('Chart account not found')
+      }
+
+      const resolvedParentAccountId =
+        parentAccountId !== undefined
+          ? parentAccountId
+          : existing.parentAccountId
+
+      const resolvedParentAccount = resolvedParentAccountId
+        ? await tx.chartOfAccounts.findUnique({
+            where: { id: resolvedParentAccountId },
+            select: {
+              accountId: true,
+              accountNumber: true,
+              name: true,
+              category: true,
+            },
+          })
+        : null
+
+      const resolvedRollforwardCategory =
+        rollforwardCategory !== undefined
+          ? rollforwardCategory
+          : existing.rollforwardCategory
+            ? existing.rollforwardCategory
+            : deriveRollforwardCategory({
+                accountId: accountId ?? existing.accountId,
+                accountNumber: accountNumber ?? existing.accountNumber,
+                name: name ?? existing.name,
+                accountType: accountType ?? existing.accountType,
+                financialStatementCategory: financialStatementCategory ?? existing.financialStatementCategory,
+                parentAccountId: resolvedParentAccount?.accountId ?? null,
+                parentAccountNumber: resolvedParentAccount?.accountNumber ?? null,
+                parentAccountName: resolvedParentAccount?.name ?? null,
+                parentAccountCategory: resolvedParentAccount?.category ?? null,
+              })
+      const resolvedAccountRole =
+        accountRole !== undefined
+          ? accountRole
+          : existing.accountRole
+            ? existing.accountRole
+            : deriveAccountRole({
+                accountId: accountId ?? existing.accountId,
+                accountNumber: accountNumber ?? existing.accountNumber,
+                name: name ?? existing.name,
+                accountType: accountType ?? existing.accountType,
+                financialStatementCategory: financialStatementCategory ?? existing.financialStatementCategory,
+                rollforwardCategory: resolvedRollforwardCategory,
+                parentAccountId: resolvedParentAccount?.accountId ?? null,
+                parentAccountNumber: resolvedParentAccount?.accountNumber ?? null,
+                parentAccountName: resolvedParentAccount?.name ?? null,
+                parentAccountCategory: resolvedParentAccount?.category ?? null,
+              })
+
       const updated = await tx.chartOfAccounts.update({
         where: { id },
         data: {
@@ -209,6 +328,8 @@ export async function PUT(request: NextRequest) {
           ...(financialStatementSection !== undefined ? { financialStatementSection } : {}),
           ...(financialStatementGroup !== undefined ? { financialStatementGroup } : {}),
           ...(financialStatementCategory !== undefined ? { financialStatementCategory } : {}),
+          ...(resolvedAccountRole !== undefined ? { accountRole: resolvedAccountRole } : {}),
+          ...(resolvedRollforwardCategory !== undefined ? { rollforwardCategory: resolvedRollforwardCategory } : {}),
           ...(isPosting !== undefined ? { isPosting } : {}),
           ...(isControlAccount !== undefined ? { isControlAccount } : {}),
           ...(allowsManualPosting !== undefined ? { allowsManualPosting } : {}),

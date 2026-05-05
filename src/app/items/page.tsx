@@ -5,8 +5,7 @@ import CreatePageLinkButton from '@/components/CreatePageLinkButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
-import EditButton from '@/components/EditButton'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
@@ -19,6 +18,7 @@ import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-help
 import { buildFieldStyleListTooltip } from '@/lib/field-style-list-tooltip'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 import { toNumericValue } from '@/lib/format'
+import { loadPostingAccounts } from '@/lib/posting-account-options'
 
 export default async function ItemsPage({
   searchParams,
@@ -74,11 +74,7 @@ export default async function ItemsPage({
       take: pagination.pageSize,
     }),
     prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' } }),
-    prisma.chartOfAccounts.findMany({
-      where: { active: true },
-      orderBy: { accountId: 'asc' },
-      select: { id: true, accountId: true, name: true },
-    }),
+    loadPostingAccounts(),
     prisma.revRecTemplate.findMany({
       where: { active: true },
       orderBy: { templateId: 'asc' },
@@ -120,11 +116,12 @@ export default async function ItemsPage({
 
   const glOptions = glAccounts.map((account) => ({
     value: account.id,
-    label: `${account.accountId} - ${account.name}`,
+    label: `${account.accountNumber} - ${account.name}`,
   }))
 
-  const formatAccountLabel = (account: { accountId: string; name: string } | null) =>
-    account ? `${account.accountId} - ${account.name}` : '-'
+  const formatAccountLabel = (
+    account: { accountNumber?: string | null; accountId?: string | null; name: string } | null,
+  ) => (account ? `${account.accountNumber ?? account.accountId ?? ''} - ${account.name}` : '-')
 
   type ItemRow = (typeof items)[number]
   const createdColumnIndex = itemListDefinition.columns.findIndex((column) => column.id === 'created')
@@ -252,11 +249,12 @@ export default async function ItemsPage({
                     if (column.id === 'actions') {
                       return (
                         <MasterDataBodyCell key={column.id} columnId={column.id}>
-                          <div className="flex items-center gap-2">
-                            <EditButton
-                        resource="items"
-                        id={item.id}
-                        fields={[
+                          <ListRowActions
+                            viewHref={`/items/${item.id}`}
+                            editButton={{
+                        resource: 'items',
+                        id: item.id,
+                        fields: [
                           { name: 'name', label: 'Name', value: item.name },
                           { name: 'itemId', label: 'Item Id', value: item.itemId ?? '' },
                           { name: 'sku', label: 'SKU', value: item.sku ?? '' },
@@ -344,10 +342,10 @@ export default async function ItemsPage({
                             options: fieldOptions.preferredVendorId ?? [],
                           },
                           { name: 'directRevenuePosting', label: 'Direct Revenue Posting', value: item.directRevenuePosting ? 'true' : 'false', type: 'checkbox', placeholder: 'Direct Revenue Posting' },
-                        ]}
-                      />
-                            <DeleteButton resource="items" id={item.id} />
-                          </div>
+                        ],
+                      }}
+                            deleteButton={{ resource: 'items', id: item.id }}
+                          />
                         </MasterDataBodyCell>
                       )
                     }

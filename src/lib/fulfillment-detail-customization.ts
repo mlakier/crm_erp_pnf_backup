@@ -187,7 +187,7 @@ const DEFAULT_FULFILLMENT_LINE_WIDTHS: Record<FulfillmentLineColumnKey, Fulfillm
 
 const DEFAULT_FULFILLMENT_LINE_EDIT_DISPLAY: Record<FulfillmentLineColumnKey, FulfillmentLineDisplayMode> = {
   line: 'label',
-  'item-id': 'idAndLabel',
+  'item-id': 'id',
   description: 'label',
   'ordered-qty': 'label',
   'fulfilled-qty': 'label',
@@ -201,6 +201,7 @@ const DEFAULT_FULFILLMENT_LINE_VIEW_DISPLAY: Record<FulfillmentLineColumnKey, Fu
 
 const DEFAULT_FULFILLMENT_LINE_DROPDOWN_DISPLAY: Record<FulfillmentLineColumnKey, FulfillmentLineDisplayMode> = {
   ...DEFAULT_FULFILLMENT_LINE_EDIT_DISPLAY,
+  'item-id': 'idAndLabel',
 }
 
 const DEFAULT_FULFILLMENT_LINE_DROPDOWN_SORT: Record<FulfillmentLineColumnKey, FulfillmentLineDropdownSortMode> = {

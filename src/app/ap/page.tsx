@@ -1,6 +1,9 @@
+import { connection } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export default async function APPortalPage() {
+  await connection()
+
   const [vendorCount, purchaseOrderCount] = await Promise.all([
     prisma.vendor.count(),
     prisma.purchaseOrder.count(),

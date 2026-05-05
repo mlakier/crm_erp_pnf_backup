@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity, logCommunicationActivity, logFieldChangeActivities } from '@/lib/activity'
+import { logActivity, logCommunicationActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { generateNextLeadNumber } from '@/lib/lead-number'
 import { normalizePhone } from '@/lib/format'
 import {
@@ -222,6 +222,35 @@ export async function POST(request: NextRequest) {
       action: 'create',
       summary: `Created lead ${lead.leadNumber ?? resolveLeadLabel(lead)} ${resolveLeadLabel(lead)}`,
       userId,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'lead',
+      entityId: lead.id,
+      userId,
+      action: 'create',
+      context: 'Lead Header',
+      fields: [
+        { fieldName: 'Lead #', value: lead.leadNumber },
+        { fieldName: 'First Name', value: lead.firstName },
+        { fieldName: 'Last Name', value: lead.lastName },
+        { fieldName: 'Email', value: lead.email },
+        { fieldName: 'Phone', value: lead.phone },
+        { fieldName: 'Company', value: lead.company },
+        { fieldName: 'Title', value: lead.title },
+        { fieldName: 'Website', value: lead.website },
+        { fieldName: 'Industry', value: lead.industry },
+        { fieldName: 'Address', value: lead.address },
+        { fieldName: 'Status', value: lead.status },
+        { fieldName: 'Source', value: lead.source },
+        { fieldName: 'Rating', value: lead.rating },
+        { fieldName: 'Expected Value', value: lead.expectedValue },
+        { fieldName: 'Subsidiary', value: lead.subsidiaryId },
+        { fieldName: 'Currency', value: lead.currencyId },
+        { fieldName: 'Qualified At', value: lead.qualifiedAt },
+        { fieldName: 'Converted At', value: lead.convertedAt },
+        { fieldName: 'Last Contacted', value: lead.lastContactedAt },
+        { fieldName: 'Notes', value: lead.notes },
+      ],
     })
 
     return NextResponse.json(lead, { status: 201 })
@@ -508,6 +537,37 @@ export async function DELETE(request: NextRequest) {
       summary: `Deleted lead ${existing ? resolveLeadLabel(existing) : id}`,
       userId: existing?.userId,
     })
+    if (existing) {
+      await logRecordSnapshotActivities({
+        entityType: 'lead',
+        entityId: id,
+        userId: existing.userId ?? null,
+        action: 'delete',
+        context: 'Lead Header',
+        fields: [
+          { fieldName: 'Lead #', value: existing.leadNumber },
+          { fieldName: 'First Name', value: existing.firstName },
+          { fieldName: 'Last Name', value: existing.lastName },
+          { fieldName: 'Email', value: existing.email },
+          { fieldName: 'Phone', value: existing.phone },
+          { fieldName: 'Company', value: existing.company },
+          { fieldName: 'Title', value: existing.title },
+          { fieldName: 'Website', value: existing.website },
+          { fieldName: 'Industry', value: existing.industry },
+          { fieldName: 'Address', value: existing.address },
+          { fieldName: 'Status', value: existing.status },
+          { fieldName: 'Source', value: existing.source },
+          { fieldName: 'Rating', value: existing.rating },
+          { fieldName: 'Expected Value', value: existing.expectedValue },
+          { fieldName: 'Subsidiary', value: existing.subsidiaryId },
+          { fieldName: 'Currency', value: existing.currencyId },
+          { fieldName: 'Qualified At', value: existing.qualifiedAt },
+          { fieldName: 'Converted At', value: existing.convertedAt },
+          { fieldName: 'Last Contacted', value: existing.lastContactedAt },
+          { fieldName: 'Notes', value: existing.notes },
+        ],
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch {

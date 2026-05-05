@@ -2,16 +2,15 @@ import { prisma } from '@/lib/prisma'
 import CreateModalButton from '@/components/CreateModalButton'
 import EditButton from '@/components/EditButton'
 import DeleteButton from '@/components/DeleteButton'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
+import ListSearchActions from '@/components/ListSearchActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import ExchangeRateCreateForm from '@/components/ExchangeRateCreateForm'
 import ExchangeRateSyncButton from '@/components/ExchangeRateSyncButton'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
-import { loadListValues } from '@/lib/load-list-values'
 import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
+import { CANONICAL_EXCHANGE_RATE_TYPES } from '@/lib/exchange-rate-types'
 import { fmtDocumentDate } from '@/lib/format'
 
 const COLS = [
@@ -26,6 +25,15 @@ const COLS = [
   { id: 'actions', label: 'Actions', locked: true },
 ]
 
+function fmtEffectiveDateUtc(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const year = String(date.getUTCFullYear())
+  return `${month}/${day}/${year}`
+}
+
 export default async function ExchangeRatesPage({
   searchParams,
 }: {
@@ -33,8 +41,6 @@ export default async function ExchangeRatesPage({
 }) {
   const params = await searchParams
   const query = (params.q ?? '').trim()
-  const sort = params.sort ?? 'effective-desc'
-  const rateTypeFilter = params.rateType ?? 'all'
 
   const where = {
     ...(query
@@ -47,19 +53,11 @@ export default async function ExchangeRatesPage({
           ],
         }
       : {}),
-    ...(rateTypeFilter !== 'all' ? { rateType: rateTypeFilter } : {}),
   }
 
-  const orderBy =
-    sort === 'effective-asc'
-      ? [{ effectiveDate: 'asc' as const }]
-      : sort === 'pair'
-        ? [{ baseCurrency: { code: 'asc' as const } }, { quoteCurrency: { code: 'asc' as const } }]
-        : sort === 'rate-desc'
-          ? [{ rate: 'desc' as const }]
-          : [{ effectiveDate: 'desc' as const }, { createdAt: 'desc' as const }]
+  const orderBy = [{ effectiveDate: 'desc' as const }, { createdAt: 'desc' as const }]
 
-  const [{ moneySettings }, total, currencies, latestSyncLog, companySettings, cabinetFiles, rateTypeValues] = await Promise.all([
+  const [{ moneySettings }, total, currencies, latestSyncLog, latestFxRun, companySettings, cabinetFiles] = await Promise.all([
     loadCompanyDisplaySettings(),
     prisma.exchangeRate.count({ where }),
     prisma.currency.findMany({ orderBy: { code: 'asc' } }),
@@ -67,11 +65,14 @@ export default async function ExchangeRatesPage({
       where: { integration: 'frankfurter-exchange-rates' },
       orderBy: { createdAt: 'desc' },
     }),
+    prisma.runHeader.findFirst({
+      where: { runType: 'fx_ingestion' },
+      orderBy: { requestedAt: 'desc' },
+    }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
-    loadListValues('EXCHANGE-RATE-TYPE'),
   ])
-  const rateTypeOptions = rateTypeValues.map((value) => ({ value: value.toLowerCase(), label: value }))
+  const rateTypeOptions = CANONICAL_EXCHANGE_RATE_TYPES.map((option) => ({ value: option.value, label: option.label }))
 
   const pagination = getPagination(total, params.page)
 
@@ -86,8 +87,6 @@ export default async function ExchangeRatesPage({
   const buildPageHref = (page: number) => {
     const nextParams = new URLSearchParams()
     if (params.q) nextParams.set('q', params.q)
-    if (sort) nextParams.set('sort', sort)
-    if (rateTypeFilter !== 'all') nextParams.set('rateType', rateTypeFilter)
     nextParams.set('page', String(page))
     return `/exchange-rates?${nextParams.toString()}`
   }
@@ -122,21 +121,26 @@ export default async function ExchangeRatesPage({
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-              Frankfurter Sync
+              FX Ingestion
             </p>
             <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Manual sync uses Frankfurter `v2/rates` with `providers=ECB` and stores the latest daily reference rates locally.
+              Daily ECB spot rates flow through Frankfurter. Use `Sync Latest Rates` for the current reference day or `Backfill History` to load a historical date range with an audited run trail.
             </p>
           </div>
           <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {latestSyncLog
-              ? `Last run: ${fmtDocumentDate(latestSyncLog.createdAt, moneySettings)} - ${latestSyncLog.status}`
+            {latestFxRun
+              ? `Last run: ${latestFxRun.runNumber} - ${latestFxRun.status} - ${fmtDocumentDate(latestFxRun.requestedAt, moneySettings)}`
               : 'Last run: none yet'}
           </div>
         </div>
+        {latestFxRun?.message ? (
+          <p className="mt-3 text-xs" style={{ color: latestFxRun.status === 'failed' ? '#fca5a5' : '#86efac' }}>
+            {latestFxRun.message}
+          </p>
+        ) : null}
         {latestSyncLog?.message ? (
           <p className="mt-3 text-xs" style={{ color: latestSyncLog.status === 'success' ? '#86efac' : '#fca5a5' }}>
-            {latestSyncLog.message}
+            Integration Log: {latestSyncLog.message}
           </p>
         ) : null}
       </section>
@@ -153,22 +157,11 @@ export default async function ExchangeRatesPage({
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
-            <input name="rateType" list="exchange-rate-type-options" defaultValue={rateTypeFilter} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
-            <datalist id="exchange-rate-type-options">
-              <option value="all">All Types</option>
-              {rateTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </datalist>
-            <input name="sort" list="exchange-rate-sort-options" defaultValue={sort} className="rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
-            <datalist id="exchange-rate-sort-options">
-              <option value="effective-desc">Newest Effective Date</option>
-              <option value="effective-asc">Oldest Effective Date</option>
-              <option value="pair">Currency Pair</option>
-              <option value="rate-desc">Highest Rate</option>
-            </datalist>
-            <ExportButton tableId="exchange-rates-list" fileName="exchange-rates" />
-            <ColumnSelector tableId="exchange-rates-list" columns={COLS} />
+            <ListSearchActions
+              tableId="exchange-rates-list"
+              exportFileName="exchange-rates"
+              columns={COLS}
+            />
           </div>
         </form>
 
@@ -202,7 +195,7 @@ export default async function ExchangeRatesPage({
                       {row.baseCurrency.code}/{row.quoteCurrency.code}
                     </td>
                     <td data-column="effective-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {fmtDocumentDate(row.effectiveDate, moneySettings)}
+                      {fmtEffectiveDateUtc(row.effectiveDate)}
                     </td>
                     <td data-column="rate" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {row.rate.toFixed(6)}

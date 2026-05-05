@@ -11,9 +11,9 @@ export type SubsidiaryFormFieldKey =
   | 'taxId'
   | 'registrationNumber'
   | 'parentSubsidiaryId'
-  | 'defaultCurrencyId'
+  | 'localCurrencyId'
   | 'functionalCurrencyId'
-  | 'reportingCurrencyId'
+  | 'groupCurrencyId'
   | 'consolidationMethod'
   | 'ownershipPercent'
   | 'retainedEarningsAccountId'
@@ -71,9 +71,9 @@ export const SUBSIDIARY_FORM_FIELDS: SubsidiaryFormFieldMeta[] = [
   { id: 'taxId', label: 'Tax ID', fieldType: 'text', description: 'Primary tax registration or identification number.' },
   { id: 'registrationNumber', label: 'Registration Number', fieldType: 'text', description: 'Corporate registration number where applicable.' },
   { id: 'parentSubsidiaryId', label: 'Parent Subsidiary', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Parent Subsidiary used for hierarchy and consolidation.' },
-  { id: 'defaultCurrencyId', label: 'Primary Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Default transaction currency for the subsidiary.' },
-  { id: 'functionalCurrencyId', label: 'Functional Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Currency of the primary economic environment.' },
-  { id: 'reportingCurrencyId', label: 'Reporting Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Currency used for group or reporting presentation.' },
+  { id: 'localCurrencyId', label: 'Local Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Local statutory currency used for this subsidiary’s primary books.' },
+  { id: 'functionalCurrencyId', label: 'Functional Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Currency of the primary economic environment. This may match the country’s local currency, but it can differ when the subsidiary mainly prices, funds, and operates in another currency.' },
+  { id: 'groupCurrencyId', label: 'Group Currency', fieldType: 'list', sourceType: 'reference', sourceKey: 'currencies', source: getListSourceText({ sourceType: 'reference', sourceKey: 'currencies' }), description: 'Currency used for consolidated group reporting and translation.' },
   { id: 'consolidationMethod', label: 'Consolidation Method', fieldType: 'text', description: 'How the Subsidiary is consolidated into group reporting.' },
   { id: 'ownershipPercent', label: 'Ownership Percent', fieldType: 'number', description: 'Ownership percentage held in the subsidiary.' },
   { id: 'retainedEarningsAccountId', label: 'Retained Earnings Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Default retained earnings account for close activity.' },
@@ -105,9 +105,9 @@ export function defaultSubsidiaryFormCustomization(): SubsidiaryFormCustomizatio
     taxId: 'Registration',
     registrationNumber: 'Registration',
     parentSubsidiaryId: 'Hierarchy',
-    defaultCurrencyId: 'Currency',
+    localCurrencyId: 'Currency',
     functionalCurrencyId: 'Currency',
-    reportingCurrencyId: 'Currency',
+    groupCurrencyId: 'Currency',
     consolidationMethod: 'Consolidation',
     ownershipPercent: 'Consolidation',
     retainedEarningsAccountId: 'Accounting',
@@ -128,9 +128,9 @@ export function defaultSubsidiaryFormCustomization(): SubsidiaryFormCustomizatio
     taxId: 1,
     registrationNumber: 2,
     parentSubsidiaryId: 1,
-    defaultCurrencyId: 1,
+    localCurrencyId: 1,
     functionalCurrencyId: 2,
-    reportingCurrencyId: 1,
+    groupCurrencyId: 1,
     consolidationMethod: 1,
     ownershipPercent: 2,
     retainedEarningsAccountId: 1,
@@ -151,9 +151,9 @@ export function defaultSubsidiaryFormCustomization(): SubsidiaryFormCustomizatio
     taxId: 2,
     registrationNumber: 2,
     parentSubsidiaryId: 0,
-    defaultCurrencyId: 0,
+    localCurrencyId: 0,
     functionalCurrencyId: 0,
-    reportingCurrencyId: 1,
+    groupCurrencyId: 1,
     consolidationMethod: 0,
     ownershipPercent: 0,
     retainedEarningsAccountId: 0,

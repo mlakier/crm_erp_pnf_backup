@@ -144,29 +144,48 @@ export default function MasterDataDetailExportMenu({
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-sm shadow-sm"
+        className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm shadow-sm"
         style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Download"
-        title="Download"
+        aria-label="Export"
+        title="Export"
       >
-        <span aria-hidden="true" className="text-base leading-none">⇩</span>
+        <span>Export</span>
+        <span aria-hidden="true" className="text-xs leading-none">▼</span>
       </button>
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-36 overflow-hidden rounded-lg border shadow-xl"
+          className="absolute right-0 z-50 mt-2 w-40 overflow-hidden rounded-lg border shadow-xl"
           style={{ backgroundColor: 'var(--card-elevated)', borderColor: 'var(--border-muted)' }}
         >
-          <button type="button" role="menuitem" onClick={handleExportPdf} className="block w-full px-3 py-2 text-left text-sm hover:bg-white/5" style={{ color: 'var(--text-secondary)' }}>
-            PDF
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleExportExcel}
+            className="block w-full px-3 py-2 text-left text-sm hover:bg-white/5"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Export to Excel
           </button>
-          <button type="button" role="menuitem" onClick={handleExportExcel} className="block w-full border-t px-3 py-2 text-left text-sm hover:bg-white/5" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-muted)' }}>
-            Excel
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleExportCsv}
+            className="block w-full border-t px-3 py-2 text-left text-sm hover:bg-white/5"
+            style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-muted)' }}
+          >
+            Export to CSV
           </button>
-          <button type="button" role="menuitem" onClick={handleExportCsv} className="block w-full border-t px-3 py-2 text-left text-sm hover:bg-white/5" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-muted)' }}>
-            CSV
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleExportPdf}
+            className="block w-full border-t px-3 py-2 text-left text-sm hover:bg-white/5"
+            style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-muted)' }}
+          >
+            Export to PDF
           </button>
         </div>
       ) : null}

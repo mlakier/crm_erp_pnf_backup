@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity } from '@/lib/activity'
+import { logActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { generateNextContactNumber } from '@/lib/contact-number'
 import { normalizePhone } from '@/lib/format'
 import { isFieldRequiredServer } from '@/lib/form-requirements-store'
@@ -104,6 +104,29 @@ export async function POST(request: NextRequest) {
       summary: `Created contact ${contact.contactNumber ?? `${contact.firstName} ${contact.lastName}`} ${contact.firstName} ${contact.lastName}`,
       userId,
     })
+    await logRecordSnapshotActivities({
+      entityType: 'contact',
+      entityId: contact.id,
+      userId,
+      action: 'create',
+      context: 'Contact Details',
+      fields: [
+        { fieldName: 'Business Id', value: contact.contactNumber },
+        { fieldName: 'First Name', value: contact.firstName },
+        { fieldName: 'Last Name', value: contact.lastName },
+        { fieldName: 'Email', value: contact.email },
+        { fieldName: 'Phone', value: contact.phone },
+        { fieldName: 'Address', value: contact.address },
+        { fieldName: 'Position', value: contact.position },
+        { fieldName: 'Customer', value: contact.customerId },
+        { fieldName: 'Vendor', value: contact.vendorId },
+        { fieldName: 'Primary for Customer', value: contact.isPrimaryForCustomer },
+        { fieldName: 'Receives Quotes / Sales Orders', value: contact.receivesQuotesSalesOrders },
+        { fieldName: 'Receives Invoices', value: contact.receivesInvoices },
+        { fieldName: 'Receives Invoice CC', value: contact.receivesInvoiceCc },
+        { fieldName: 'Active', value: contact.active },
+      ],
+    })
 
     return NextResponse.json(contact, { status: 201 })
   } catch {
@@ -131,7 +154,23 @@ export async function PUT(request: NextRequest) {
 
     const existing = await prisma.contact.findUnique({
       where: { id },
-      select: { customerId: true, vendorId: true, userId: true, contactNumber: true, firstName: true, lastName: true },
+      select: {
+        customerId: true,
+        vendorId: true,
+        userId: true,
+        contactNumber: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        address: true,
+        position: true,
+        isPrimaryForCustomer: true,
+        receivesQuotesSalesOrders: true,
+        receivesInvoices: true,
+        receivesInvoiceCc: true,
+        active: true,
+      },
     })
 
     if (!existing) {
@@ -187,6 +226,27 @@ export async function PUT(request: NextRequest) {
       summary: `Updated contact ${contact.contactNumber ?? `${contact.firstName} ${contact.lastName}`} ${contact.firstName} ${contact.lastName}`,
       userId: existing.userId,
     })
+    await logFieldChangeActivities({
+      entityType: 'contact',
+      entityId: contact.id,
+      userId: existing.userId ?? null,
+      context: 'Contact Details',
+      changes: [
+        { fieldName: 'First Name', oldValue: existing.firstName, newValue: contact.firstName },
+        { fieldName: 'Last Name', oldValue: existing.lastName, newValue: contact.lastName },
+        { fieldName: 'Email', oldValue: existing.email, newValue: contact.email },
+        { fieldName: 'Phone', oldValue: existing.phone, newValue: contact.phone },
+        { fieldName: 'Address', oldValue: existing.address, newValue: contact.address },
+        { fieldName: 'Position', oldValue: existing.position, newValue: contact.position },
+        { fieldName: 'Customer', oldValue: existing.customerId, newValue: contact.customerId },
+        { fieldName: 'Vendor', oldValue: existing.vendorId, newValue: contact.vendorId },
+        { fieldName: 'Primary for Customer', oldValue: existing.isPrimaryForCustomer, newValue: contact.isPrimaryForCustomer },
+        { fieldName: 'Receives Quotes / Sales Orders', oldValue: existing.receivesQuotesSalesOrders, newValue: contact.receivesQuotesSalesOrders },
+        { fieldName: 'Receives Invoices', oldValue: existing.receivesInvoices, newValue: contact.receivesInvoices },
+        { fieldName: 'Receives Invoice CC', oldValue: existing.receivesInvoiceCc, newValue: contact.receivesInvoiceCc },
+        { fieldName: 'Active', oldValue: existing.active, newValue: contact.active },
+      ],
+    })
 
     return NextResponse.json(contact)
   } catch {
@@ -226,6 +286,29 @@ export async function DELETE(request: NextRequest) {
       action: 'delete',
       summary: `Deleted contact ${existing ? `${existing.contactNumber ?? `${existing.firstName} ${existing.lastName}`} ${existing.firstName} ${existing.lastName}` : id}`,
       userId: existing?.userId,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'contact',
+      entityId: id,
+      userId: existing.userId ?? null,
+      action: 'delete',
+      context: 'Contact Details',
+      fields: [
+        { fieldName: 'Business Id', value: existing.contactNumber },
+        { fieldName: 'First Name', value: existing.firstName },
+        { fieldName: 'Last Name', value: existing.lastName },
+        { fieldName: 'Email', value: existing.email },
+        { fieldName: 'Phone', value: existing.phone },
+        { fieldName: 'Address', value: existing.address },
+        { fieldName: 'Position', value: existing.position },
+        { fieldName: 'Customer', value: existing.customerId },
+        { fieldName: 'Vendor', value: existing.vendorId },
+        { fieldName: 'Primary for Customer', value: existing.isPrimaryForCustomer },
+        { fieldName: 'Receives Quotes / Sales Orders', value: existing.receivesQuotesSalesOrders },
+        { fieldName: 'Receives Invoices', value: existing.receivesInvoices },
+        { fieldName: 'Receives Invoice CC', value: existing.receivesInvoiceCc },
+        { fieldName: 'Active', value: existing.active },
+      ],
     })
 
     return NextResponse.json({ success: true })

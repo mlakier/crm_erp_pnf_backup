@@ -1,0 +1,513 @@
+{
+  "formColumns": 3,
+  "sections": [
+    "4-Currency Context",
+    "Document Identity",
+    "Vendor Snapshot",
+    "Refund Terms",
+    "Record Keys",
+    "System Dates"
+  ],
+  "sectionRows": {
+    "4-Currency Context": 5,
+    "Document Identity": 1,
+    "Vendor Snapshot": 1,
+    "Refund Terms": 3,
+    "Record Keys": 1,
+    "System Dates": 1
+  },
+  "fields": {
+    "number": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 0,
+      "column": 1
+    },
+    "vendorId": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 0,
+      "column": 2
+    },
+    "billPaymentId": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 0,
+      "column": 3
+    },
+    "vendorNumber": {
+      "visible": true,
+      "section": "Vendor Snapshot",
+      "order": 0,
+      "column": 1
+    },
+    "vendorName": {
+      "visible": true,
+      "section": "Vendor Snapshot",
+      "order": 0,
+      "column": 2
+    },
+    "bankAccountId": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 0,
+      "column": 1
+    },
+    "amount": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 0,
+      "column": 2
+    },
+    "date": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 0,
+      "column": 3
+    },
+    "method": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 1,
+      "column": 1
+    },
+    "status": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 1,
+      "column": 2
+    },
+    "reference": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 1,
+      "column": 3
+    },
+    "notes": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 2,
+      "column": 1
+    },
+    "subsidiaryId": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 2,
+      "column": 2
+    },
+    "currencyId": {
+      "visible": true,
+      "section": "Refund Terms",
+      "order": 2,
+      "column": 3
+    },
+    "id": {
+      "visible": true,
+      "section": "Record Keys",
+      "order": 0,
+      "column": 1
+    },
+    "createdAt": {
+      "visible": true,
+      "section": "System Dates",
+      "order": 0,
+      "column": 1
+    },
+    "updatedAt": {
+      "visible": true,
+      "section": "System Dates",
+      "order": 0,
+      "column": 2
+    },
+    "journalEntry": {
+      "visible": true,
+      "section": "System Dates",
+      "order": 0,
+      "column": 3
+    },
+    "currency-transaction-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 1
+    },
+    "currency-local-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 1
+    },
+    "currency-functional-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 1
+    },
+    "currency-group-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 1
+    },
+    "currency-fx-audit": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 4,
+      "column": 3
+    },
+    "currency-local-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 2
+    },
+    "currency-functional-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 2
+    },
+    "currency-group-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 4,
+      "column": 1
+    },
+    "currency-fx-rate-type": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 4,
+      "column": 2
+    },
+    "currency-realized-fx-functional": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 2
+    },
+    "currency-realized-fx-local": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 2
+    },
+    "currency-realized-fx-group": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 3
+    },
+    "currency-translation-status": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 3
+    },
+    "currency-posting-status": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 3
+    },
+    "currency-open-item-number": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 3
+    }
+  },
+  "referenceLayouts": [
+    {
+      "id": "reference-vendor-1",
+      "referenceId": "vendor",
+      "formColumns": 2,
+      "rows": 3,
+      "fields": {
+        "vendorDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 0
+        },
+        "vendorNumber": {
+          "visible": true,
+          "column": 2,
+          "order": 0
+        },
+        "vendorName": {
+          "visible": true,
+          "column": 1,
+          "order": 0
+        },
+        "vendorEmail": {
+          "visible": true,
+          "column": 2,
+          "order": 1
+        },
+        "vendorPhone": {
+          "visible": true,
+          "column": 1,
+          "order": 1
+        },
+        "vendorAddress": {
+          "visible": false,
+          "column": 2,
+          "order": 2
+        },
+        "vendorTaxId": {
+          "visible": false,
+          "column": 1,
+          "order": 3
+        },
+        "vendorUserDbId": {
+          "visible": false,
+          "column": 2,
+          "order": 3
+        },
+        "vendorSubsidiaryDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 4
+        },
+        "vendorCurrencyDbId": {
+          "visible": false,
+          "column": 2,
+          "order": 4
+        },
+        "vendorInactive": {
+          "visible": false,
+          "column": 1,
+          "order": 5
+        },
+        "vendorCreatedAt": {
+          "visible": false,
+          "column": 2,
+          "order": 5
+        },
+        "vendorUpdatedAt": {
+          "visible": false,
+          "column": 1,
+          "order": 6
+        }
+      }
+    },
+    {
+      "id": "reference-bill-payment-1",
+      "referenceId": "billPayment",
+      "formColumns": 2,
+      "rows": 3,
+      "fields": {
+        "billPaymentDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 0
+        },
+        "billPaymentNumber": {
+          "visible": true,
+          "column": 1,
+          "order": 0
+        },
+        "billPaymentStatus": {
+          "visible": true,
+          "column": 1,
+          "order": 1
+        },
+        "billPaymentAmount": {
+          "visible": true,
+          "column": 2,
+          "order": 0
+        },
+        "billPaymentDate": {
+          "visible": false,
+          "column": 1,
+          "order": 2
+        },
+        "billPaymentMethod": {
+          "visible": false,
+          "column": 2,
+          "order": 2
+        },
+        "billPaymentReference": {
+          "visible": false,
+          "column": 1,
+          "order": 3
+        },
+        "billPaymentBankAccountDbId": {
+          "visible": false,
+          "column": 2,
+          "order": 3
+        },
+        "billPaymentBillDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 4
+        },
+        "billPaymentCreatedAt": {
+          "visible": false,
+          "column": 2,
+          "order": 4
+        },
+        "billPaymentUpdatedAt": {
+          "visible": false,
+          "column": 1,
+          "order": 5
+        }
+      }
+    }
+  ],
+  "glImpactSettings": {
+    "fontSize": "xs"
+  },
+  "glImpactColumns": {
+    "date": {
+      "visible": true,
+      "order": 0,
+      "widthMode": "normal"
+    },
+    "journalNumber": {
+      "visible": true,
+      "order": 1,
+      "widthMode": "normal"
+    },
+    "sourceType": {
+      "visible": true,
+      "order": 2,
+      "widthMode": "normal"
+    },
+    "sourceNumber": {
+      "visible": true,
+      "order": 3,
+      "widthMode": "normal"
+    },
+    "account": {
+      "visible": true,
+      "order": 4,
+      "widthMode": "wide"
+    },
+    "description": {
+      "visible": true,
+      "order": 5,
+      "widthMode": "wide"
+    },
+    "debit": {
+      "visible": true,
+      "order": 6,
+      "widthMode": "normal"
+    },
+    "credit": {
+      "visible": true,
+      "order": 7,
+      "widthMode": "normal"
+    },
+    "txnAmount": {
+      "visible": true,
+      "order": 8,
+      "widthMode": "normal"
+    },
+    "localAmount": {
+      "visible": true,
+      "order": 9,
+      "widthMode": "normal"
+    },
+    "functionalAmount": {
+      "visible": true,
+      "order": 10,
+      "widthMode": "normal"
+    },
+    "groupAmount": {
+      "visible": true,
+      "order": 11,
+      "widthMode": "normal"
+    }
+  },
+  "statCards": [
+    {
+      "id": "refund-amount",
+      "metric": "amount",
+      "visible": true,
+      "order": 0
+    },
+    {
+      "id": "refund-status",
+      "metric": "status",
+      "visible": true,
+      "order": 1
+    },
+    {
+      "id": "refund-method",
+      "metric": "method",
+      "visible": true,
+      "order": 2
+    },
+    {
+      "id": "refund-vendor",
+      "metric": "vendor",
+      "visible": true,
+      "order": 3
+    }
+  ],
+  "secondarySettings": {
+    "fontSize": "xs"
+  },
+  "secondaryColumns": {
+    "date": {
+      "visible": true,
+      "order": 0,
+      "widthMode": "normal"
+    },
+    "journalNumber": {
+      "visible": true,
+      "order": 1,
+      "widthMode": "normal"
+    },
+    "sourceType": {
+      "visible": true,
+      "order": 2,
+      "widthMode": "normal"
+    },
+    "sourceNumber": {
+      "visible": true,
+      "order": 3,
+      "widthMode": "normal"
+    },
+    "account": {
+      "visible": true,
+      "order": 4,
+      "widthMode": "wide"
+    },
+    "description": {
+      "visible": true,
+      "order": 5,
+      "widthMode": "wide"
+    },
+    "debit": {
+      "visible": true,
+      "order": 6,
+      "widthMode": "normal"
+    },
+    "credit": {
+      "visible": true,
+      "order": 7,
+      "widthMode": "normal"
+    },
+    "txnAmount": {
+      "visible": true,
+      "order": 8,
+      "widthMode": "normal"
+    },
+    "localAmount": {
+      "visible": true,
+      "order": 9,
+      "widthMode": "normal"
+    },
+    "functionalAmount": {
+      "visible": true,
+      "order": 10,
+      "widthMode": "normal"
+    },
+    "groupAmount": {
+      "visible": true,
+      "order": 11,
+      "widthMode": "normal"
+    }
+  }
+}

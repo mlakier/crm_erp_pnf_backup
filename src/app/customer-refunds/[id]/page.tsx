@@ -13,10 +13,12 @@ import RecordHeaderDetails, { type RecordHeaderField } from '@/components/Record
 import TransactionStatsRow from '@/components/TransactionStatsRow'
 import SystemNotesSection from '@/components/SystemNotesSection'
 import CommunicationsSection from '@/components/CommunicationsSection'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
 import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
 import DeleteButton from '@/components/DeleteButton'
 import InvoiceReceiptGlImpactSection from '@/components/InvoiceReceiptGlImpactSection'
+import TransactionFourCurrencySection from '@/components/TransactionFourCurrencySection'
 import CustomerRefundPageClient from '@/components/CustomerRefundPageClient'
 import CustomerRefundDetailCustomizeMode from '@/components/CustomerRefundDetailCustomizeMode'
 import CustomerRefundRelatedDocuments from '@/components/CustomerRefundRelatedDocuments'
@@ -32,6 +34,10 @@ import {
   buildTransactionGlImpactRows,
 } from '@/lib/transaction-detail-helpers'
 import {
+  buildPostedCurrencyReadoutSection,
+  CURRENCY_READOUT_SECTION_TITLE,
+} from '@/lib/four-currency-readout'
+import {
   CUSTOMER_REFUND_DETAIL_FIELDS,
   CUSTOMER_REFUND_REFERENCE_SOURCES,
   CUSTOMER_REFUND_STAT_CARDS,
@@ -39,6 +45,8 @@ import {
 } from '@/lib/customer-refund-detail-customization'
 import { loadCustomerRefundDetailCustomization } from '@/lib/customer-refund-detail-customization-store'
 import type { TransactionStatDefinition } from '@/lib/transaction-page-config'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 
 export const runtime = 'nodejs'
 
@@ -56,11 +64,13 @@ export default async function CustomerRefundDetailPage({
   const isCustomizing = customize === '1'
   const { moneySettings } = await loadCompanyDisplaySettings()
 
-  const [refund, customization, customers, cashAccounts, methodValues, statusValues, refundSources] = await Promise.all([
+  const [refund, refundOpenItem, refundApplicationFx, customization, customers, cashAccounts, methodValues, statusValues, refundSources, currencies] = await Promise.all([
     prisma.customerRefund.findUnique({
       where: { id },
       include: {
         customer: true,
+        subsidiary: true,
+        currency: true,
         user: {
           select: {
             email: true,
@@ -68,12 +78,13 @@ export default async function CustomerRefundDetailPage({
         },
         cashReceipt: {
           include: {
-            invoice: {
-              include: {
-                customer: true,
-                salesOrder: {
-                  include: {
-                    quote: {
+              invoice: {
+                include: {
+                  customer: true,
+                  currency: true,
+                  salesOrder: {
+                    include: {
+                      quote: {
                       include: {
                         opportunity: true,
                       },
@@ -87,21 +98,39 @@ export default async function CustomerRefundDetailPage({
         bankAccount: true,
       },
     }),
+    prisma.openItem.findFirst({
+      where: {
+        sourceTransactionType: 'customer-refund',
+        sourceTransactionId: id,
+      },
+      select: {
+        id: true,
+        openItemNumber: true,
+        transactionCurrencyId: true,
+        localCurrencyId: true,
+        functionalCurrencyId: true,
+        groupCurrencyId: true,
+        originalTransactionAmount: true,
+        originalLocalAmount: true,
+        originalFunctionalAmount: true,
+        originalGroupAmount: true,
+        isOpen: true,
+        status: true,
+      },
+    }),
+    prisma.openItemApplication.aggregate({
+      where: {
+        settlementTransactionType: 'customer-refund',
+        settlementTransactionId: id,
+      },
+      _sum: {
+        realizedFxLocalAmount: true,
+        realizedFxFunctionalAmount: true,
+      },
+    }),
     loadCustomerRefundDetailCustomization(),
     prisma.customer.findMany({ orderBy: [{ name: 'asc' }] }),
-    prisma.chartOfAccounts.findMany({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      orderBy: [{ accountId: 'asc' }],
-    }),
+    loadCashBankPostingAccounts(),
     loadListValues('PAYMENT-METHOD'),
     loadListValues('CUSTOMER-REFUND-STATUS'),
     prisma.cashReceipt.findMany({
@@ -113,9 +142,25 @@ export default async function CustomerRefundDetailPage({
       },
       orderBy: { createdAt: 'desc' },
     }),
+    prisma.currency.findMany({
+      select: { id: true, code: true, currencyId: true, name: true },
+      orderBy: [{ code: 'asc' }, { currencyId: 'asc' }],
+    }),
   ])
 
   if (!refund) notFound()
+  const refundCurrencyCode =
+    refund.currency?.code
+    ?? refund.currency?.currencyId
+    ?? refund.cashReceipt?.invoice?.currency?.code
+    ?? refund.cashReceipt?.invoice?.currency?.currencyId
+    ?? undefined
+  const currencyLabelById = new Map(
+    currencies.map((currency) => [currency.id, `${currency.code ?? currency.currencyId} - ${currency.name}`]),
+  )
+  const currencyCodeById = new Map(
+    currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]),
+  )
 
   const detailHref = `/customer-refunds/${refund.id}`
   const glEntries = await prisma.journalEntry.findMany({
@@ -124,7 +169,7 @@ export default async function CustomerRefundDetailPage({
       lineItems: {
         include: {
           account: {
-            select: { accountId: true, name: true },
+            select: { accountId: true, accountNumber: true, name: true },
           },
         },
       },
@@ -170,7 +215,7 @@ export default async function CustomerRefundDetailPage({
         mode="edit"
         refundId={refund.id}
         customers={customers.map((customer) => ({ value: customer.id, label: `${customer.customerId ?? 'CUSTOMER'} - ${customer.name}` }))}
-        bankAccountOptions={cashAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` }))}
+        bankAccountOptions={cashAccounts.map((account) => ({ value: account.id, label: formatGlAccountLabel(account) }))}
         methodOptions={methodValues.map((value) => ({ value: value.toLowerCase(), label: value }))}
         statusOptions={statusValues.map((value) => ({ value: value.toLowerCase(), label: value }))}
         refundSources={refundSources.map((receipt) => {
@@ -223,7 +268,7 @@ export default async function CustomerRefundDetailPage({
     key: CustomerRefundDetailFieldKey
   } & RecordHeaderField
 
-  const headerFieldDefinitions: Record<CustomerRefundDetailFieldKey, CustomerRefundHeaderField> = {
+  const headerFieldDefinitions = {
     customerName: {
       key: 'customerName',
       label: 'Customer Name',
@@ -232,6 +277,7 @@ export default async function CustomerRefundDetailPage({
       helpText: 'Display name from the linked customer record.',
       fieldType: 'text',
       sourceText: 'Customers master data',
+      href: `/customers/${refund.customerId}`,
     },
     customerNumber: {
       key: 'customerNumber',
@@ -241,6 +287,7 @@ export default async function CustomerRefundDetailPage({
       helpText: 'Internal customer identifier from the linked customer record.',
       fieldType: 'text',
       sourceText: 'Customers master data',
+      href: `/customers/${refund.customerId}`,
     },
     id: {
       key: 'id',
@@ -281,16 +328,37 @@ export default async function CustomerRefundDetailPage({
       key: 'bankAccountId',
       label: 'Bank Account',
       value: refund.bankAccountId ?? '',
-      displayValue: refund.bankAccount ? `${refund.bankAccount.accountId} - ${refund.bankAccount.name}` : '-',
+      displayValue: refund.bankAccount ? formatGlAccountLabel(refund.bankAccount) : '-',
       helpText: 'Cash or bank account used for the refund disbursement.',
       fieldType: 'list',
       sourceText: 'Chart of accounts',
+      href: refund.bankAccountId ? `/chart-of-accounts/${refund.bankAccountId}` : undefined,
+    },
+    subsidiaryId: {
+      key: 'subsidiaryId',
+      label: 'Subsidiary',
+      value: refund.subsidiaryId ?? '',
+      displayValue: refund.subsidiary?.name ?? '-',
+      helpText: 'Transaction subsidiary on this customer refund.',
+      fieldType: 'list',
+      sourceText: 'Subsidiary record',
+      href: refund.subsidiaryId ? `/subsidiaries/${refund.subsidiaryId}` : undefined,
+    },
+    currencyId: {
+      key: 'currencyId',
+      label: 'Currency',
+      value: refund.currencyId ?? '',
+      displayValue: refund.currency ? `${refund.currency.code ?? refund.currency.currencyId} - ${refund.currency.name}` : '-',
+      helpText: 'Transaction currency on this customer refund.',
+      fieldType: 'list',
+      sourceText: 'Currency record',
+      href: refund.currencyId ? `/currencies/${refund.currencyId}` : undefined,
     },
     amount: {
       key: 'amount',
       label: 'Amount',
       value: String(refund.amount),
-      displayValue: fmtCurrency(refund.amount, undefined, moneySettings),
+      displayValue: fmtCurrency(refund.amount, refundCurrencyCode, moneySettings),
       helpText: 'Refund amount issued to the customer.',
       fieldType: 'currency',
     },
@@ -362,14 +430,35 @@ export default async function CustomerRefundDetailPage({
       helpText: 'Date/time the customer refund record was last modified.',
       fieldType: 'date',
     },
-  }
+  } satisfies Record<string, CustomerRefundHeaderField>
 
-  const headerSections = buildConfiguredTransactionSections({
-    fields: CUSTOMER_REFUND_DETAIL_FIELDS,
-    layout: customization,
-    fieldDefinitions: headerFieldDefinitions,
-    sectionDescriptions,
-  })
+  const receiptCurrencyCode =
+    currencyCodeById.get(refund.cashReceipt?.invoice?.currencyId ?? '') ?? refundCurrencyCode ?? null
+  const invoiceCurrencyCode =
+    currencyCodeById.get(refund.cashReceipt?.invoice?.currencyId ?? '') ?? receiptCurrencyCode ?? null
+  const salesOrderCurrencyCode =
+    currencyCodeById.get(refund.cashReceipt?.invoice?.salesOrder?.currencyId ?? '') ?? invoiceCurrencyCode ?? null
+  const quoteCurrencyCode =
+    currencyCodeById.get(refund.cashReceipt?.invoice?.salesOrder?.quote?.currencyId ?? '') ?? salesOrderCurrencyCode ?? null
+  const opportunityCurrencyCode =
+    currencyCodeById.get(refund.cashReceipt?.invoice?.salesOrder?.quote?.opportunity?.currencyId ?? '') ?? quoteCurrencyCode ?? null
+  const formatMonetaryValue = (
+    value: number | string | null | undefined | { toString(): string; toNumber?: () => number },
+    currencyCode?: string | null,
+  ) => fmtCurrency(value, currencyCode ?? undefined, moneySettings)
+  const refundRealizedFxGroupAmountRaw = glEntries.reduce((sum, entry) => (
+    sum + entry.lineItems.reduce((lineSum, line) => {
+      const isRealizedFxLine =
+        (line.activityTypeCode ?? '').startsWith('fx_realized')
+        || (line.description ?? '').toLowerCase().includes('realized fx')
+      if (!isRealizedFxLine) return lineSum
+      return lineSum + Number(line.groupDebit ?? 0) - Number(line.groupCredit ?? 0)
+    }, 0)
+  ), 0)
+  const refundRealizedFxGroupAmount =
+    Math.abs(refundRealizedFxGroupAmountRaw) > 0.005
+      ? Math.abs(refundRealizedFxGroupAmountRaw)
+      : null
 
   const referenceSourceDefinitions = buildLinkedReferencePreviewSources(CUSTOMER_REFUND_REFERENCE_SOURCES, {
     customer: refund.customer,
@@ -378,6 +467,32 @@ export default async function CustomerRefundDetailPage({
     salesOrder: refund.cashReceipt?.invoice?.salesOrder ?? null,
     quote: refund.cashReceipt?.invoice?.salesOrder?.quote ?? null,
     opportunity: refund.cashReceipt?.invoice?.salesOrder?.quote?.opportunity ?? null,
+  }, {
+    receipt: {
+      formatDate: (value) => fmtDocumentDate(value, moneySettings),
+      formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? receiptCurrencyCode),
+      currencyCode: receiptCurrencyCode,
+    },
+    invoice: {
+      formatDate: (value) => fmtDocumentDate(value, moneySettings),
+      formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? invoiceCurrencyCode),
+      currencyCode: invoiceCurrencyCode,
+    },
+    salesOrder: {
+      formatDate: (value) => fmtDocumentDate(value, moneySettings),
+      formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? salesOrderCurrencyCode),
+      currencyCode: salesOrderCurrencyCode,
+    },
+    quote: {
+      formatDate: (value) => fmtDocumentDate(value, moneySettings),
+      formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? quoteCurrencyCode),
+      currencyCode: quoteCurrencyCode,
+    },
+    opportunity: {
+      formatDate: (value) => fmtDocumentDate(value, moneySettings),
+      formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? opportunityCurrencyCode),
+      currencyCode: opportunityCurrencyCode,
+    },
   })
   const referenceFieldDefinitions = buildLinkedReferenceFieldDefinitions(
     CUSTOMER_REFUND_REFERENCE_SOURCES,
@@ -397,21 +512,86 @@ export default async function CustomerRefundDetailPage({
       quote: refund.cashReceipt?.invoice?.salesOrder?.quote ? `/quotes/${refund.cashReceipt.invoice.salesOrder.quote.id}` : null,
       opportunity: refund.cashReceipt?.invoice?.salesOrder?.quote?.opportunity ? `/opportunities/${refund.cashReceipt.invoice.salesOrder.quote.opportunity.id}` : null,
     },
+    {
+      receipt: {
+        formatDate: (value) => fmtDocumentDate(value, moneySettings),
+        formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? receiptCurrencyCode),
+        currencyCode: receiptCurrencyCode,
+      },
+      invoice: {
+        formatDate: (value) => fmtDocumentDate(value, moneySettings),
+        formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? invoiceCurrencyCode),
+        currencyCode: invoiceCurrencyCode,
+      },
+      salesOrder: {
+        formatDate: (value) => fmtDocumentDate(value, moneySettings),
+        formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? salesOrderCurrencyCode),
+        currencyCode: salesOrderCurrencyCode,
+      },
+      quote: {
+        formatDate: (value) => fmtDocumentDate(value, moneySettings),
+        formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? quoteCurrencyCode),
+        currencyCode: quoteCurrencyCode,
+      },
+      opportunity: {
+        formatDate: (value) => fmtDocumentDate(value, moneySettings),
+        formatCurrency: (value, currencyCode) => formatMonetaryValue(value as number | string | null | undefined, currencyCode ?? opportunityCurrencyCode),
+        currencyCode: opportunityCurrencyCode,
+      },
+    },
   )
+  const currencyReadoutSection = buildPostedCurrencyReadoutSection({
+    postingStatus: refundOpenItem
+      ? refundOpenItem.isOpen
+        ? `Posted to open item (${refundOpenItem.status})`
+        : `Posted and settled (${refundOpenItem.status})`
+      : 'Not posted to open items yet',
+    openItemId: refundOpenItem?.id ?? null,
+    openItemNumber: refundOpenItem?.openItemNumber ?? null,
+    transactionAmount: refundOpenItem?.originalTransactionAmount ?? refund.amount,
+    transactionCurrencyCode: currencyCodeById.get(refundOpenItem?.transactionCurrencyId ?? refund.currencyId ?? '') ?? refundCurrencyCode ?? null,
+    transactionCurrencyLabel: currencyLabelById.get(refundOpenItem?.transactionCurrencyId ?? refund.currencyId ?? '') ?? null,
+    localAmount: refundOpenItem?.originalLocalAmount ?? null,
+    localCurrencyCode: currencyCodeById.get(refundOpenItem?.localCurrencyId ?? '') ?? null,
+    localCurrencyLabel: currencyLabelById.get(refundOpenItem?.localCurrencyId ?? '') ?? null,
+    functionalAmount: refundOpenItem?.originalFunctionalAmount ?? null,
+    functionalCurrencyCode: currencyCodeById.get(refundOpenItem?.functionalCurrencyId ?? '') ?? null,
+    functionalCurrencyLabel: currencyLabelById.get(refundOpenItem?.functionalCurrencyId ?? '') ?? null,
+    groupAmount: refundOpenItem?.originalGroupAmount ?? null,
+    groupCurrencyCode: currencyCodeById.get(refundOpenItem?.groupCurrencyId ?? '') ?? null,
+    groupCurrencyLabel: currencyLabelById.get(refundOpenItem?.groupCurrencyId ?? '') ?? null,
+    realizedFxLocalAmount: refundApplicationFx._sum.realizedFxLocalAmount,
+    realizedFxFunctionalAmount: refundApplicationFx._sum.realizedFxFunctionalAmount,
+    realizedFxGroupAmount: refundRealizedFxGroupAmount,
+    fxRateType: refund.cashReceipt?.fxRateType ?? null,
+    fxRateSource: refund.cashReceipt?.fxRateSource ?? null,
+    fxEffectiveDateLabel: refund.cashReceipt?.fxEffectiveDate ? fmtDocumentDate(refund.cashReceipt.fxEffectiveDate, moneySettings) : null,
+    formatCurrency: formatMonetaryValue,
+  })
   const allFieldDefinitions: Record<string, RecordHeaderField> = {
     ...headerFieldDefinitions,
     ...referenceFieldDefinitions,
+    ...Object.fromEntries(currencyReadoutSection.fields.map((field) => [field.key, field])),
   }
   const customizeFields = buildTransactionCustomizePreviewFields({
     fields: CUSTOMER_REFUND_DETAIL_FIELDS,
-    fieldDefinitions: headerFieldDefinitions,
+    fieldDefinitions: allFieldDefinitions,
     previewOverrides: {
-      amount: fmtCurrency(refund.amount, undefined, moneySettings),
+      amount: fmtCurrency(refund.amount, refundCurrencyCode, moneySettings),
       date: fmtDocumentDate(refund.date, moneySettings),
       createdAt: fmtDocumentDate(refund.createdAt, moneySettings),
       updatedAt: fmtDocumentDate(refund.updatedAt, moneySettings),
     },
   })
+  const configuredHeaderSections = buildConfiguredTransactionSections({
+    fields: CUSTOMER_REFUND_DETAIL_FIELDS,
+    layout: customization,
+    fieldDefinitions: allFieldDefinitions,
+    sectionDescriptions,
+  })
+  const configuredCurrencySection =
+    configuredHeaderSections.find((section) => section.title === CURRENCY_READOUT_SECTION_TITLE) ?? currencyReadoutSection
+  const headerSections = configuredHeaderSections.filter((section) => section.title !== CURRENCY_READOUT_SECTION_TITLE)
   const referenceSections = (customization.referenceLayouts ?? [])
     .map((referenceLayout) => {
       const source = CUSTOMER_REFUND_REFERENCE_SOURCES.find((entry) => entry.id === referenceLayout.referenceId)
@@ -447,7 +627,7 @@ export default async function CustomerRefundDetailPage({
       id: 'amount',
       label: 'Refund Amount',
       accent: true as const,
-      getValue: (record: typeof refund) => fmtCurrency(record.amount, undefined, moneySettings),
+        getValue: (record: typeof refund) => fmtCurrency(record.amount, refundCurrencyCode, moneySettings),
       getValueTone: () => 'accent' as const,
     },
     {
@@ -529,43 +709,41 @@ export default async function CustomerRefundDetailPage({
       title={`Customer Refund ${refund.number}`}
       widthClassName="w-full max-w-none"
       actions={
-        isCustomizing ? null : (
-          <TransactionActionStack
-            mode="detail"
-            cancelHref={detailHref}
-            primaryActions={
-              <>
-                <MasterDataDetailCreateMenu
-                  newHref="/customer-refunds/new"
-                  duplicateHref={`/customer-refunds/new?duplicateFrom=${encodeURIComponent(refund.id)}`}
-                />
-                <MasterDataDetailExportMenu
-                  title={refund.number}
-                  fileName={`customer-refund-${refund.number}`}
-                  sections={headerSections.map((section) => ({
-                    title: section.title,
-                    fields: buildTransactionExportHeaderFields([section]),
-                  }))}
-                />
-                <Link
-                  href={`${detailHref}?customize=1`}
-                  className="rounded-md border px-3 py-2 text-sm"
-                  style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-                >
-                  Customize
-                </Link>
-                <Link
-                  href={`${detailHref}?edit=1`}
-                  className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                  style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                >
-                  Edit
-                </Link>
-                <DeleteButton resource="customer-refunds" id={refund.id} />
-              </>
-            }
-          />
-        )
+        <TransactionActionStack
+          mode={isCustomizing ? 'customize' : 'detail'}
+          cancelHref={detailHref}
+          primaryActions={
+            <>
+              <MasterDataDetailCreateMenu
+                newHref="/customer-refunds/new"
+                duplicateHref={`/customer-refunds/new?duplicateFrom=${encodeURIComponent(refund.id)}`}
+              />
+              <MasterDataDetailExportMenu
+                title={refund.number}
+                fileName={`customer-refund-${refund.number}`}
+                sections={headerSections.map((section) => ({
+                  title: section.title,
+                  fields: buildTransactionExportHeaderFields([section]),
+                }))}
+              />
+              <Link
+                href={`${detailHref}?customize=1`}
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+              >
+                Customize
+              </Link>
+              <Link
+                href={`${detailHref}?edit=1`}
+                className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+              >
+                Edit
+              </Link>
+              <DeleteButton resource="customer-refunds" id={refund.id} />
+            </>
+          }
+        />
       }
     >
       <TransactionDetailFrame
@@ -590,6 +768,11 @@ export default async function CustomerRefundDetailPage({
             />
           ) : (
             <div className="space-y-6">
+              <TransactionFourCurrencySection
+                section={configuredCurrencySection}
+                layout={customization}
+                description="Read the transaction, local, functional, and group amounts from the posted customer refund context."
+              />
               {referenceSections.length > 0 ? (
                 <RecordHeaderDetails
                   editing={false}
@@ -618,15 +801,36 @@ export default async function CustomerRefundDetailPage({
         }
         lineItems={null}
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'customer',
+                label: 'Customer',
+                count: 1,
+                emptyMessage: 'No related customer is linked to this customer refund.',
+                rows: [
+                  {
+                    id: refund.customer.id,
+                    type: 'Customer',
+                    reference: refund.customer.customerId ?? refund.customer.id,
+                    name: refund.customer.name,
+                    details: [refund.customer.email, refund.customer.phone].filter(Boolean).join(' | ') || '-',
+                    href: `/customers/${refund.customer.id}`,
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={1}
+        relatedDocuments={isCustomizing ? null : (
           <CustomerRefundRelatedDocuments
             embedded
             showDisplayControl={false}
-            customer={{
-              id: refund.customer.id,
-              number: refund.customer.customerId ?? refund.customer.id,
-              name: refund.customer.name,
-              email: refund.customer.email,
-            }}
+            customer={null}
+            defaultCurrencyCode={refundCurrencyCode}
             opportunity={
               refund.cashReceipt?.invoice?.salesOrder?.quote?.opportunity
                 ? {
@@ -637,6 +841,7 @@ export default async function CustomerRefundDetailPage({
                     name: refund.cashReceipt.invoice.salesOrder.quote.opportunity.name,
                     status: refund.cashReceipt.invoice.salesOrder.quote.opportunity.stage,
                     total: Number(refund.cashReceipt.invoice.salesOrder.quote.opportunity.amount ?? 0),
+                    currencyCode: opportunityCurrencyCode,
                   }
                 : null
             }
@@ -647,6 +852,7 @@ export default async function CustomerRefundDetailPage({
                     number: refund.cashReceipt.invoice.salesOrder.quote.number,
                     status: refund.cashReceipt.invoice.salesOrder.quote.status,
                     total: Number(refund.cashReceipt.invoice.salesOrder.quote.total),
+                    currencyCode: quoteCurrencyCode,
                   }
                 : null
             }
@@ -657,6 +863,7 @@ export default async function CustomerRefundDetailPage({
                     number: refund.cashReceipt.invoice.salesOrder.number,
                     status: refund.cashReceipt.invoice.salesOrder.status,
                     total: Number(refund.cashReceipt.invoice.salesOrder.total),
+                    currencyCode: salesOrderCurrencyCode,
                   }
                 : null
             }
@@ -667,6 +874,7 @@ export default async function CustomerRefundDetailPage({
                     number: refund.cashReceipt.number ?? refund.cashReceipt.id,
                     status: refund.cashReceipt.status,
                     amount: Number(refund.cashReceipt.amount),
+                    currencyCode: receiptCurrencyCode,
                   }
                 : null
             }
@@ -677,25 +885,26 @@ export default async function CustomerRefundDetailPage({
                     number: refund.cashReceipt.invoice.number,
                     status: refund.cashReceipt.invoice.status,
                     total: Number(refund.cashReceipt.invoice.total),
+                    currencyCode: invoiceCurrencyCode,
                   }
                 : null
             }
             moneySettings={moneySettings}
           />
         )}
-        relatedRecordsCount={relatedDocumentsCount}
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this customer refund yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
+        relatedDocumentsCount={relatedDocumentsCount}
         supplementarySections={
           isCustomizing ? null : (
             <InvoiceReceiptGlImpactSection
               rows={glImpactRows}
               settings={customization.glImpactSettings}
               columnCustomization={customization.glImpactColumns}
+              currencyCodes={{
+                transaction: currencyCodeById.get(refundOpenItem?.transactionCurrencyId ?? refund.currencyId ?? '') ?? refundCurrencyCode ?? null,
+                local: currencyCodeById.get(refundOpenItem?.localCurrencyId ?? '') ?? null,
+                functional: currencyCodeById.get(refundOpenItem?.functionalCurrencyId ?? '') ?? null,
+                group: currencyCodeById.get(refundOpenItem?.groupCurrencyId ?? '') ?? null,
+              }}
             />
           )
         }
@@ -713,7 +922,7 @@ export default async function CustomerRefundDetailPage({
               counterpartyEmail: refund.customer.email,
               fromEmail: refund.user?.email ?? null,
               status: formattedStatus,
-              total: fmtCurrency(refund.amount, undefined, moneySettings),
+                total: fmtCurrency(refund.amount, refundCurrencyCode, moneySettings),
               lineItems: [],
               sendEmailEndpoint: '/api/customer-refunds?action=send-email',
               recordIdFieldName: 'customerRefundId',

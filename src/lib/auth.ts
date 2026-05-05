@@ -29,6 +29,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 }
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? 'local-dev-nextauth-secret',
   providers: [
     CredentialsProvider({
       name: 'Credentials',

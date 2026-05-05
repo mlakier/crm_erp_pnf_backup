@@ -22,6 +22,7 @@ export type IdSettingKey =
   | 'intercompanyJournal'
   | 'fulfillment'
   | 'billPayment'
+  | 'clearingDocument'
 
 export type IdSetting = {
   prefix: string
@@ -170,6 +171,7 @@ export const ID_SETTING_DEFINITIONS: Array<{
   { key: 'billPayment', label: 'Bill Payments', group: 'Transactions', subgroup: 'Purchase to Pay' },
   { key: 'journal', label: 'Journals', group: 'Transactions', subgroup: 'Record to Report' },
   { key: 'intercompanyJournal', label: 'Intercompany Journals', group: 'Transactions', subgroup: 'Record to Report' },
+  { key: 'clearingDocument', label: 'Clearing Documents', group: 'Transactions', subgroup: 'Record to Report' },
 ]
 
 export const DEFAULT_ID_SETTINGS: Record<IdSettingKey, IdSetting> = {
@@ -196,6 +198,7 @@ export const DEFAULT_ID_SETTINGS: Record<IdSettingKey, IdSetting> = {
   intercompanyJournal: { prefix: 'IJE-', startingNumber: 1, digits: 0, autoIncrement: true, locked: false },
   fulfillment: { prefix: 'FUL-', startingNumber: 1, digits: 0, autoIncrement: true, locked: false },
   billPayment: { prefix: 'BP-', startingNumber: 1, digits: 0, autoIncrement: true, locked: false },
+  clearingDocument: { prefix: 'CLR-', startingNumber: 1, digits: 0, autoIncrement: true, locked: false },
 }
 
 export const DEFAULT_MONEY_SETTINGS: MoneySettings = {

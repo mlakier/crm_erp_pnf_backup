@@ -18,6 +18,13 @@ import {
   SUBSIDIARY_FULL_REFERENCE_FIELDS,
   USER_FULL_REFERENCE_FIELDS,
 } from '@/lib/linked-record-reference-catalogs'
+import {
+  buildDefaultCurrencyReadoutFieldCustomizations,
+  CURRENCY_READOUT_CUSTOMIZE_FIELDS,
+  CURRENCY_READOUT_FIELD_KEYS,
+  CURRENCY_READOUT_SECTION_TITLE,
+  type CurrencyReadoutFieldKey,
+} from '@/lib/four-currency-readout'
 
 export type InvoiceDetailFieldKey =
   | 'customerName'
@@ -45,6 +52,7 @@ export type InvoiceDetailFieldKey =
   | 'paidDate'
   | 'createdAt'
   | 'updatedAt'
+  | CurrencyReadoutFieldKey
 
 export type InvoiceLineColumnKey =
   | 'line'
@@ -158,6 +166,7 @@ export const INVOICE_DETAIL_FIELDS: InvoiceDetailFieldMeta[] = [
   { id: 'paidDate', label: 'Paid Date', fieldType: 'date', description: 'Date payment was completed.' },
   { id: 'createdAt', label: 'Created', fieldType: 'date', description: 'Date/time the invoice record was created.' },
   { id: 'updatedAt', label: 'Last Modified', fieldType: 'date', description: 'Date/time the invoice record was last modified.' },
+  ...CURRENCY_READOUT_CUSTOMIZE_FIELDS,
 ]
 
 export const INVOICE_LINE_COLUMNS: Array<{ id: InvoiceLineColumnKey; label: string; description?: string }> = [
@@ -180,6 +189,7 @@ export const INVOICE_LINE_COLUMNS: Array<{ id: InvoiceLineColumnKey; label: stri
 ]
 
 export const DEFAULT_INVOICE_DETAIL_SECTIONS = [
+  CURRENCY_READOUT_SECTION_TITLE,
   'Document Identity',
   'Customer Snapshot',
   'Source Context',
@@ -286,7 +296,7 @@ const DEFAULT_INVOICE_LINE_WIDTHS: Record<InvoiceLineColumnKey, InvoiceLineWidth
 
 const DEFAULT_INVOICE_LINE_EDIT_DISPLAY: Record<InvoiceLineColumnKey, InvoiceLineDisplayMode> = {
   line: 'label',
-  'item-id': 'idAndLabel',
+  'item-id': 'id',
   description: 'label',
   quantity: 'label',
   'unit-price': 'label',
@@ -309,6 +319,7 @@ const DEFAULT_INVOICE_LINE_VIEW_DISPLAY: Record<InvoiceLineColumnKey, InvoiceLin
 
 const DEFAULT_INVOICE_LINE_DROPDOWN_DISPLAY: Record<InvoiceLineColumnKey, InvoiceLineDisplayMode> = {
   ...DEFAULT_INVOICE_LINE_EDIT_DISPLAY,
+  'item-id': 'idAndLabel',
 }
 
 const DEFAULT_INVOICE_LINE_DROPDOWN_SORT: Record<InvoiceLineColumnKey, InvoiceLineDropdownSortMode> = {
@@ -331,7 +342,7 @@ const DEFAULT_INVOICE_LINE_DROPDOWN_SORT: Record<InvoiceLineColumnKey, InvoiceLi
 }
 
 export function defaultInvoiceDetailCustomization(): InvoiceDetailCustomizationConfig {
-  const sectionMap: Record<InvoiceDetailFieldKey, string> = {
+  const sectionMap: Record<Exclude<InvoiceDetailFieldKey, CurrencyReadoutFieldKey>, string> = {
     number: 'Document Identity',
     createdBy: 'Document Identity',
     customerId: 'Document Identity',
@@ -359,7 +370,7 @@ export function defaultInvoiceDetailCustomization(): InvoiceDetailCustomizationC
     updatedAt: 'System Dates',
   }
 
-  const columnMap: Record<InvoiceDetailFieldKey, number> = {
+  const columnMap: Record<Exclude<InvoiceDetailFieldKey, CurrencyReadoutFieldKey>, number> = {
     number: 1,
     createdBy: 2,
     customerId: 3,
@@ -387,7 +398,7 @@ export function defaultInvoiceDetailCustomization(): InvoiceDetailCustomizationC
     updatedAt: 2,
   }
 
-  const rowMap: Record<InvoiceDetailFieldKey, number> = {
+  const rowMap: Record<Exclude<InvoiceDetailFieldKey, CurrencyReadoutFieldKey>, number> = {
     number: 0,
     createdBy: 0,
     customerId: 0,
@@ -419,6 +430,7 @@ export function defaultInvoiceDetailCustomization(): InvoiceDetailCustomizationC
     formColumns: 3,
     sections: [...DEFAULT_INVOICE_DETAIL_SECTIONS],
     sectionRows: {
+      [CURRENCY_READOUT_SECTION_TITLE]: 4,
       'Document Identity': 1,
       'Customer Snapshot': 3,
       'Source Context': 2,
@@ -432,12 +444,14 @@ export function defaultInvoiceDetailCustomization(): InvoiceDetailCustomizationC
     fields: Object.fromEntries(
       INVOICE_DETAIL_FIELDS.map((field) => [
         field.id,
-        {
-          visible: field.id === 'customerAddress' || field.id === 'customerInactive' || field.id === 'paidDate' ? false : true,
-          section: sectionMap[field.id],
-          order: rowMap[field.id],
-          column: columnMap[field.id],
-        },
+        CURRENCY_READOUT_FIELD_KEYS.includes(field.id as CurrencyReadoutFieldKey)
+          ? buildDefaultCurrencyReadoutFieldCustomizations()[field.id as CurrencyReadoutFieldKey]
+          : {
+              visible: field.id === 'customerAddress' || field.id === 'customerInactive' || field.id === 'paidDate' ? false : true,
+              section: sectionMap[field.id as Exclude<InvoiceDetailFieldKey, CurrencyReadoutFieldKey>],
+              order: rowMap[field.id as Exclude<InvoiceDetailFieldKey, CurrencyReadoutFieldKey>],
+              column: columnMap[field.id as Exclude<InvoiceDetailFieldKey, CurrencyReadoutFieldKey>],
+            },
       ]),
     ) as Record<InvoiceDetailFieldKey, InvoiceDetailFieldCustomization>,
     referenceLayouts: [buildDefaultTransactionReferenceLayout(INVOICE_REFERENCE_SOURCES, 'customer')],

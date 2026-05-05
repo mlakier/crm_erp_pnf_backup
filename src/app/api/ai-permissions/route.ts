@@ -26,7 +26,9 @@ const ALL_PAGES = [
   { key: 'receipts', label: 'Receipts', group: 'PTP (Procure-to-Pay)', statusKey: 'RECEIPT-STATUS' },
   { key: 'bills', label: 'Bills', group: 'PTP (Procure-to-Pay)', statusKey: 'BILL-STATUS' },
   { key: 'bill-payments', label: 'Bill Payments', group: 'PTP (Procure-to-Pay)' },
+  { key: 'vendor-refunds', label: 'Vendor Refunds', group: 'PTP (Procure-to-Pay)' },
   { key: 'journals', label: 'Journals', group: 'RTR (Record-to-Report)' },
+  { key: 'clearing-documents', label: 'Clearing Documents', group: 'RTR (Record-to-Report)' },
 ] as const
 
 export async function POST(request: Request) {

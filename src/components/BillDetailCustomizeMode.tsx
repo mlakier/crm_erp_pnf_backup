@@ -12,13 +12,49 @@ import {
 } from '@/lib/transaction-gl-impact'
 import type { TransactionVisualTone } from '@/lib/transaction-page-config'
 
-const LOOKUP_DISPLAY_COLUMNS = new Set<BillLineColumnKey>(['item-id'])
+const LOOKUP_DISPLAY_COLUMNS = new Set<BillLineColumnKey>(['item-id', 'expense-account'])
+
+const BILL_LINE_SHOW_COLUMN_OPTIONS = [
+  { value: 'always', label: 'Always' },
+  { value: 'itemOnly', label: 'Item Lines Only' },
+  { value: 'expenseOnly', label: 'Expense Lines Only' },
+] as const
+
+const BILL_LINE_COLUMN_SETTING_DEFINITIONS = [
+  { id: 'widthMode', label: 'Width', options: [
+    { value: 'auto', label: 'Auto' },
+    { value: 'compact', label: 'Compact' },
+    { value: 'normal', label: 'Normal' },
+    { value: 'wide', label: 'Wide' },
+  ] },
+  { id: 'showColumnMode', label: 'Show Column', options: [...BILL_LINE_SHOW_COLUMN_OPTIONS] },
+  { id: 'dropdownDisplay', label: 'Dropdown', options: [
+    { value: 'label', label: 'Desc Only' },
+    { value: 'idAndLabel', label: 'Id + Desc' },
+    { value: 'id', label: 'Id Only' },
+  ] },
+  { id: 'dropdownSort', label: 'Sort', options: [
+    { value: 'id', label: 'Id/Num' },
+    { value: 'label', label: 'Description' },
+  ] },
+  { id: 'editDisplay', label: 'Edit', options: [
+    { value: 'label', label: 'Desc Only' },
+    { value: 'idAndLabel', label: 'Id + Desc' },
+    { value: 'id', label: 'Id Only' },
+  ] },
+  { id: 'viewDisplay', label: 'View', options: [
+    { value: 'label', label: 'Desc Only' },
+    { value: 'idAndLabel', label: 'Id + Desc' },
+    { value: 'id', label: 'Id Only' },
+  ] },
+] as const
 
 const BILL_LINE_SETTING_AVAILABILITY = Object.fromEntries(
   BILL_LINE_COLUMNS.map((column) => [
     column.id,
     [
       'widthMode',
+      ...((column.id === 'item-id' || column.id === 'expense-account') ? ['showColumnMode'] : []),
       ...(LOOKUP_DISPLAY_COLUMNS.has(column.id) ? ['dropdownDisplay', 'dropdownSort', 'editDisplay', 'viewDisplay'] : []),
     ],
   ]),
@@ -87,6 +123,7 @@ export default function BillDetailCustomizeMode({
       statCardDefinitions={BILL_STAT_CARDS}
       statPreviewCards={statPreviewCards}
       lineColumnDefinitions={BILL_LINE_COLUMNS}
+      lineColumnSettingDefinitions={[...BILL_LINE_COLUMN_SETTING_DEFINITIONS]}
       lineColumnSettingAvailability={BILL_LINE_SETTING_AVAILABILITY}
       secondaryColumnsLabel="GL Impact"
       secondaryColumnDefinitions={TRANSACTION_GL_IMPACT_COLUMNS}

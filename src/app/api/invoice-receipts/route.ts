@@ -4,18 +4,115 @@ import { generateInvoiceReceiptNumber } from '@/lib/invoice-receipt-number'
 import { parseMoneyValue } from '@/lib/money'
 import { generateNextJournalNumber } from '@/lib/journal-number'
 import { generateCustomerRefundNumber } from '@/lib/customer-refund-number'
-import { logActivity } from '@/lib/activity'
-import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
+import { logActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
+import { loadCompanySetupSettings } from '@/lib/company-setup-settings-store'
+import { loadConfiguredRealizedFxPostingAccounts } from '@/lib/company-setup-account-resolver'
 import { loadListValues } from '@/lib/load-list-values'
+import { deriveOpenItemCurrencyContext } from '@/lib/open-item-currency-context'
+import {
+  deleteDocumentRelationshipsForRecord,
+  syncAutoDocumentRelationshipsForSource,
+} from '@/lib/document-relationships'
+import {
+  applyOpenItems,
+  ensureOpenItemForSource,
+  findExistingOpenItemApplication,
+  syncOpenItemStatus,
+} from '@/lib/open-item-service'
+import {
+  buildRealizedFxJournalLines,
+  computeRealizedFxLayerAmount,
+  deriveCarriedSettlementAmount,
+} from '@/lib/settlement-fx-journal'
 import {
   normalizeInvoiceReceiptApplications,
   roundMoney,
   sumInvoiceReceiptApplications,
   type InvoiceReceiptApplicationInput,
 } from '@/lib/invoice-receipt-applications'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 
 const INVOICE_RECEIPT_POSTING_STATUSES = new Set(['posted'])
 const AUTO_CUSTOMER_REFUND_NOTE = 'Auto-created from invoice receipt overpayment.'
+
+async function deleteLegacyInvoiceReceiptSettlementApplications(
+  receiptId: string,
+  retainedApplicationId: string,
+  openItemIdsToResync: string[],
+) {
+  const legacyApplications = await prisma.openItemApplication.findMany({
+    where: {
+      settlementTransactionType: 'invoice-receipt',
+      settlementTransactionId: receiptId,
+      toOpenItemId: null,
+      id: { not: retainedApplicationId },
+    },
+    select: { id: true, fromOpenItemId: true, toOpenItemId: true },
+  })
+
+  if (legacyApplications.length === 0) return
+
+  await prisma.$transaction(async (tx) => {
+    await tx.openItemEntry.deleteMany({
+      where: {
+        sourceApplicationId: { in: legacyApplications.map((application) => application.id) },
+      },
+    })
+    await tx.openItemApplication.deleteMany({
+      where: {
+        id: { in: legacyApplications.map((application) => application.id) },
+      },
+    })
+
+    const itemIds = Array.from(
+      new Set(
+        [...openItemIdsToResync, ...legacyApplications.map((application) => application.fromOpenItemId)].filter(
+          (value): value is string => Boolean(value),
+        ),
+      ),
+    )
+    for (const openItemId of itemIds) {
+      await syncOpenItemStatus(openItemId, { tx })
+    }
+  })
+}
+
+async function syncInvoiceReceiptDocumentRelationships(cashReceiptId: string) {
+  const receipt = await prisma.cashReceipt.findUnique({
+    where: { id: cashReceiptId },
+    select: {
+      id: true,
+      invoiceId: true,
+      applications: {
+        select: {
+          invoiceId: true,
+        },
+      },
+    },
+  })
+
+  if (!receipt) return
+
+  const targetInvoiceIds = Array.from(
+    new Set(
+      [
+        receipt.invoiceId,
+        ...receipt.applications.map((application) => application.invoiceId),
+      ].filter((value): value is string => Boolean(value)),
+    ),
+  )
+
+  await syncAutoDocumentRelationshipsForSource({
+    sourceRecordType: 'invoice-receipt',
+    sourceRecordId: receipt.id,
+    relationshipType: 'settles',
+    automationSource: 'invoice-receipt-applications',
+    targets: targetInvoiceIds.map((invoiceId) => ({
+      recordType: 'invoice',
+      recordId: invoiceId,
+    })),
+  })
+}
 
 async function loadInvoiceReceiptStatusValues() {
   const values = await loadListValues('INV-RECEIPT-STATUS')
@@ -34,7 +131,8 @@ function normalizeOverpaymentHandling(value: unknown) {
 }
 
 async function findInvoiceReceiptPostingAccounts(bankAccountId: string | null | undefined) {
-  const companySettings = await loadCompanyInformationSettings()
+  const companySettings = await loadCompanySetupSettings()
+  const realizedFxAccounts = await loadConfiguredRealizedFxPostingAccounts()
 
   const arAccount =
     (companySettings.defaultArAccountId
@@ -81,23 +179,13 @@ async function findInvoiceReceiptPostingAccounts(bankAccountId: string | null | 
           select: { id: true },
         })
       : null)
-    ?? await prisma.chartOfAccounts.findFirst({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      select: { id: true },
-    })
+    ?? (await loadCashBankPostingAccounts())[0]
 
   return {
     arAccountId: arAccount?.id ?? null,
     bankAccountId: bankAccount?.id ?? null,
+    realizedFxGainAccountId: realizedFxAccounts.realizedFxGainAccountId,
+    realizedFxLossAccountId: realizedFxAccounts.realizedFxLossAccountId,
   }
 }
 
@@ -228,7 +316,6 @@ async function postInvoiceReceiptJournal(cashReceiptId: string) {
     where: { sourceType: 'invoice-receipt', sourceId: cashReceiptId },
     select: { id: true },
   })
-  if (existingJournal) return
 
   const receipt = await prisma.cashReceipt.findUnique({
     where: { id: cashReceiptId },
@@ -237,6 +324,9 @@ async function postInvoiceReceiptJournal(cashReceiptId: string) {
         select: {
           id: true,
           number: true,
+          total: true,
+          createdAt: true,
+          dueDate: true,
           customerId: true,
           userId: true,
           subsidiaryId: true,
@@ -249,6 +339,9 @@ async function postInvoiceReceiptJournal(cashReceiptId: string) {
             select: {
               id: true,
               number: true,
+              total: true,
+              createdAt: true,
+              dueDate: true,
               customerId: true,
               userId: true,
               subsidiaryId: true,
@@ -272,10 +365,235 @@ async function postInvoiceReceiptJournal(cashReceiptId: string) {
   const amount = Number(receipt.amount)
   if (!Number.isFinite(amount) || amount <= 0 || !firstInvoice) return
 
-  const { arAccountId, bankAccountId } = await findInvoiceReceiptPostingAccounts(receipt.bankAccountId)
+  const {
+    arAccountId,
+    bankAccountId,
+    realizedFxGainAccountId,
+    realizedFxLossAccountId,
+  } = await findInvoiceReceiptPostingAccounts(receipt.bankAccountId)
+
+  const receiptCurrencyContext = await deriveOpenItemCurrencyContext({
+    subsidiaryId: firstInvoice.subsidiaryId ?? null,
+    transactionCurrencyId: firstInvoice.currencyId ?? null,
+    transactionAmount: amount,
+    effectiveDate: receipt.date,
+    rateType: 'spot',
+  })
+
+  const receiptOpenItem = await ensureOpenItemForSource({
+    openItemType: 'customer_receipt',
+    accountType: 'Asset',
+    accountId: bankAccountId,
+    subsidiaryId: firstInvoice.subsidiaryId ?? null,
+    transactionCurrencyId: receiptCurrencyContext.transactionCurrencyId,
+    localCurrencyId: receiptCurrencyContext.localCurrencyId,
+    functionalCurrencyId: receiptCurrencyContext.functionalCurrencyId,
+    groupCurrencyId: receiptCurrencyContext.groupCurrencyId,
+    sourceTransactionType: 'invoice-receipt',
+    sourceTransactionId: receipt.id,
+    sourceNumber: receipt.number ?? receipt.id,
+    counterpartyType: 'customer',
+    counterpartyId: firstInvoice.customerId,
+    documentDate: receipt.date,
+    postingDate: receipt.date,
+    originalTransactionAmount: amount,
+    originalLocalAmount: receiptCurrencyContext.originalLocalAmount,
+    originalFunctionalAmount: receiptCurrencyContext.originalFunctionalAmount,
+    originalGroupAmount: receiptCurrencyContext.originalGroupAmount,
+    memo: receipt.reference ?? null,
+    createdById: firstInvoice.userId ?? null,
+  })
+
+  const applicationsToSettle = receipt.applications.length > 0
+    ? receipt.applications.map((application) => ({
+        invoice: application.invoice,
+        appliedAmount: Number(application.appliedAmount),
+      }))
+    : receipt.invoice
+      ? [{
+          invoice: receipt.invoice,
+          appliedAmount: amount,
+        }]
+      : []
+  const settlementSummaries: Array<{
+    localAmount: number | null
+    functionalAmount: number | null
+    groupAmount: number | null
+    realizedFxLocalAmount: number | null
+    realizedFxFunctionalAmount: number | null
+    realizedFxGroupAmount: number | null
+  }> = []
+
+  for (const application of applicationsToSettle) {
+    const invoiceCurrencyContext = await deriveOpenItemCurrencyContext({
+      subsidiaryId: application.invoice.subsidiaryId ?? null,
+      transactionCurrencyId: application.invoice.currencyId ?? null,
+      transactionAmount: application.invoice.total,
+      effectiveDate: application.invoice.createdAt,
+      rateType: 'spot',
+    })
+
+    const invoiceOpenItem = await ensureOpenItemForSource({
+      openItemType: 'accounts_receivable',
+      accountType: 'Asset',
+      accountId: arAccountId,
+      subsidiaryId: application.invoice.subsidiaryId ?? null,
+      transactionCurrencyId: invoiceCurrencyContext.transactionCurrencyId,
+      localCurrencyId: invoiceCurrencyContext.localCurrencyId,
+      functionalCurrencyId: invoiceCurrencyContext.functionalCurrencyId,
+      groupCurrencyId: invoiceCurrencyContext.groupCurrencyId,
+      sourceTransactionType: 'invoice',
+      sourceTransactionId: application.invoice.id,
+      sourceNumber: application.invoice.number,
+      counterpartyType: 'customer',
+      counterpartyId: application.invoice.customerId,
+      documentDate: application.invoice.createdAt,
+      postingDate: application.invoice.createdAt,
+      dueDate: application.invoice.dueDate ?? null,
+      originalTransactionAmount: application.invoice.total,
+      originalLocalAmount: invoiceCurrencyContext.originalLocalAmount,
+      originalFunctionalAmount: invoiceCurrencyContext.originalFunctionalAmount,
+      originalGroupAmount: invoiceCurrencyContext.originalGroupAmount,
+      createdById: application.invoice.userId ?? null,
+    })
+
+    const settlementCurrencyContext = await deriveOpenItemCurrencyContext({
+      subsidiaryId: application.invoice.subsidiaryId ?? null,
+      transactionCurrencyId: application.invoice.currencyId ?? null,
+      transactionAmount: application.appliedAmount,
+      effectiveDate: receipt.date,
+      rateType: 'spot',
+    })
+
+    const existingApplication = await findExistingOpenItemApplication({
+      fromOpenItemId: receiptOpenItem.id,
+      toOpenItemId: invoiceOpenItem.id,
+      settlementTransactionType: 'invoice-receipt',
+      settlementTransactionId: receipt.id,
+    })
+
+    const postedApplication = existingApplication ?? (await applyOpenItems({
+        fromOpenItemId: receiptOpenItem.id,
+        toOpenItemId: invoiceOpenItem.id,
+        applicationType: 'invoice_receipt_application',
+        settlementTransactionType: 'invoice-receipt',
+        settlementTransactionId: receipt.id,
+        applicationDate: receipt.date,
+        postingDate: receipt.date,
+        transactionAmount: application.appliedAmount,
+        localAmount: settlementCurrencyContext.originalLocalAmount,
+        functionalAmount: settlementCurrencyContext.originalFunctionalAmount,
+        groupAmount: settlementCurrencyContext.originalGroupAmount,
+        memo: receipt.reference ?? null,
+        createdById: application.invoice.userId ?? null,
+        clearingType: 'invoice_receipt_application',
+        automationSource: 'invoice-receipt-posting',
+      })).application
+
+    await deleteLegacyInvoiceReceiptSettlementApplications(receipt.id, postedApplication.id, [
+      receiptOpenItem.id,
+      invoiceOpenItem.id,
+    ])
+
+    settlementSummaries.push({
+      localAmount: postedApplication.localAmount == null ? null : Number(postedApplication.localAmount),
+      functionalAmount: postedApplication.functionalAmount == null ? null : Number(postedApplication.functionalAmount),
+      groupAmount: postedApplication.groupAmount == null ? null : Number(postedApplication.groupAmount),
+      realizedFxLocalAmount:
+        postedApplication.realizedFxLocalAmount == null ? null : Number(postedApplication.realizedFxLocalAmount),
+      realizedFxFunctionalAmount:
+        postedApplication.realizedFxFunctionalAmount == null ? null : Number(postedApplication.realizedFxFunctionalAmount),
+      realizedFxGroupAmount: computeRealizedFxLayerAmount({
+        originalTransactionAmount: Number(application.invoice.total),
+        originalTranslatedAmount:
+          invoiceCurrencyContext.originalGroupAmount == null ? null : Number(invoiceCurrencyContext.originalGroupAmount),
+        settledTransactionAmount: application.appliedAmount,
+        settledTranslatedAmount:
+          settlementCurrencyContext.originalGroupAmount == null ? null : Number(settlementCurrencyContext.originalGroupAmount),
+      }),
+    })
+  }
+
+  if (existingJournal) return
+
   if (!arAccountId || !bankAccountId) return
 
   const journalNumber = await generateNextJournalNumber()
+  const totalAppliedAmount = roundMoney(
+    applicationsToSettle.reduce((sum, application) => sum + Number(application.appliedAmount), 0),
+  )
+  const isFullyApplied = Math.abs(roundMoney(amount - totalAppliedAmount)) <= 0.005
+  const canPopulateLocalLayer =
+    isFullyApplied
+    && settlementSummaries.length > 0
+    && settlementSummaries.every(
+      (summary) => summary.localAmount != null && summary.realizedFxLocalAmount != null,
+    )
+    && receiptCurrencyContext.originalLocalAmount != null
+  const canPopulateFunctionalLayer =
+    isFullyApplied
+    && settlementSummaries.length > 0
+    && settlementSummaries.every(
+      (summary) => summary.functionalAmount != null && summary.realizedFxFunctionalAmount != null,
+    )
+    && receiptCurrencyContext.originalFunctionalAmount != null
+  const canPopulateGroupLayer =
+    isFullyApplied
+    && settlementSummaries.length > 0
+    && settlementSummaries.every(
+      (summary) => summary.groupAmount != null && summary.realizedFxGroupAmount != null,
+    )
+    && receiptCurrencyContext.originalGroupAmount != null
+
+  const arLocalCredit = canPopulateLocalLayer
+    ? roundMoney(
+        settlementSummaries.reduce(
+          (sum, summary) => sum + (deriveCarriedSettlementAmount(summary.localAmount, summary.realizedFxLocalAmount) ?? 0),
+          0,
+        ),
+      )
+    : null
+  const arFunctionalCredit = canPopulateFunctionalLayer
+    ? roundMoney(
+        settlementSummaries.reduce(
+          (sum, summary) =>
+            sum + (deriveCarriedSettlementAmount(summary.functionalAmount, summary.realizedFxFunctionalAmount) ?? 0),
+          0,
+        ),
+      )
+    : null
+  const realizedFxLocalTotal = canPopulateLocalLayer
+    ? roundMoney(settlementSummaries.reduce((sum, summary) => sum + (summary.realizedFxLocalAmount ?? 0), 0))
+    : null
+  const realizedFxFunctionalTotal = canPopulateFunctionalLayer
+    ? roundMoney(
+        settlementSummaries.reduce((sum, summary) => sum + (summary.realizedFxFunctionalAmount ?? 0), 0),
+      )
+    : null
+  const arGroupCredit = canPopulateGroupLayer
+    ? roundMoney(
+        settlementSummaries.reduce(
+          (sum, summary) => sum + (deriveCarriedSettlementAmount(summary.groupAmount, summary.realizedFxGroupAmount) ?? 0),
+          0,
+        ),
+      )
+    : null
+  const realizedFxGroupTotal = canPopulateGroupLayer
+    ? roundMoney(settlementSummaries.reduce((sum, summary) => sum + (summary.realizedFxGroupAmount ?? 0), 0))
+    : null
+  const fxLines = buildRealizedFxJournalLines({
+    description: `${receipt.number ?? receipt.id} realized FX`,
+    memo: receipt.reference ?? null,
+    subsidiaryId: firstInvoice.subsidiaryId,
+    customerId: firstInvoice.customerId,
+    realizedFxGainAccountId,
+    realizedFxLossAccountId,
+    orientation: 'asset',
+    localAmount: realizedFxLocalTotal,
+    functionalAmount: realizedFxFunctionalTotal,
+    groupAmount: realizedFxGroupTotal,
+    startingDisplayOrder: 2,
+  })
 
   await prisma.journalEntry.create({
     data: {
@@ -296,8 +614,21 @@ async function postInvoiceReceiptJournal(cashReceiptId: string) {
             displayOrder: 0,
             description: `${receipt.number ?? receipt.id} cash receipt`,
             memo: receipt.reference ?? null,
+            activityTypeCode: 'cash_receipt',
             debit: amount,
             credit: 0,
+            localDebit:
+              canPopulateLocalLayer && receiptCurrencyContext.originalLocalAmount != null
+                ? Number(receiptCurrencyContext.originalLocalAmount)
+                : undefined,
+            functionalDebit:
+              canPopulateFunctionalLayer && receiptCurrencyContext.originalFunctionalAmount != null
+                ? Number(receiptCurrencyContext.originalFunctionalAmount)
+                : undefined,
+            groupDebit:
+              canPopulateGroupLayer && receiptCurrencyContext.originalGroupAmount != null
+                ? Number(receiptCurrencyContext.originalGroupAmount)
+                : undefined,
             accountId: bankAccountId,
             subsidiaryId: firstInvoice.subsidiaryId,
             customerId: firstInvoice.customerId,
@@ -306,14 +637,28 @@ async function postInvoiceReceiptJournal(cashReceiptId: string) {
             displayOrder: 1,
             description: `${receipt.number ?? receipt.id} AR application`,
             memo: receipt.reference ?? null,
+            activityTypeCode: 'ar_settlement',
             debit: 0,
             credit: amount,
+            localCredit: arLocalCredit,
+            functionalCredit: arFunctionalCredit,
+            groupCredit: arGroupCredit,
             accountId: arAccountId,
             subsidiaryId: firstInvoice.subsidiaryId,
             customerId: firstInvoice.customerId,
           },
+          ...fxLines,
         ],
       },
+    },
+  })
+
+  await prisma.cashReceipt.update({
+    where: { id: receipt.id },
+    data: {
+      fxRateType: receiptCurrencyContext.translationAudit?.rateType ?? 'spot',
+      fxRateSource: receiptCurrencyContext.translationAudit?.sourceSummary ?? 'Configured exchange rates',
+      fxEffectiveDate: receiptCurrencyContext.translationAudit?.effectiveDate ?? receipt.date,
     },
   })
 
@@ -329,6 +674,14 @@ async function postInvoiceReceiptJournal(cashReceiptId: string) {
 async function unpostInvoiceReceiptJournal(cashReceiptId: string) {
   await prisma.journalEntry.deleteMany({
     where: { sourceType: 'invoice-receipt', sourceId: cashReceiptId },
+  })
+  await prisma.cashReceipt.update({
+    where: { id: cashReceiptId },
+    data: {
+      fxRateType: null,
+      fxRateSource: null,
+      fxEffectiveDate: null,
+    },
   })
 }
 
@@ -489,13 +842,29 @@ export async function POST(req: NextRequest) {
           ? applications
           : [{ invoiceId, appliedAmount: normalizedAmount }]
 
-    await validateInvoiceReceiptApplications(
+    const postingContext = await validateInvoiceReceiptApplications(
       fallbackApplications,
       normalizedAmount,
       undefined,
       INVOICE_RECEIPT_POSTING_STATUSES.has(normalizedStatus),
       overpaymentHandling,
     )
+
+    if (
+      body.subsidiaryId
+      && postingContext.subsidiaryId
+      && body.subsidiaryId !== postingContext.subsidiaryId
+    ) {
+      return NextResponse.json({ error: 'Invoice receipt subsidiary must match the linked invoice subsidiary' }, { status: 400 })
+    }
+
+    if (
+      body.currencyId
+      && postingContext.currencyId
+      && body.currencyId !== postingContext.currencyId
+    ) {
+      return NextResponse.json({ error: 'Invoice receipt currency must match the linked invoice currency' }, { status: 400 })
+    }
 
     const number = await generateInvoiceReceiptNumber()
     const row = await prisma.cashReceipt.create({
@@ -504,6 +873,8 @@ export async function POST(req: NextRequest) {
         status: normalizedStatus,
         overpaymentHandling,
         invoiceId: fallbackApplications[0]?.invoiceId ?? invoiceId,
+        subsidiaryId: postingContext.subsidiaryId,
+        currencyId: postingContext.currencyId,
         bankAccountId: body.bankAccountId || null,
         amount: normalizedAmount,
         date: new Date(date),
@@ -517,7 +888,33 @@ export async function POST(req: NextRequest) {
         },
       },
     })
+    await syncInvoiceReceiptDocumentRelationships(row.id)
     await syncInvoiceReceiptPosting(row.id, normalizedStatus)
+    await logActivity({
+      entityType: 'invoice-receipt',
+      entityId: row.id,
+      action: 'create',
+      summary: `Created invoice receipt ${row.number ?? row.id}`,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'invoice-receipt',
+      entityId: row.id,
+      action: 'create',
+      context: 'Invoice Receipt Details',
+      fields: [
+        { fieldName: 'Business Id', value: row.number },
+        { fieldName: 'Invoice', value: row.invoiceId },
+        { fieldName: 'Subsidiary', value: row.subsidiaryId ?? '-' },
+        { fieldName: 'Currency', value: row.currencyId ?? '-' },
+        { fieldName: 'Bank Account', value: row.bankAccountId },
+        { fieldName: 'Amount', value: row.amount },
+        { fieldName: 'Date', value: row.date },
+        { fieldName: 'Method', value: row.method },
+        { fieldName: 'Reference', value: row.reference },
+        { fieldName: 'Status', value: row.status },
+        { fieldName: 'Overpayment Handling', value: row.overpaymentHandling },
+      ],
+    })
     return NextResponse.json(row, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to create invoice receipt'
@@ -598,12 +995,28 @@ export async function PUT(req: NextRequest) {
           : {}),
       },
     })
+    await syncInvoiceReceiptDocumentRelationships(row.id)
     await syncInvoiceReceiptPosting(row.id, normalizedStatus)
     await logActivity({
       entityType: 'invoice-receipt',
       entityId: row.id,
       action: 'update',
       summary: `Updated invoice receipt ${row.number ?? row.id}`,
+    })
+    await logFieldChangeActivities({
+      entityType: 'invoice-receipt',
+      entityId: row.id,
+      context: 'Invoice Receipt Details',
+      changes: [
+        { fieldName: 'Invoice', oldValue: before.invoiceId, newValue: row.invoiceId },
+        { fieldName: 'Bank Account', oldValue: before.bankAccountId, newValue: row.bankAccountId },
+        { fieldName: 'Amount', oldValue: before.amount, newValue: row.amount },
+        { fieldName: 'Date', oldValue: before.date, newValue: row.date },
+        { fieldName: 'Method', oldValue: before.method, newValue: row.method },
+        { fieldName: 'Reference', oldValue: before.reference, newValue: row.reference },
+        { fieldName: 'Status', oldValue: before.status, newValue: row.status },
+        { fieldName: 'Overpayment Handling', oldValue: before.overpaymentHandling, newValue: row.overpaymentHandling },
+      ],
     })
     return NextResponse.json(row)
   } catch (error) {
@@ -615,7 +1028,34 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const existing = await prisma.cashReceipt.findUnique({ where: { id } })
   await unpostInvoiceReceiptJournal(id)
   await prisma.cashReceipt.delete({ where: { id } })
+  await deleteDocumentRelationshipsForRecord('invoice-receipt', id)
+  if (existing) {
+    await logActivity({
+      entityType: 'invoice-receipt',
+      entityId: id,
+      action: 'delete',
+      summary: `Deleted invoice receipt ${existing.number ?? existing.id}`,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'invoice-receipt',
+      entityId: id,
+      action: 'delete',
+      context: 'Invoice Receipt Details',
+      fields: [
+        { fieldName: 'Business Id', value: existing.number },
+        { fieldName: 'Invoice', value: existing.invoiceId },
+        { fieldName: 'Bank Account', value: existing.bankAccountId },
+        { fieldName: 'Amount', value: existing.amount },
+        { fieldName: 'Date', value: existing.date },
+        { fieldName: 'Method', value: existing.method },
+        { fieldName: 'Reference', value: existing.reference },
+        { fieldName: 'Status', value: existing.status },
+        { fieldName: 'Overpayment Handling', value: existing.overpaymentHandling },
+      ],
+    })
+  }
   return NextResponse.json({ ok: true })
 }

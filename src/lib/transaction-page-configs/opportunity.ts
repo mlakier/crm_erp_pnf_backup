@@ -3,6 +3,7 @@ import type { TransactionPageConfig, TransactionVisualTone } from '@/lib/transac
 
 export type OpportunityPageConfigRecord = {
   amount: number
+  currencyCode?: string | null
   closeDate: Date | null
   lineCount: number
   stageLabel: string
@@ -26,7 +27,7 @@ export const opportunityPageConfig: TransactionPageConfig<OpportunityPageConfigR
       id: 'amount',
       label: 'Amount',
       accent: true,
-      getValue: (record) => fmtCurrency(record.amount, undefined, record.moneySettings),
+      getValue: (record) => fmtCurrency(record.amount, record.currencyCode ?? undefined, record.moneySettings),
     },
     {
       id: 'closeDate',

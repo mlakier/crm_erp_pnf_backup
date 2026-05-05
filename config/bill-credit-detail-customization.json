@@ -1,0 +1,490 @@
+{
+  "formColumns": 4,
+  "sections": [
+    "4-Currency Context",
+    "Document Identity",
+    "Workflow & Timing",
+    "Sourcing & Financials",
+    "Record Keys",
+    "System Dates"
+  ],
+  "sectionRows": {
+    "4-Currency Context": 4,
+    "Document Identity": 2,
+    "Workflow & Timing": 1,
+    "Sourcing & Financials": 1,
+    "Record Keys": 1,
+    "System Dates": 1
+  },
+  "fields": {
+    "id": {
+      "visible": true,
+      "section": "Record Keys",
+      "order": 0,
+      "column": 1
+    },
+    "number": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 0,
+      "column": 1
+    },
+    "vendorId": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 0,
+      "column": 2
+    },
+    "billId": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 0,
+      "column": 3
+    },
+    "reason": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 0,
+      "column": 4
+    },
+    "notes": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 1,
+      "column": 1
+    },
+    "status": {
+      "visible": true,
+      "section": "Workflow & Timing",
+      "order": 0,
+      "column": 1
+    },
+    "date": {
+      "visible": true,
+      "section": "Workflow & Timing",
+      "order": 0,
+      "column": 2
+    },
+    "subsidiaryId": {
+      "visible": true,
+      "section": "Sourcing & Financials",
+      "order": 0,
+      "column": 1
+    },
+    "currencyId": {
+      "visible": true,
+      "section": "Sourcing & Financials",
+      "order": 0,
+      "column": 2
+    },
+    "total": {
+      "visible": true,
+      "section": "Sourcing & Financials",
+      "order": 0,
+      "column": 3
+    },
+    "userId": {
+      "visible": true,
+      "section": "Record Keys",
+      "order": 0,
+      "column": 2
+    },
+    "createdAt": {
+      "visible": true,
+      "section": "System Dates",
+      "order": 0,
+      "column": 1
+    },
+    "updatedAt": {
+      "visible": true,
+      "section": "System Dates",
+      "order": 0,
+      "column": 2
+    },
+    "currency-transaction-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 1
+    },
+    "currency-local-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 1
+    },
+    "currency-functional-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 1
+    },
+    "currency-group-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 1
+    },
+    "currency-fx-audit": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 2
+    },
+    "currency-local-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 2
+    },
+    "currency-functional-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 2
+    },
+    "currency-group-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 2
+    },
+    "currency-fx-rate-type": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 3
+    },
+    "currency-realized-fx-functional": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 3
+    },
+    "currency-realized-fx-local": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 3
+    },
+    "currency-realized-fx-group": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 3
+    },
+    "currency-translation-status": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 4
+    },
+    "currency-posting-status": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 4
+    },
+    "currency-open-item-number": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 4
+    }
+  },
+  "referenceLayouts": [
+    {
+      "id": "reference-bill-1",
+      "referenceId": "bill",
+      "formColumns": 2,
+      "rows": 3,
+      "fields": {
+        "billDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 0
+        },
+        "billNumber": {
+          "visible": true,
+          "column": 1,
+          "order": 0
+        },
+        "billStatus": {
+          "visible": true,
+          "column": 2,
+          "order": 1
+        },
+        "billTotal": {
+          "visible": true,
+          "column": 2,
+          "order": 0
+        },
+        "billDate": {
+          "visible": false,
+          "column": 1,
+          "order": 2
+        },
+        "billDueDate": {
+          "visible": true,
+          "column": 1,
+          "order": 1
+        },
+        "billNotes": {
+          "visible": false,
+          "column": 1,
+          "order": 3
+        },
+        "billOcrData": {
+          "visible": false,
+          "column": 2,
+          "order": 3
+        },
+        "billVendorDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 4
+        },
+        "billPurchaseOrderDbId": {
+          "visible": false,
+          "column": 2,
+          "order": 4
+        },
+        "billUserDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 5
+        },
+        "billSubsidiaryDbId": {
+          "visible": false,
+          "column": 2,
+          "order": 5
+        },
+        "billCurrencyDbId": {
+          "visible": false,
+          "column": 1,
+          "order": 6
+        },
+        "billCreatedAt": {
+          "visible": false,
+          "column": 2,
+          "order": 6
+        },
+        "billUpdatedAt": {
+          "visible": false,
+          "column": 1,
+          "order": 7
+        }
+      }
+    }
+  ],
+  "lineSettings": {
+    "fontSize": "sm"
+  },
+  "lineColumns": {
+    "db-id": {
+      "visible": true,
+      "order": 0,
+      "widthMode": "compact"
+    },
+    "item": {
+      "visible": true,
+      "order": 1,
+      "widthMode": "normal"
+    },
+    "description": {
+      "visible": true,
+      "order": 2,
+      "widthMode": "wide"
+    },
+    "quantity": {
+      "visible": true,
+      "order": 3,
+      "widthMode": "compact"
+    },
+    "unit-price": {
+      "visible": true,
+      "order": 4,
+      "widthMode": "normal"
+    },
+    "line-total": {
+      "visible": true,
+      "order": 5,
+      "widthMode": "normal"
+    },
+    "notes": {
+      "visible": true,
+      "order": 6,
+      "widthMode": "wide"
+    },
+    "created-at": {
+      "visible": true,
+      "order": 7,
+      "widthMode": "normal"
+    },
+    "updated-at": {
+      "visible": true,
+      "order": 8,
+      "widthMode": "normal"
+    }
+  },
+  "glImpactSettings": {
+    "fontSize": "xs"
+  },
+  "glImpactColumns": {
+    "date": {
+      "visible": true,
+      "order": 0,
+      "widthMode": "normal"
+    },
+    "journalNumber": {
+      "visible": true,
+      "order": 1,
+      "widthMode": "normal"
+    },
+    "sourceType": {
+      "visible": true,
+      "order": 2,
+      "widthMode": "normal"
+    },
+    "sourceNumber": {
+      "visible": true,
+      "order": 3,
+      "widthMode": "normal"
+    },
+    "account": {
+      "visible": true,
+      "order": 4,
+      "widthMode": "wide"
+    },
+    "description": {
+      "visible": true,
+      "order": 5,
+      "widthMode": "wide"
+    },
+    "debit": {
+      "visible": true,
+      "order": 6,
+      "widthMode": "normal"
+    },
+    "credit": {
+      "visible": true,
+      "order": 7,
+      "widthMode": "normal"
+    },
+    "txnAmount": {
+      "visible": true,
+      "order": 8,
+      "widthMode": "normal"
+    },
+    "localAmount": {
+      "visible": true,
+      "order": 9,
+      "widthMode": "normal"
+    },
+    "functionalAmount": {
+      "visible": true,
+      "order": 10,
+      "widthMode": "normal"
+    },
+    "groupAmount": {
+      "visible": true,
+      "order": 11,
+      "widthMode": "normal"
+    }
+  },
+  "statCards": [
+    {
+      "id": "bill-credit-vendor",
+      "metric": "vendor",
+      "visible": true,
+      "order": 0,
+      "size": "sm"
+    },
+    {
+      "id": "bill-credit-date",
+      "metric": "date",
+      "visible": true,
+      "order": 1,
+      "size": "sm"
+    },
+    {
+      "id": "bill-credit-status",
+      "metric": "status",
+      "visible": true,
+      "order": 2,
+      "size": "sm"
+    },
+    {
+      "id": "bill-credit-total",
+      "metric": "total",
+      "visible": true,
+      "order": 3,
+      "size": "sm"
+    }
+  ],
+  "secondarySettings": {
+    "fontSize": "xs"
+  },
+  "secondaryColumns": {
+    "date": {
+      "visible": true,
+      "order": 0,
+      "widthMode": "normal"
+    },
+    "journalNumber": {
+      "visible": true,
+      "order": 1,
+      "widthMode": "normal"
+    },
+    "sourceType": {
+      "visible": true,
+      "order": 2,
+      "widthMode": "normal"
+    },
+    "sourceNumber": {
+      "visible": true,
+      "order": 3,
+      "widthMode": "normal"
+    },
+    "account": {
+      "visible": true,
+      "order": 4,
+      "widthMode": "wide"
+    },
+    "description": {
+      "visible": true,
+      "order": 5,
+      "widthMode": "wide"
+    },
+    "debit": {
+      "visible": true,
+      "order": 6,
+      "widthMode": "normal"
+    },
+    "credit": {
+      "visible": true,
+      "order": 7,
+      "widthMode": "normal"
+    },
+    "txnAmount": {
+      "visible": true,
+      "order": 8,
+      "widthMode": "normal"
+    },
+    "localAmount": {
+      "visible": true,
+      "order": 9,
+      "widthMode": "normal"
+    },
+    "functionalAmount": {
+      "visible": true,
+      "order": 10,
+      "widthMode": "normal"
+    },
+    "groupAmount": {
+      "visible": true,
+      "order": 11,
+      "widthMode": "normal"
+    }
+  }
+}

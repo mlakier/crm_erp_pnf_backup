@@ -14,10 +14,17 @@ export default function BillGlImpactSection({
   rows,
   settings,
   columnCustomization,
+  currencyCodes,
 }: {
   rows: BillGlImpactRow[]
   settings?: TransactionGlImpactSettings
   columnCustomization?: Record<string, TransactionGlImpactColumnCustomization>
+  currencyCodes?: {
+    transaction?: string | null
+    local?: string | null
+    functional?: string | null
+    group?: string | null
+  }
 }) {
   return (
     <PurchaseOrderGlImpactSection
@@ -25,6 +32,7 @@ export default function BillGlImpactSection({
       settings={settings}
       columnCustomization={columnCustomization}
       emptyMessage="No posted accounting impact is linked to this bill yet."
+      currencyCodes={currencyCodes}
     />
   )
 }

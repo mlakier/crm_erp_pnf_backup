@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity, logCommunicationActivity, logFieldChangeActivities } from '@/lib/activity'
+import { logActivity, logCommunicationActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { generateNextPurchaseOrderNumber } from '@/lib/purchase-order-number'
 import { calcLineTotal, moneyEquals, parseMoneyValue, parseQuantity, sumMoney } from '@/lib/money'
 import { resolveVendorTransactionSnapshot } from '@/lib/transaction-snapshot-defaults'
@@ -141,6 +141,21 @@ export async function POST(request: NextRequest) {
       action: 'create',
       summary: `Created purchase order ${purchaseOrder.number}`,
       userId,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'purchase-order',
+      entityId: purchaseOrder.id,
+      userId,
+      action: 'create',
+      context: 'Purchase Order Header',
+      fields: [
+        { fieldName: 'Purchase Order #', value: purchaseOrder.number },
+        { fieldName: 'Vendor', value: purchaseOrder.vendorId },
+        { fieldName: 'Subsidiary', value: purchaseOrder.subsidiaryId },
+        { fieldName: 'Currency', value: purchaseOrder.currencyId },
+        { fieldName: 'Status', value: purchaseOrder.status },
+        { fieldName: 'Total', value: purchaseOrder.total },
+      ],
     })
 
     return NextResponse.json(purchaseOrder, { status: 201 })
@@ -300,6 +315,23 @@ export async function DELETE(request: NextRequest) {
       summary: `Deleted purchase order ${existing?.number ?? id}`,
       userId: existing?.userId,
     })
+    if (existing) {
+      await logRecordSnapshotActivities({
+        entityType: 'purchase-order',
+        entityId: id,
+        userId: existing.userId ?? null,
+        action: 'delete',
+        context: 'Purchase Order Header',
+        fields: [
+          { fieldName: 'Purchase Order #', value: existing.number },
+          { fieldName: 'Vendor', value: existing.vendorId },
+          { fieldName: 'Subsidiary', value: existing.subsidiaryId },
+          { fieldName: 'Currency', value: existing.currencyId },
+          { fieldName: 'Status', value: existing.status },
+          { fieldName: 'Total', value: existing.total },
+        ],
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch {

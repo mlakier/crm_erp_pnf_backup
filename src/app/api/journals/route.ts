@@ -1,9 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity, logCommunicationActivity, logFieldChangeActivities } from '@/lib/activity'
+import { logActivity, logCommunicationActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { moneyEquals, parseMoneyValue, sumMoney } from '@/lib/money'
+import { deriveOpenItemCurrencyContext } from '@/lib/open-item-currency-context'
 import { resolveDefaultCurrencySnapshot } from '@/lib/transaction-snapshot-defaults'
 import { generateNextIntercompanyJournalNumber, generateNextJournalNumber } from '@/lib/journal-number'
+import {
+  deleteDocumentRelationshipsForRecord,
+  syncAutoDocumentRelationshipsForSource,
+} from '@/lib/document-relationships'
+import {
+  applyOpenItems,
+  createOpenItem,
+  findExistingOpenItemApplication,
+  findOpenItemApplicationsForSettlement,
+  syncOpenItemStatus,
+} from '@/lib/open-item-service'
+
+async function syncJournalDocumentRelationships(journalEntryId: string) {
+  const journal = await prisma.journalEntry.findUnique({
+    where: { id: journalEntryId },
+    select: {
+      id: true,
+      reversesJournalEntryId: true,
+    },
+  })
+
+  if (!journal) return
+
+  await syncAutoDocumentRelationshipsForSource({
+    sourceRecordType: 'journal-entry',
+    sourceRecordId: journal.id,
+    relationshipType: 'reverses',
+    automationSource: 'journal-reversal',
+    targets: journal.reversesJournalEntryId
+      ? [{ recordType: 'journal-entry', recordId: journal.reversesJournalEntryId }]
+      : [],
+  })
+}
 
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
@@ -23,6 +57,7 @@ function normalizeLineItems(value: unknown) {
       const candidate = line as Record<string, unknown>
       return {
         accountId: String(candidate.accountId ?? '').trim(),
+        activityTypeCode: String(candidate.activityTypeCode ?? '').trim() || null,
         description: String(candidate.description ?? '').trim() || null,
         memo: String(candidate.memo ?? '').trim() || null,
         subsidiaryId: String(candidate.subsidiaryId ?? '').trim() || null,
@@ -33,11 +68,18 @@ function normalizeLineItems(value: unknown) {
         vendorId: String(candidate.vendorId ?? '').trim() || null,
         itemId: String(candidate.itemId ?? '').trim() || null,
         employeeId: String(candidate.employeeId ?? '').trim() || null,
+        settlesOpenItemId: String(candidate.settlesOpenItemId ?? '').trim() || null,
         debit: parseMoneyValue(candidate.debit),
         credit: parseMoneyValue(candidate.credit),
       }
     })
     .filter((line) => line.accountId && (line.debit > 0 || line.credit > 0))
+}
+
+function parseBoolish(value: unknown) {
+  if (typeof value === 'boolean') return value
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return ['true', '1', 'yes', 'y', 'on'].includes(normalized)
 }
 
 function validateLineItems(lineItems: Array<{ debit: number; credit: number }>) {
@@ -118,6 +160,412 @@ function normalizeStandardJournalLineItems<T extends { subsidiaryId: string | nu
   }))
 }
 
+async function clearJournalOpenItems(
+  journalId: string,
+  tx: typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0] = prisma,
+) {
+  const existingItems = await tx.openItem.findMany({
+    where: {
+      sourceTransactionType: 'journal-entry-line',
+      sourceTransactionId: journalId,
+    },
+    select: { id: true, openItemNumber: true },
+  })
+
+  if (existingItems.length === 0) {
+    return { removed: 0 }
+  }
+
+  const openItemIds = existingItems.map((item) => item.id)
+  const applicationCount = await tx.openItemApplication.count({
+    where: {
+      OR: [
+        { fromOpenItemId: { in: openItemIds } },
+        { toOpenItemId: { in: openItemIds } },
+      ],
+    },
+  })
+
+  if (applicationCount > 0) {
+    throw new Error(
+      'This journal has already been applied through open item management and cannot be resynced automatically.',
+    )
+  }
+
+  await tx.openItem.deleteMany({
+    where: { id: { in: openItemIds } },
+  })
+
+  return { removed: existingItems.length }
+}
+
+async function clearJournalSettlementApplications(
+  journalId: string,
+  tx: typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0] = prisma,
+) {
+  const applications = await findOpenItemApplicationsForSettlement('journal-entry', journalId, tx)
+  if (applications.length === 0) {
+    return { removed: 0 }
+  }
+
+  const applicationIds = applications.map((application) => application.id)
+  const touchedOpenItemIds = Array.from(
+    new Set(
+      applications.flatMap((application) => [
+        application.fromOpenItemId,
+        application.toOpenItemId,
+      ]).filter(Boolean),
+    ),
+  ) as string[]
+
+  const clearingDocumentLines = await tx.clearingDocumentLine.findMany({
+    where: { openItemApplicationId: { in: applicationIds } },
+    select: { clearingDocumentId: true },
+  })
+  const clearingDocumentIds = Array.from(
+    new Set(clearingDocumentLines.map((line) => line.clearingDocumentId)),
+  )
+
+  if (clearingDocumentIds.length > 0) {
+    await tx.clearingDocumentHeader.deleteMany({
+      where: { id: { in: clearingDocumentIds } },
+    })
+  }
+
+  await tx.openItemEntry.deleteMany({
+    where: { sourceApplicationId: { in: applicationIds } },
+  })
+
+  await tx.openItemApplication.deleteMany({
+    where: { id: { in: applicationIds } },
+  })
+
+  for (const openItemId of touchedOpenItemIds) {
+    await syncOpenItemStatus(openItemId, { tx })
+  }
+
+  return { removed: applications.length }
+}
+
+function buildJournalOpenItemMatchKey(
+  line: {
+    accountId: string
+    subsidiaryId: string | null
+    customerId: string | null
+    vendorId: string | null
+  },
+  amount: number,
+) {
+  return [
+    line.accountId,
+    line.subsidiaryId ?? '',
+    line.customerId ?? '',
+    line.vendorId ?? '',
+    amount.toFixed(2),
+  ].join('|')
+}
+
+async function autoApplyJournalReversalOpenItems(
+  journalId: string,
+  createdById?: string | null,
+  tx: typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0] = prisma,
+) {
+  const journal = await tx.journalEntry.findUnique({
+    where: { id: journalId },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      isOpenItemRelevant: true,
+      reversesJournalEntryId: true,
+      accountingPeriodId: true,
+      date: true,
+      subsidiaryId: true,
+      currencyId: true,
+    },
+  })
+
+  if (
+    !journal ||
+    journal.status !== 'posted' ||
+    !journal.isOpenItemRelevant ||
+    !journal.reversesJournalEntryId
+  ) {
+    return { created: 0 }
+  }
+
+  const [reversalOpenItems, originalOpenItems, reversalLines, originalLines] = await Promise.all([
+    tx.openItem.findMany({
+      where: {
+        sourceTransactionType: 'journal-entry-line',
+        sourceTransactionId: journal.id,
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+    tx.openItem.findMany({
+      where: {
+        sourceTransactionType: 'journal-entry-line',
+        sourceTransactionId: journal.reversesJournalEntryId,
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+    tx.journalEntryLineItem.findMany({
+      where: { journalEntryId: journal.id },
+      select: {
+        id: true,
+        accountId: true,
+        subsidiaryId: true,
+        customerId: true,
+        vendorId: true,
+        debit: true,
+        credit: true,
+      },
+    }),
+    tx.journalEntryLineItem.findMany({
+      where: { journalEntryId: journal.reversesJournalEntryId },
+      select: {
+        id: true,
+        accountId: true,
+        subsidiaryId: true,
+        customerId: true,
+        vendorId: true,
+        debit: true,
+        credit: true,
+      },
+    }),
+  ])
+
+  if (originalOpenItems.length === 0 || reversalOpenItems.length === 0) {
+    return { created: 0 }
+  }
+
+  const originalLineById = new Map(originalLines.map((line) => [line.id, line]))
+  const reversalLineById = new Map(reversalLines.map((line) => [line.id, line]))
+  const originalCandidatesByKey = new Map<string, Array<(typeof originalOpenItems)[number]>>()
+
+  for (const openItem of originalOpenItems) {
+    if (!openItem.sourceTransactionLineId) continue
+    const line = originalLineById.get(openItem.sourceTransactionLineId)
+    if (!line) continue
+    const key = buildJournalOpenItemMatchKey(
+      {
+        accountId: line.accountId,
+        subsidiaryId: line.subsidiaryId,
+        customerId: line.customerId,
+        vendorId: line.vendorId,
+      },
+      Number(openItem.originalTransactionAmount),
+    )
+    const bucket = originalCandidatesByKey.get(key) ?? []
+    bucket.push(openItem)
+    originalCandidatesByKey.set(key, bucket)
+  }
+
+  let created = 0
+  for (const reversalOpenItem of reversalOpenItems) {
+    if (!reversalOpenItem.sourceTransactionLineId) continue
+    const reversalLine = reversalLineById.get(reversalOpenItem.sourceTransactionLineId)
+    if (!reversalLine) continue
+
+    const key = buildJournalOpenItemMatchKey(
+      {
+        accountId: reversalLine.accountId,
+        subsidiaryId: reversalLine.subsidiaryId,
+        customerId: reversalLine.customerId,
+        vendorId: reversalLine.vendorId,
+      },
+      Number(reversalOpenItem.originalTransactionAmount),
+    )
+    const candidateBucket = originalCandidatesByKey.get(key)
+    const originalOpenItem = candidateBucket?.shift()
+    if (!originalOpenItem) {
+      throw new Error(
+        `Unable to match reversal journal open item for line ${reversalOpenItem.sourceNumber ?? reversalOpenItem.openItemNumber}.`,
+      )
+    }
+
+    const existing = await findExistingOpenItemApplication(
+      {
+        fromOpenItemId: reversalOpenItem.id,
+        toOpenItemId: originalOpenItem.id,
+        settlementTransactionType: 'journal-entry',
+        settlementTransactionId: journal.id,
+      },
+      tx,
+    )
+    if (existing) continue
+
+    const reversalSettlementCurrencyContext = await deriveOpenItemCurrencyContext({
+      subsidiaryId: reversalLine.subsidiaryId ?? journal.subsidiaryId ?? null,
+      transactionCurrencyId: journal.currencyId ?? null,
+      transactionAmount: Number(reversalOpenItem.originalTransactionAmount),
+      tx,
+    })
+
+    await applyOpenItems({
+      tx,
+      fromOpenItemId: reversalOpenItem.id,
+      toOpenItemId: originalOpenItem.id,
+      applicationType: 'journal_reversal',
+      settlementTransactionType: 'journal-entry',
+      settlementTransactionId: journal.id,
+      applicationDate: journal.date,
+      postingDate: journal.date,
+      accountingPeriodId: journal.accountingPeriodId ?? null,
+      transactionAmount: Number(reversalOpenItem.originalTransactionAmount),
+      localAmount: reversalSettlementCurrencyContext.originalLocalAmount,
+      functionalAmount: reversalSettlementCurrencyContext.originalFunctionalAmount,
+      groupAmount: reversalSettlementCurrencyContext.originalGroupAmount,
+      memo: `Automatic clearing of ${originalOpenItem.sourceNumber ?? originalOpenItem.openItemNumber} by journal reversal ${journal.number}`,
+      createdById: createdById ?? null,
+      automationSource: 'journal-reversal-auto-clear',
+    })
+    created += 1
+  }
+
+  return { created }
+}
+
+async function syncJournalOpenItems(
+  journalId: string,
+  createdById?: string | null,
+  tx: typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0] = prisma,
+) {
+  await clearJournalSettlementApplications(journalId, tx)
+  await clearJournalOpenItems(journalId, tx)
+
+  const journal = await tx.journalEntry.findUnique({
+    where: { id: journalId },
+    include: {
+      lineItems: {
+        include: {
+          account: {
+            select: {
+              accountType: true,
+              accountNumber: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+      },
+    },
+  })
+
+  if (!journal || journal.status !== 'posted' || !journal.isOpenItemRelevant) {
+    return { created: 0 }
+  }
+
+  let created = 0
+  for (const line of journal.lineItems) {
+    if (!line.customerId && !line.vendorId) continue
+    if (line.customerId && line.vendorId) {
+      throw new Error(
+        `Journal line ${line.displayOrder + 1} cannot be both customer and vendor open item relevant.`,
+      )
+    }
+    if (line.settlesOpenItemId && !line.customerId && !line.vendorId) {
+      throw new Error(
+        `Journal line ${line.displayOrder + 1} must reference a customer or vendor before it can settle an open item.`,
+      )
+    }
+
+    const amount = Number(line.debit) > 0 ? Number(line.debit) : Number(line.credit)
+    if (!Number.isFinite(amount) || amount <= 0) continue
+
+    const counterpartyType = line.customerId ? 'customer' : 'vendor'
+    const counterpartyId = line.customerId ?? line.vendorId ?? null
+    const journalLineCurrencyContext = await deriveOpenItemCurrencyContext({
+      subsidiaryId: line.subsidiaryId ?? journal.subsidiaryId ?? null,
+      transactionCurrencyId: journal.currencyId ?? null,
+      transactionAmount: amount,
+      tx,
+    })
+
+    const createdOpenItem = await createOpenItem({
+      tx,
+      openItemType:
+        counterpartyType === 'customer'
+          ? 'journal_customer_adjustment'
+          : 'journal_vendor_adjustment',
+      accountType: line.account.accountType,
+      accountId: line.accountId,
+      subsidiaryId: line.subsidiaryId ?? journal.subsidiaryId ?? null,
+      transactionCurrencyId: journalLineCurrencyContext.transactionCurrencyId,
+      localCurrencyId: journalLineCurrencyContext.localCurrencyId,
+      functionalCurrencyId: journalLineCurrencyContext.functionalCurrencyId,
+      groupCurrencyId: journalLineCurrencyContext.groupCurrencyId,
+      sourceTransactionType: 'journal-entry-line',
+      sourceTransactionId: journal.id,
+      sourceTransactionLineId: line.id,
+      sourceNumber: `${journal.number}-${line.displayOrder + 1}`,
+      counterpartyType,
+      counterpartyId,
+      documentDate: journal.date,
+      postingDate: journal.date,
+      originalTransactionAmount: amount,
+      originalLocalAmount: journalLineCurrencyContext.originalLocalAmount,
+      originalFunctionalAmount: journalLineCurrencyContext.originalFunctionalAmount,
+      originalGroupAmount: journalLineCurrencyContext.originalGroupAmount,
+      memo:
+        line.memo ??
+        line.description ??
+        journal.description ??
+        `Journal ${journal.number} line ${line.displayOrder + 1}`,
+      createdById: createdById ?? journal.userId ?? null,
+      openingEntryType: 'journal_opening_balance',
+      accountingPeriodId: journal.accountingPeriodId ?? null,
+      status: 'open',
+      openItemEligible: true,
+    })
+    created += 1
+
+    if (line.settlesOpenItemId) {
+      const targetOpenItem = await tx.openItem.findUnique({
+        where: { id: line.settlesOpenItemId },
+      })
+      if (!targetOpenItem) {
+        throw new Error(`Journal line ${line.displayOrder + 1} references an open item that no longer exists.`)
+      }
+      if (!targetOpenItem.isOpen) {
+        throw new Error(`Journal line ${line.displayOrder + 1} references an open item that is already closed.`)
+      }
+      if (
+        targetOpenItem.counterpartyType !== counterpartyType
+        || targetOpenItem.counterpartyId !== counterpartyId
+      ) {
+        throw new Error(`Journal line ${line.displayOrder + 1} can only settle open items for the same counterparty.`)
+      }
+
+      await applyOpenItems({
+        tx,
+        fromOpenItemId: createdOpenItem.id,
+        toOpenItemId: targetOpenItem.id,
+        applicationType: 'journal_manual_settlement',
+        settlementTransactionType: 'journal-entry',
+        settlementTransactionId: journal.id,
+        applicationDate: journal.date,
+        postingDate: journal.date,
+        accountingPeriodId: journal.accountingPeriodId ?? null,
+        transactionAmount: Number(createdOpenItem.originalTransactionAmount),
+        localAmount:
+          createdOpenItem.originalLocalAmount == null ? null : Number(createdOpenItem.originalLocalAmount),
+        functionalAmount:
+          createdOpenItem.originalFunctionalAmount == null ? null : Number(createdOpenItem.originalFunctionalAmount),
+        groupAmount:
+          createdOpenItem.originalGroupAmount == null ? null : Number(createdOpenItem.originalGroupAmount),
+        memo: `Manual journal settlement by ${journal.number} line ${line.displayOrder + 1}`,
+        createdById: createdById ?? journal.userId ?? null,
+        automationSource: 'journal-manual-settlement',
+      })
+    }
+  }
+
+  await autoApplyJournalReversalOpenItems(journalId, createdById, tx)
+
+  return { created }
+}
+
 export async function POST(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   if (searchParams.get('action') === 'send-email') {
@@ -186,6 +634,7 @@ export async function POST(req: NextRequest) {
     body.total = parseMoneyValue(body.total)
   }
   body.status = String(body.status ?? '').trim() || 'draft'
+  body.isOpenItemRelevant = parseBoolish(body.isOpenItemRelevant)
   body.number =
     String(body.number ?? '').trim() ||
     (body.journalType === 'intercompany'
@@ -196,23 +645,54 @@ export async function POST(req: NextRequest) {
   if (body.currencyId === '') body.currencyId = null
   body.currencyId = await resolveDefaultCurrencySnapshot(body.currencyId)
   if (body.accountingPeriodId === '') body.accountingPeriodId = null
+  if (body.reversesJournalEntryId === '') body.reversesJournalEntryId = null
+  if (body.reversalReasonCode === '') body.reversalReasonCode = null
   if (body.postedByEmployeeId === '') body.postedByEmployeeId = null
   if (body.approvedByEmployeeId === '') body.approvedByEmployeeId = null
   delete body.lineItems
-  const row = await prisma.journalEntry.create({
-    data: {
-      ...body,
-      ...(normalizedLineItems.length > 0
-        ? {
-            lineItems: {
-              create: normalizedLineItems,
-            },
-          }
-        : {}),
-    },
-    include: { subsidiary: true, currency: true, user: true, accountingPeriod: true, postedByEmployee: true, approvedByEmployee: true, lineItems: { include: { account: true, subsidiary: true, department: true, location: true, project: true, customer: true, vendor: true, item: true, employee: true }, orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }] } },
+  const row = await prisma.$transaction(async (tx) => {
+    const created = await tx.journalEntry.create({
+      data: {
+        ...body,
+        ...(normalizedLineItems.length > 0
+          ? {
+              lineItems: {
+                create: normalizedLineItems,
+              },
+            }
+          : {}),
+      },
+      select: { id: true, userId: true },
+    })
+
+    await syncJournalOpenItems(created.id, created.userId ?? null, tx)
+
+    return tx.journalEntry.findUniqueOrThrow({
+      where: { id: created.id },
+      include: { subsidiary: true, currency: true, user: true, accountingPeriod: true, postedByEmployee: true, approvedByEmployee: true, lineItems: { include: { account: true, subsidiary: true, department: true, location: true, project: true, customer: true, vendor: true, item: true, employee: true }, orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }] } },
+    })
   })
+  await syncJournalDocumentRelationships(row.id)
   await logActivity({ entityType: 'journal-entry', entityId: row.id, action: 'Created Journal Entry', target: row.number })
+  await logRecordSnapshotActivities({
+    entityType: 'journal-entry',
+    entityId: row.id,
+    userId: row.userId,
+    action: 'create',
+    context: 'Journal Header',
+    fields: [
+      { fieldName: 'Journal Id', value: row.number },
+      { fieldName: 'Date', value: row.date },
+      { fieldName: 'Description', value: row.description },
+      { fieldName: 'Status', value: row.status },
+      { fieldName: 'Journal Type', value: row.journalType },
+      { fieldName: 'Open Item Relevant', value: row.isOpenItemRelevant },
+      { fieldName: 'Subsidiary', value: row.subsidiaryId },
+      { fieldName: 'Currency', value: row.currencyId },
+      { fieldName: 'Accounting Period', value: row.accountingPeriodId },
+      { fieldName: 'Total', value: row.total },
+    ],
+  })
   return NextResponse.json(row, { status: 201 })
 }
 
@@ -236,10 +716,13 @@ export async function PUT(req: NextRequest) {
   }
   if (body.number !== undefined) body.number = String(body.number ?? '').trim()
   if (body.status !== undefined) body.status = String(body.status ?? '').trim()
+  if (body.isOpenItemRelevant !== undefined) body.isOpenItemRelevant = parseBoolish(body.isOpenItemRelevant)
   if (body.date) body.date = new Date(body.date)
   if (body.subsidiaryId === '') body.subsidiaryId = null
   if (body.currencyId === '') body.currencyId = null
   if (body.accountingPeriodId === '') body.accountingPeriodId = null
+  if (body.reversesJournalEntryId === '') body.reversesJournalEntryId = null
+  if (body.reversalReasonCode === '') body.reversalReasonCode = null
   if (body.postedByEmployeeId === '') body.postedByEmployeeId = null
   if (body.approvedByEmployeeId === '') body.approvedByEmployeeId = null
   delete body.lineItems
@@ -253,18 +736,23 @@ export async function PUT(req: NextRequest) {
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const [subsidiaries, currencies, periods, employees, accounts, departments, locations, projects, customers, vendors, items] = await Promise.all([
+  const [subsidiaries, currencies, periods, employees, accounts, departments, locations, projects, customers, vendors, items, openItems] = await Promise.all([
     prisma.subsidiary.findMany({ select: { id: true, subsidiaryId: true, name: true } }),
     prisma.currency.findMany({ select: { id: true, code: true, currencyId: true, name: true } }),
     prisma.accountingPeriod.findMany({ select: { id: true, name: true } }),
     prisma.employee.findMany({ select: { id: true, employeeId: true, firstName: true, lastName: true } }),
-    prisma.chartOfAccounts.findMany({ select: { id: true, accountId: true, name: true } }),
+    prisma.chartOfAccounts.findMany({
+      where: { active: true, isPosting: true },
+      orderBy: [{ accountNumber: 'asc' }, { accountId: 'asc' }],
+      select: { id: true, accountId: true, accountNumber: true, name: true },
+    }),
     prisma.department.findMany({ select: { id: true, departmentId: true, name: true } }),
     prisma.location.findMany({ select: { id: true, locationId: true, name: true } }),
     prisma.project.findMany({ select: { id: true, name: true } }),
     prisma.customer.findMany({ select: { id: true, customerId: true, name: true } }),
     prisma.vendor.findMany({ select: { id: true, vendorNumber: true, name: true } }),
     prisma.item.findMany({ select: { id: true, itemId: true, name: true } }),
+    prisma.openItem.findMany({ select: { id: true, openItemNumber: true, sourceNumber: true } }),
   ])
 
   const normalizedNumber = body.number !== undefined ? body.number : existing.number
@@ -275,11 +763,14 @@ export async function PUT(req: NextRequest) {
   const normalizedAccountingPeriodId = body.accountingPeriodId !== undefined ? body.accountingPeriodId : existing.accountingPeriodId
   const normalizedSourceType = body.sourceType !== undefined ? body.sourceType : existing.sourceType
   const normalizedSourceId = body.sourceId !== undefined ? body.sourceId : existing.sourceId
+  const normalizedReversesJournalEntryId = body.reversesJournalEntryId !== undefined ? body.reversesJournalEntryId : existing.reversesJournalEntryId
+  const normalizedReversalReasonCode = body.reversalReasonCode !== undefined ? body.reversalReasonCode : existing.reversalReasonCode
   const normalizedPostedByEmployeeId = body.postedByEmployeeId !== undefined ? body.postedByEmployeeId : existing.postedByEmployeeId
   const normalizedApprovedByEmployeeId = body.approvedByEmployeeId !== undefined ? body.approvedByEmployeeId : existing.approvedByEmployeeId
   const normalizedDate = body.date !== undefined ? body.date : existing.date
   const normalizedTotal = body.total !== undefined ? body.total : existing.total
   const normalizedJournalType = body.journalType !== undefined ? body.journalType : existing.journalType
+  const normalizedIsOpenItemRelevant = body.isOpenItemRelevant !== undefined ? body.isOpenItemRelevant : existing.isOpenItemRelevant
   const effectiveLineItems =
     replaceLines
       ? normalizedJournalType === 'intercompany'
@@ -300,6 +791,7 @@ export async function PUT(req: NextRequest) {
     formatJournalDate(existing.date) !== formatJournalDate(normalizedDate) ? { fieldName: 'Date', oldValue: formatJournalDate(existing.date), newValue: formatJournalDate(normalizedDate) } : null,
     (existing.description ?? '') !== (normalizedDescription ?? '') ? { fieldName: 'Description', oldValue: existing.description ?? '-', newValue: normalizedDescription ?? '-' } : null,
     (existing.status ?? '') !== (normalizedStatus ?? '') ? { fieldName: 'Status', oldValue: existing.status ?? '-', newValue: normalizedStatus ?? '-' } : null,
+    existing.isOpenItemRelevant !== normalizedIsOpenItemRelevant ? { fieldName: 'Open Item Relevant', oldValue: existing.isOpenItemRelevant ? 'Yes' : 'No', newValue: normalizedIsOpenItemRelevant ? 'Yes' : 'No' } : null,
     (existing.subsidiaryId ?? '') !== (normalizedSubsidiaryId ?? '') ? {
       fieldName: 'Subsidiary',
       oldValue: formatOptionLabel(subsidiaries, existing.subsidiaryId, (value) => `${value.subsidiaryId} - ${value.name}`),
@@ -317,6 +809,8 @@ export async function PUT(req: NextRequest) {
     } : null,
     (existing.sourceType ?? '') !== (normalizedSourceType ?? '') ? { fieldName: 'Source Type', oldValue: existing.sourceType ?? '-', newValue: normalizedSourceType ?? '-' } : null,
     (existing.sourceId ?? '') !== (normalizedSourceId ?? '') ? { fieldName: 'Source Id', oldValue: existing.sourceId ?? '-', newValue: normalizedSourceId ?? '-' } : null,
+    (existing.reversesJournalEntryId ?? '') !== (normalizedReversesJournalEntryId ?? '') ? { fieldName: 'Reverses Journal', oldValue: existing.reversesJournalEntryId ?? '-', newValue: normalizedReversesJournalEntryId ?? '-' } : null,
+    (existing.reversalReasonCode ?? '') !== (normalizedReversalReasonCode ?? '') ? { fieldName: 'Reversal Reason', oldValue: existing.reversalReasonCode ?? '-', newValue: normalizedReversalReasonCode ?? '-' } : null,
     (existing.postedByEmployeeId ?? '') !== (normalizedPostedByEmployeeId ?? '') ? {
       fieldName: 'Prepared By',
       oldValue: formatOptionLabel(employees, existing.postedByEmployeeId, (value) => `${value.employeeId ?? 'EMP'} - ${value.firstName} ${value.lastName}`),
@@ -353,6 +847,11 @@ export async function PUT(req: NextRequest) {
             oldValue: formatOptionLabel(accounts, oldLine.accountId, (value) => `${value.accountId} - ${value.name}`),
             newValue: formatOptionLabel(accounts, newLine.accountId, (value) => `${value.accountId} - ${value.name}`),
           } : null,
+          (oldLine.activityTypeCode ?? '') !== (newLine.activityTypeCode ?? '') ? {
+            fieldName: 'Activity Type',
+            oldValue: oldLine.activityTypeCode ?? '-',
+            newValue: newLine.activityTypeCode ?? '-',
+          } : null,
           (oldLine.description ?? '') !== (newLine.description ?? '') ? { fieldName: 'Description', oldValue: oldLine.description ?? '-', newValue: newLine.description ?? '-' } : null,
           !moneyEquals(oldLine.debit, newLine.debit) ? { fieldName: 'Debit', oldValue: oldLine.debit.toString(), newValue: newLine.debit.toString() } : null,
           !moneyEquals(oldLine.credit, newLine.credit) ? { fieldName: 'Credit', oldValue: oldLine.credit.toString(), newValue: newLine.credit.toString() } : null,
@@ -364,6 +863,7 @@ export async function PUT(req: NextRequest) {
           (oldLine.vendorId ?? '') !== (newLine.vendorId ?? '') ? { fieldName: 'Vendor', oldValue: formatOptionLabel(vendors, oldLine.vendorId, (value) => `${value.vendorNumber ?? 'VEND'} - ${value.name}`), newValue: formatOptionLabel(vendors, newLine.vendorId, (value) => `${value.vendorNumber ?? 'VEND'} - ${value.name}`) } : null,
           (oldLine.itemId ?? '') !== (newLine.itemId ?? '') ? { fieldName: 'Item', oldValue: formatOptionLabel(items, oldLine.itemId, (value) => `${value.itemId ?? 'ITEM'} - ${value.name}`), newValue: formatOptionLabel(items, newLine.itemId, (value) => `${value.itemId ?? 'ITEM'} - ${value.name}`) } : null,
           (oldLine.employeeId ?? '') !== (newLine.employeeId ?? '') ? { fieldName: 'Employee', oldValue: formatOptionLabel(employees, oldLine.employeeId, (value) => `${value.employeeId ?? 'EMP'} - ${value.firstName} ${value.lastName}`), newValue: formatOptionLabel(employees, newLine.employeeId, (value) => `${value.employeeId ?? 'EMP'} - ${value.firstName} ${value.lastName}`) } : null,
+          (oldLine.settlesOpenItemId ?? '') !== (newLine.settlesOpenItemId ?? '') ? { fieldName: 'Settles Open Item', oldValue: formatOptionLabel(openItems, oldLine.settlesOpenItemId, (value) => `${value.openItemNumber} - ${value.sourceNumber ?? value.id}`), newValue: formatOptionLabel(openItems, newLine.settlesOpenItemId, (value) => `${value.openItemNumber} - ${value.sourceNumber ?? value.id}`) } : null,
           (oldLine.memo ?? '') !== (newLine.memo ?? '') ? { fieldName: 'Memo', oldValue: oldLine.memo ?? '-', newValue: newLine.memo ?? '-' } : null,
         ].filter(Boolean) as Array<{ fieldName: string; oldValue: string; newValue: string }>
         lineChanges.push(...changes.map((change) => ({ context, ...change })))
@@ -372,9 +872,9 @@ export async function PUT(req: NextRequest) {
   }
 
   const row = await prisma.$transaction(async (tx) => {
-      await tx.journalEntry.update({ where: { id }, data: body })
-      if (replaceLines) {
-        await tx.journalEntryLineItem.deleteMany({ where: { journalEntryId: id } })
+    await tx.journalEntry.update({ where: { id }, data: body })
+    if (replaceLines) {
+      await tx.journalEntryLineItem.deleteMany({ where: { journalEntryId: id } })
       if (effectiveLineItems.length > 0) {
         await tx.journalEntryLineItem.createMany({
           data: effectiveLineItems.map((line) => ({
@@ -384,11 +884,17 @@ export async function PUT(req: NextRequest) {
         })
       }
     }
+    const persisted = await tx.journalEntry.findUnique({
+      where: { id },
+      select: { userId: true },
+    })
+    await syncJournalOpenItems(id, persisted?.userId ?? null, tx)
     return tx.journalEntry.findUniqueOrThrow({
       where: { id },
       include: { subsidiary: true, currency: true, user: true, accountingPeriod: true, postedByEmployee: true, approvedByEmployee: true, lineItems: { include: { account: true, subsidiary: true, department: true, location: true, project: true, customer: true, vendor: true, item: true, employee: true }, orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }] } },
     })
   })
+  await syncJournalDocumentRelationships(row.id)
   await logActivity({ entityType: 'journal-entry', entityId: row.id, action: 'Updated Journal Entry', target: row.number })
   await logFieldChangeActivities({
     entityType: 'journal-entry',
@@ -414,7 +920,30 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-  const row = await prisma.journalEntry.delete({ where: { id } })
+  const row = await prisma.$transaction(async (tx) => {
+    await clearJournalOpenItems(id, tx)
+    return tx.journalEntry.delete({ where: { id } })
+  })
+  await deleteDocumentRelationshipsForRecord('journal-entry', id)
   await logActivity({ entityType: 'journal-entry', entityId: id, action: 'Deleted Journal Entry', target: row.number })
+  await logRecordSnapshotActivities({
+    entityType: 'journal-entry',
+    entityId: id,
+    userId: row.userId,
+    action: 'delete',
+    context: 'Journal Header',
+    fields: [
+      { fieldName: 'Journal Id', value: row.number },
+      { fieldName: 'Date', value: row.date },
+      { fieldName: 'Description', value: row.description },
+      { fieldName: 'Status', value: row.status },
+      { fieldName: 'Journal Type', value: row.journalType },
+      { fieldName: 'Open Item Relevant', value: row.isOpenItemRelevant },
+      { fieldName: 'Subsidiary', value: row.subsidiaryId },
+      { fieldName: 'Currency', value: row.currencyId },
+      { fieldName: 'Accounting Period', value: row.accountingPeriodId },
+      { fieldName: 'Total', value: row.total },
+    ],
+  })
   return NextResponse.json({ ok: true })
 }

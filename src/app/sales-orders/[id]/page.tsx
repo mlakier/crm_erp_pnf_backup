@@ -197,9 +197,9 @@ export default async function SalesOrderDetailPage({
             taxId: true,
             registrationNumber: true,
             parentSubsidiaryId: true,
-            defaultCurrencyId: true,
+            localCurrencyId: true,
             functionalCurrencyId: true,
-            reportingCurrencyId: true,
+            groupCurrencyId: true,
             fiscalCalendarId: true,
             consolidationMethod: true,
             ownershipPercent: true,
@@ -247,22 +247,22 @@ export default async function SalesOrderDetailPage({
             notes: true,
           },
         },
-        invoices: {
-          orderBy: { createdAt: 'desc' },
-          include: {
-            cashReceipts: {
-              orderBy: { date: 'desc' },
-              select: {
-                id: true,
-                number: true,
-                amount: true,
-                date: true,
-                method: true,
-                reference: true,
+            invoices: {
+              orderBy: { createdAt: 'desc' },
+              include: {
+                cashReceipts: {
+                  orderBy: { date: 'desc' },
+                  select: {
+                    id: true,
+                    number: true,
+                    amount: true,
+                    date: true,
+                    method: true,
+                    reference: true,
+                  },
+                },
               },
             },
-          },
-        },
       },
     }),
     prisma.activity.findMany({
@@ -339,6 +339,11 @@ export default async function SalesOrderDetailPage({
     value: currency.id,
     label: `${currency.code ?? currency.currencyId} - ${currency.name}`,
   }))
+  const currencyCodeById = new Map(currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]))
+  const salesOrderCurrencyCode = salesOrder.currency?.code ?? salesOrder.currency?.currencyId ?? undefined
+  const quoteCurrencyCode = currencyCodeById.get(salesOrder.quote?.currencyId ?? '') ?? null
+  const opportunityCurrencyCode = currencyCodeById.get(salesOrder.quote?.opportunity?.currencyId ?? '') ?? null
+  const approvalCurrencyCode = currencyCodeById.get(salesOrder.user?.approvalCurrencyId ?? '') ?? null
   const statusOptions = (statusListDetail?.rows ?? []).map((row) => ({
     value: row.value.toLowerCase(),
     label: formatSalesOrderStatus(row.value),
@@ -547,7 +552,7 @@ export default async function SalesOrderDetailPage({
       key: 'quoteTotal',
       label: 'Quote Total',
       value: salesOrder.quote ? String(toNumericValue(salesOrder.quote.total, 0)) : '',
-      displayValue: salesOrder.quote ? fmtCurrency(toNumericValue(salesOrder.quote.total, 0), undefined, moneySettings) : '-',
+        displayValue: salesOrder.quote ? fmtCurrency(toNumericValue(salesOrder.quote.total, 0), quoteCurrencyCode ?? undefined, moneySettings) : '-',
       helpText: 'Current total on the linked quote.',
       fieldType: 'currency',
       sourceText: 'Source transaction',
@@ -663,7 +668,7 @@ export default async function SalesOrderDetailPage({
       label: 'Amount',
       value: salesOrder.quote?.opportunity ? String(toNumericValue(salesOrder.quote.opportunity.amount, 0)) : '',
       displayValue: salesOrder.quote?.opportunity
-        ? fmtCurrency(toNumericValue(salesOrder.quote.opportunity.amount, 0), undefined, moneySettings)
+          ? fmtCurrency(toNumericValue(salesOrder.quote.opportunity.amount, 0), opportunityCurrencyCode ?? undefined, moneySettings)
         : '-',
       helpText: 'Opportunity amount captured on the linked opportunity.',
       fieldType: 'currency',
@@ -703,7 +708,7 @@ export default async function SalesOrderDetailPage({
       label: 'Expected Value',
       value: salesOrder.quote?.opportunity ? String(toNumericValue(salesOrder.quote.opportunity.amount, 0)) : '',
       displayValue: salesOrder.quote?.opportunity
-        ? fmtCurrency(toNumericValue(salesOrder.quote.opportunity.amount, 0), undefined, moneySettings)
+          ? fmtCurrency(toNumericValue(salesOrder.quote.opportunity.amount, 0), opportunityCurrencyCode ?? undefined, moneySettings)
         : '-',
       helpText: 'Expected value captured on the linked opportunity.',
       fieldType: 'currency',
@@ -899,7 +904,7 @@ export default async function SalesOrderDetailPage({
       key: 'ownerApprovalLimit',
       label: 'Approval Limit',
       value: salesOrder.user?.approvalLimit != null ? String(toNumericValue(salesOrder.user.approvalLimit, 0)) : '',
-      displayValue: salesOrder.user?.approvalLimit != null ? fmtCurrency(toNumericValue(salesOrder.user.approvalLimit, 0), undefined, moneySettings) : '-',
+      displayValue: salesOrder.user?.approvalLimit != null ? fmtCurrency(toNumericValue(salesOrder.user.approvalLimit, 0), approvalCurrencyCode ?? undefined, moneySettings) : '-',
       helpText: 'Approval limit captured on the linked user.',
       fieldType: 'currency',
       sourceText: 'Users master data',
@@ -1036,11 +1041,11 @@ export default async function SalesOrderDetailPage({
       fieldType: 'text',
       sourceText: 'Subsidiaries master data',
     },
-    subsidiaryDefaultCurrencyDbId: {
-      key: 'subsidiaryDefaultCurrencyDbId',
-      label: 'Default Currency DB Id',
-      value: salesOrder.subsidiary?.defaultCurrencyId ?? '',
-      helpText: 'Internal default currency linked to the subsidiary.',
+    subsidiaryLocalCurrencyDbId: {
+      key: 'subsidiaryLocalCurrencyDbId',
+      label: 'Local Currency DB Id',
+      value: salesOrder.subsidiary?.localCurrencyId ?? '',
+      helpText: 'Internal local currency linked to the subsidiary.',
       fieldType: 'text',
       sourceText: 'Subsidiaries master data',
     },
@@ -1052,11 +1057,11 @@ export default async function SalesOrderDetailPage({
       fieldType: 'text',
       sourceText: 'Subsidiaries master data',
     },
-    subsidiaryReportingCurrencyDbId: {
-      key: 'subsidiaryReportingCurrencyDbId',
-      label: 'Reporting Currency DB Id',
-      value: salesOrder.subsidiary?.reportingCurrencyId ?? '',
-      helpText: 'Internal reporting currency linked to the subsidiary.',
+    subsidiaryGroupCurrencyDbId: {
+      key: 'subsidiaryGroupCurrencyDbId',
+      label: 'Group Currency DB Id',
+      value: salesOrder.subsidiary?.groupCurrencyId ?? '',
+      helpText: 'Internal group currency linked to the subsidiary.',
       fieldType: 'text',
       sourceText: 'Subsidiaries master data',
     },
@@ -1343,6 +1348,7 @@ export default async function SalesOrderDetailPage({
       key: 'subsidiaryId',
       label: 'Subsidiary',
       value: salesOrder.subsidiaryId ?? '',
+      href: salesOrder.subsidiary ? `/subsidiaries/${salesOrder.subsidiary.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...subsidiaryOptions],
@@ -1357,6 +1363,7 @@ export default async function SalesOrderDetailPage({
       key: 'currencyId',
       label: 'Currency',
       value: salesOrder.currencyId ?? '',
+      href: salesOrder.currency ? `/currencies/${salesOrder.currency.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...currencyOptions],
@@ -1385,7 +1392,7 @@ export default async function SalesOrderDetailPage({
       key: 'total',
       label: 'Total',
       value: computedTotal.toString(),
-      displayValue: fmtCurrency(computedTotal, undefined, moneySettings),
+      displayValue: fmtCurrency(computedTotal, salesOrderCurrencyCode, moneySettings),
       helpText: 'Current document total based on all sales order line amounts.',
       fieldType: 'currency',
       subsectionTitle: 'Commercial Terms',
@@ -1468,7 +1475,7 @@ export default async function SalesOrderDetailPage({
       subsidiaryId: salesOrder.subsidiary ? `${salesOrder.subsidiary.subsidiaryId} - ${salesOrder.subsidiary.name}` : '',
       currencyId: salesOrder.currency ? `${salesOrder.currency.code} - ${salesOrder.currency.name}` : '',
       status: formatSalesOrderStatus(salesOrder.status),
-      total: fmtCurrency(computedTotal, undefined, moneySettings),
+      total: fmtCurrency(computedTotal, salesOrderCurrencyCode, moneySettings),
       createdAt: fmtDocumentDate(salesOrder.createdAt, moneySettings),
       updatedAt: fmtDocumentDate(salesOrder.updatedAt, moneySettings),
     },
@@ -1553,6 +1560,7 @@ export default async function SalesOrderDetailPage({
   const statsRecord = {
     id: salesOrder.id,
     total: computedTotal,
+    currencyCode: salesOrderCurrencyCode ?? null,
     createdFrom: salesOrder.quote?.number ?? null,
     lineCount: lineRows.length,
     statusLabel: formatSalesOrderStatus(salesOrder.status),
@@ -1714,9 +1722,8 @@ export default async function SalesOrderDetailPage({
         ) : null
       }
       actions={
-        isCustomizing ? null : (
           <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
+            mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
             cancelHref={detailHref}
             formId={`inline-record-form-${salesOrder.id}`}
             recordId={salesOrder.id}
@@ -1762,7 +1769,6 @@ export default async function SalesOrderDetailPage({
               </>
             )}
           />
-        )
       }
     >
       <TransactionDetailFrame
@@ -1861,6 +1867,7 @@ export default async function SalesOrderDetailPage({
           <SalesOrderRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={salesOrderCurrencyCode ?? null}
                     opportunities={
                       salesOrder.quote?.opportunity
                         ? [
@@ -1870,6 +1877,7 @@ export default async function SalesOrderDetailPage({
                               name: salesOrder.quote.opportunity.name,
                               status: salesOrder.quote.opportunity.stage,
                               total: toNumericValue(salesOrder.quote.opportunity.amount, 0),
+                              currencyCode: opportunityCurrencyCode,
                             },
                           ]
                         : []
@@ -1882,6 +1890,7 @@ export default async function SalesOrderDetailPage({
                               number: salesOrder.quote.number,
                               status: salesOrder.quote.status,
                               total: toNumericValue(salesOrder.quote.total, 0),
+                              currencyCode: quoteCurrencyCode,
                               validUntil: salesOrder.quote.validUntil?.toISOString() ?? null,
                               opportunityName: salesOrder.quote.opportunity?.name ?? null,
                             },
@@ -1900,6 +1909,7 @@ export default async function SalesOrderDetailPage({
                       number: invoice.number,
                       status: invoice.status,
                       total: toNumericValue(invoice.total, 0),
+                      currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                       dueDate: invoice.dueDate?.toISOString() ?? null,
                       createdAt: invoice.createdAt.toISOString(),
                     }))}
@@ -1908,6 +1918,7 @@ export default async function SalesOrderDetailPage({
                         id: receipt.id,
                         number: receipt.number ?? null,
                         amount: toNumericValue(receipt.amount, 0),
+                        currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                         date: receipt.date.toISOString(),
                         method: receipt.method ?? null,
                         reference: receipt.reference ?? null,
@@ -1931,7 +1942,7 @@ export default async function SalesOrderDetailPage({
               counterpartyEmail: salesOrder.customer.email ?? null,
               fromEmail: salesOrder.user?.email ?? null,
               status: formatSalesOrderStatus(salesOrder.status),
-              total: fmtCurrency(computedTotal, undefined, moneySettings),
+                total: fmtCurrency(computedTotal, salesOrderCurrencyCode, moneySettings),
               lineItems: lineRows.map((row) => ({
                 line: row.lineNumber,
                 itemId: row.itemId ?? '-',

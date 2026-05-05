@@ -40,6 +40,13 @@ export type SavedSearchTableMetadata = {
   filters: SavedSearchFilterDefinition[]
   criteriaFields?: SavedSearchFieldOption[]
   resultFields?: SavedSearchFieldOption[]
+  linkedResultSources?: SavedSearchLinkedResultSource[]
+}
+
+export type SavedSearchLinkedResultSource = {
+  id: string
+  label: string
+  fields: SavedSearchFieldOption[]
 }
 
 export type SavedSearchCriterion = {
@@ -93,7 +100,14 @@ export type SavedSearchDefinitionState = {
   emailSchedules: SavedSearchEmailSchedule[]
   results: {
     columnLabels: Record<string, string>
+    columnPinning: Record<string, number>
+    addedLinkedFieldIds: string[]
   }
+}
+
+function parsePinningMap(input: unknown): Record<string, number> {
+  void input
+  return {}
 }
 
 function makeEmailSchedule(input?: Partial<SavedSearchEmailSchedule>, index = 0): SavedSearchEmailSchedule {
@@ -200,6 +214,8 @@ export function defaultSavedSearchDefinitionState(): SavedSearchDefinitionState 
     emailSchedules: [],
     results: {
       columnLabels: {},
+      columnPinning: {},
+      addedLinkedFieldIds: [],
     },
   }
 }
@@ -290,6 +306,8 @@ export function sanitizeSavedSearchDefinitionState(input: unknown): SavedSearchD
           : [],
     results: {
       columnLabels: parseStringMap(results.columnLabels),
+      columnPinning: parsePinningMap(results.columnPinning),
+      addedLinkedFieldIds: parseStringList(results.addedLinkedFieldIds),
     },
   }
 }

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 const PAGES = [
   { label: 'Dashboard',             href: '/dashboard' },
   { label: 'Company Information',   href: '/company-information' },
+  { label: 'Company Setup',         href: '/company-setup' },
   { label: 'Company Prefs',         href: '/company-preferences' },
   { label: 'File Cabinet',          href: '/company-information/file-cabinet' },
   { label: 'Manage Lists',          href: '/lists' },
@@ -32,6 +33,7 @@ const PAGES = [
   { label: 'Sales Orders',          href: '/sales-orders' },
   { label: 'Fulfillments',          href: '/fulfillments' },
   { label: 'Invoices',              href: '/invoices' },
+  { label: 'Credit Memos',          href: '/credit-memos' },
   { label: 'Invoice Receipts',      href: '/invoice-receipts' },
   { label: 'Customer Refunds',      href: '/customer-refunds' },
   { label: 'AP Portal',             href: '/ap' },
@@ -39,9 +41,14 @@ const PAGES = [
   { label: 'Purchase Orders',       href: '/purchase-orders' },
   { label: 'Receipts',              href: '/receipts' },
   { label: 'Bills',                 href: '/bills' },
+  { label: 'Bill Credits',          href: '/bill-credits' },
   { label: 'Bill Payments',         href: '/bill-payments' },
+  { label: 'Vendor Refunds',        href: '/vendor-refunds' },
   { label: 'Journals',              href: '/journals' },
   { label: 'Intercompany Journals', href: '/intercompany-journals' },
+  { label: 'Clearing Documents',    href: '/clearing-documents' },
+  { label: 'FX Revaluation',        href: '/fx-revaluation' },
+  { label: 'Rollforwards',          href: '/rollforwards' },
 ]
 
 /* ── Record search helpers ─────────────────────────────────────────────── */
@@ -49,7 +56,7 @@ type Hit = { type: 'page' | 'record' | 'list' | 'listValue' | 'field' | 'fieldVa
 
 async function searchRecords(q: string, limit: number): Promise<Hit[]> {
   const hits: Hit[] = []
-  const [customers, contacts, vendors, leads, items, employees, departments, locations, accountingPeriods, opportunities] = await Promise.all([
+  const [customers, contacts, vendors, leads, items, employees, departments, locations, accountingPeriods, opportunities, clearingDocuments, creditMemos, billCredits, vendorRefunds] = await Promise.all([
     prisma.customer.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { customerId: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, customerId: true } }),
     prisma.contact.findMany({ where: { OR: [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, firstName: true, lastName: true, email: true } }),
     prisma.vendor.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { vendorNumber: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, vendorNumber: true } }),
@@ -83,6 +90,56 @@ async function searchRecords(q: string, limit: number): Promise<Hit[]> {
       select: { id: true, name: true, status: true, subsidiary: { select: { subsidiaryId: true } } },
     }),
     prisma.opportunity.findMany({ where: { OR: [{ name: { contains: q, mode: 'insensitive' } }, { opportunityNumber: { contains: q, mode: 'insensitive' } }] }, take: limit, select: { id: true, name: true, opportunityNumber: true } }),
+    prisma.clearingDocumentHeader.findMany({
+      where: {
+        OR: [
+          { clearingNumber: { contains: q, mode: 'insensitive' } },
+          { clearingType: { contains: q, mode: 'insensitive' } },
+          { status: { contains: q, mode: 'insensitive' } },
+          { sourceTransactionId: { contains: q, mode: 'insensitive' } },
+          { counterpartyId: { contains: q, mode: 'insensitive' } },
+        ],
+      },
+      take: limit,
+      select: { id: true, clearingNumber: true, clearingType: true, status: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.creditMemo.findMany({
+      where: {
+        OR: [
+          { number: { contains: q, mode: 'insensitive' } },
+          { reason: { contains: q, mode: 'insensitive' } },
+          { status: { contains: q, mode: 'insensitive' } },
+          { customer: { is: { name: { contains: q, mode: 'insensitive' } } } },
+        ],
+      },
+      take: limit,
+      select: { id: true, number: true, status: true, customer: { select: { name: true } } },
+    }),
+    prisma.billCredit.findMany({
+      where: {
+        OR: [
+          { number: { contains: q, mode: 'insensitive' } },
+          { reason: { contains: q, mode: 'insensitive' } },
+          { status: { contains: q, mode: 'insensitive' } },
+          { vendor: { is: { name: { contains: q, mode: 'insensitive' } } } },
+        ],
+      },
+      take: limit,
+      select: { id: true, number: true, status: true, vendor: { select: { name: true } } },
+    }),
+    prisma.vendorRefund.findMany({
+      where: {
+        OR: [
+          { number: { contains: q, mode: 'insensitive' } },
+          { reference: { contains: q, mode: 'insensitive' } },
+          { status: { contains: q, mode: 'insensitive' } },
+          { vendor: { is: { name: { contains: q, mode: 'insensitive' } } } },
+        ],
+      },
+      take: limit,
+      select: { id: true, number: true, status: true, vendor: { select: { name: true } } },
+    }),
   ])
 
   for (const r of customers) hits.push({ type: 'record', label: r.name, href: `/customers/${r.id}`, detail: `Customer ${r.customerId || ''}` })
@@ -95,6 +152,10 @@ async function searchRecords(q: string, limit: number): Promise<Hit[]> {
   for (const r of locations) hits.push({ type: 'record', label: r.name, href: '/locations', detail: `${r.locationId} - ${r.code}${r.subsidiary ? ` - ${r.subsidiary.subsidiaryId}` : ''}` })
   for (const r of accountingPeriods) hits.push({ type: 'record', label: r.name, href: `/accounting-periods/${r.id}`, detail: `${r.status}${r.subsidiary ? ` - ${r.subsidiary.subsidiaryId}` : ''}` })
   for (const r of opportunities) hits.push({ type: 'record', label: r.name, href: `/opportunities/${r.id}`, detail: `Opportunity ${r.opportunityNumber || ''}` })
+  for (const r of clearingDocuments) hits.push({ type: 'record', label: r.clearingNumber, href: `/clearing-documents/${r.id}`, detail: `${r.clearingType} - ${r.status}` })
+  for (const r of creditMemos) hits.push({ type: 'record', label: r.number, href: `/credit-memos/${r.id}`, detail: `${r.customer.name} - ${r.status}` })
+  for (const r of billCredits) hits.push({ type: 'record', label: r.number, href: `/bill-credits/${r.id}`, detail: `${r.vendor.name} - ${r.status}` })
+  for (const r of vendorRefunds) hits.push({ type: 'record', label: r.number, href: `/vendor-refunds/${r.id}`, detail: `${r.vendor.name} - ${r.status}` })
 
   return hits
 }

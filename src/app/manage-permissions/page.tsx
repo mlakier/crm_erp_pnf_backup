@@ -31,8 +31,10 @@ const ALL_PAGES = [
   { key: 'receipts', label: 'Receipts', group: 'PTP', statusKey: 'RECEIPT-STATUS' },
   { key: 'bills', label: 'Bills', group: 'PTP', statusKey: 'BILL-STATUS' },
   { key: 'bill-payments', label: 'Bill Payments', group: 'PTP' },
+  { key: 'vendor-refunds', label: 'Vendor Refunds', group: 'PTP' },
   // RTR
-  { key: 'journals', label: 'Journals', group: 'RTR' },
+  { key: 'journals', label: 'Journals', group: 'RTR', statusKey: 'JOURNAL-STATUS' },
+  { key: 'clearing-documents', label: 'Clearing Documents', group: 'RTR', statusKey: 'CLEARING-DOCUMENT-STATUS' },
 ]
 
 const PROCESS_GROUPS = ['OTC', 'PTP', 'RTR']
@@ -76,6 +78,7 @@ const STATUS_COLORS: Record<string, { color: string; border: string }> = {
   pending: { color: '#f59e0b', border: '#d97706' },
   'pending approval': { color: '#f59e0b', border: '#d97706' },
   approved: { color: '#22c55e', border: '#16a34a' },
+  reversed: { color: '#8b5cf6', border: '#7c3aed' },
   ordered: { color: '#3b82f6', border: '#2563eb' },
   cancelled: { color: '#ef4444', border: '#dc2626' },
   closed: { color: '#6b7280', border: '#4b5563' },
@@ -327,13 +330,13 @@ export default function ManagePermissionsPage() {
           <table className="min-w-full">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                <th className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Page</th>
-                <th className="sticky top-0 z-10 px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>All</th>
-                <th className="sticky top-0 z-10 px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>View</th>
-                <th className="sticky top-0 z-10 px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Create</th>
-                <th className="sticky top-0 z-10 px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Edit</th>
-                <th className="sticky top-0 z-10 px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Delete</th>
-                <th className="sticky top-0 z-10 px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Blocked States</th>
+                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Page</th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>All</th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>View</th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Create</th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Edit</th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Delete</th>
+                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--card)' }}>Blocked States</th>
               </tr>
             </thead>
             <tbody>

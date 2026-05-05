@@ -8,13 +8,19 @@ export default function PurchaseOrderPageActions({
   purchaseOrderId,
   detailHref,
   editing,
+  customizing = false,
 }: {
   purchaseOrderId: string
   detailHref: string
   editing: boolean
+  customizing?: boolean
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  if (customizing) {
+    return null
+  }
 
   async function handleSave() {
     setSaving(true)

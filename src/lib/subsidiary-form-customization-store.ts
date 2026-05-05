@@ -88,6 +88,19 @@ function normalizeFieldPlacements(config: SubsidiaryFormCustomizationConfig): Su
   return nextConfig
 }
 
+function normalizeLegacyFieldKeys(
+  fieldOverrides: Partial<Record<string, Partial<SubsidiaryFormCustomizationConfig['fields'][SubsidiaryFormFieldKey]>>>
+): Partial<Record<SubsidiaryFormFieldKey, Partial<SubsidiaryFormCustomizationConfig['fields'][SubsidiaryFormFieldKey]>>> {
+  const keyMap: Record<string, SubsidiaryFormFieldKey> = {
+    defaultCurrencyId: 'localCurrencyId',
+    reportingCurrencyId: 'groupCurrencyId',
+  }
+
+  return Object.fromEntries(
+    Object.entries(fieldOverrides).map(([key, value]) => [keyMap[key] ?? key, value])
+  ) as Partial<Record<SubsidiaryFormFieldKey, Partial<SubsidiaryFormCustomizationConfig['fields'][SubsidiaryFormFieldKey]>>>
+}
+
 function mergeWithDefaults(overrides: Partial<SubsidiaryFormCustomizationConfig>): SubsidiaryFormCustomizationConfig {
   const merged = cloneDefaults()
   merged.formColumns = normalizeColumnCount(overrides.formColumns, merged.formColumns)
@@ -108,7 +121,7 @@ function mergeWithDefaults(overrides: Partial<SubsidiaryFormCustomizationConfig>
   }
 
   const fieldOverrides = overrides.fields && typeof overrides.fields === 'object'
-    ? overrides.fields as Partial<Record<SubsidiaryFormFieldKey, Partial<SubsidiaryFormCustomizationConfig['fields'][SubsidiaryFormFieldKey]>>>
+    ? normalizeLegacyFieldKeys(overrides.fields as Partial<Record<string, Partial<SubsidiaryFormCustomizationConfig['fields'][SubsidiaryFormFieldKey]>>>)
     : {}
   const statCardOverrides = Array.isArray(overrides.statCards) ? overrides.statCards : []
 

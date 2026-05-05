@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { TransactionGlImpactRow } from '@/lib/transaction-gl-impact'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
 
 type LayoutFieldConfig = {
   visible: boolean
@@ -10,6 +11,7 @@ type LayoutFieldConfig = {
 
 type SectionedLayout<TKey extends string> = {
   sections: string[]
+  sectionRows?: Partial<Record<string, number>>
   fields: Record<TKey, LayoutFieldConfig>
 }
 
@@ -43,14 +45,17 @@ type SectionField = {
 }
 
 export function getTransactionFieldPreviewValue(
-  fieldDefinition: {
-    value: string
-    displayValue?: ReactNode
-    options?: Array<{ value: string; label: string }>
-  },
+  fieldDefinition:
+    | {
+        value: string
+        displayValue?: ReactNode
+        options?: Array<{ value: string; label: string }>
+      }
+    | undefined,
   override?: string
 ): string {
   if (override != null) return override
+  if (!fieldDefinition) return ''
   if (typeof fieldDefinition.displayValue === 'string') return fieldDefinition.displayValue
   return (
     fieldDefinition.options?.find((option) => option.value === fieldDefinition.value)?.label ??
@@ -69,7 +74,7 @@ export function buildTransactionCustomizePreviewFields<
   previewOverrides,
 }: {
   fields: TMeta[]
-  fieldDefinitions: Record<TKey, TDefinition & { options?: Array<{ value: string; label: string }> }>
+  fieldDefinitions: Record<TKey, TDefinition & { options?: Array<{ value: string; label: string }> }> | Record<string, TDefinition & { options?: Array<{ value: string; label: string }> }>
   previewOverrides?: Partial<Record<TKey, string>>
 }) {
   return fields.map((field) => ({
@@ -78,7 +83,10 @@ export function buildTransactionCustomizePreviewFields<
     fieldType: field.fieldType,
     source: field.source,
     description: field.description,
-    previewValue: getTransactionFieldPreviewValue(fieldDefinitions[field.id], previewOverrides?.[field.id]),
+    previewValue: getTransactionFieldPreviewValue(
+      fieldDefinitions[field.id as keyof typeof fieldDefinitions],
+      previewOverrides?.[field.id],
+    ),
   }))
 }
 
@@ -96,7 +104,7 @@ export function buildConfiguredTransactionSections<
   layout: SectionedLayout<TKey>
   fieldDefinitions: Record<TKey, TDefinition>
   sectionDescriptions?: Record<string, string>
-}): Array<{ title: string; description?: string; fields: TDefinition[] }> {
+}): Array<{ title: string; description?: string; rows?: number; fields: TDefinition[] }> {
   return layout.sections.flatMap((sectionTitle) => {
       const sectionFields = fields
         .filter((field) => {
@@ -120,6 +128,7 @@ export function buildConfiguredTransactionSections<
       return [{
         title: sectionTitle,
         description: sectionDescriptions?.[sectionTitle],
+        rows: layout.sectionRows?.[sectionTitle],
         fields: sectionFields,
       }]
     })
@@ -159,6 +168,10 @@ export function formatTransactionSourceType(value: string | null | undefined) {
     .join(' ')
 }
 
+function toSignedAmount(debit: number, credit: number) {
+  return debit !== 0 ? debit : credit !== 0 ? -credit : 0
+}
+
 export function buildTransactionGlImpactRows({
   entries,
   sourceNumberByKey,
@@ -177,7 +190,13 @@ export function buildTransactionGlImpactRows({
       memo: string | null
       debit: unknown
       credit: unknown
-      account: { accountId: string; name: string }
+      localDebit?: unknown
+      localCredit?: unknown
+      functionalDebit?: unknown
+      functionalCredit?: unknown
+      groupDebit?: unknown
+      groupCredit?: unknown
+      account: { accountId: string; accountNumber?: string | null; name: string }
     }>
   }>
   sourceNumberByKey: Map<string, string>
@@ -191,10 +210,26 @@ export function buildTransactionGlImpactRows({
       date: formatDate(entry.date),
       sourceType: formatTransactionSourceType(entry.sourceType),
       sourceNumber: sourceNumberByKey.get(`${entry.sourceType ?? ''}:${entry.sourceId ?? ''}`) ?? entry.sourceId ?? '-',
-      account: `${line.account.accountId} - ${line.account.name}`,
+      account: formatGlAccountLabel(line.account),
       description: line.description ?? line.memo ?? entry.description ?? '-',
       debit: toNumericValue(line.debit, 0),
       credit: toNumericValue(line.credit, 0),
+      txnAmount: toSignedAmount(
+        toNumericValue(line.debit, 0),
+        toNumericValue(line.credit, 0),
+      ),
+      localAmount: toSignedAmount(
+        toNumericValue(line.localDebit, 0),
+        toNumericValue(line.localCredit, 0),
+      ),
+      functionalAmount: toSignedAmount(
+        toNumericValue(line.functionalDebit, 0),
+        toNumericValue(line.functionalCredit, 0),
+      ),
+      groupAmount: toSignedAmount(
+        toNumericValue(line.groupDebit, 0),
+        toNumericValue(line.groupCredit, 0),
+      ),
     })),
   )
 }

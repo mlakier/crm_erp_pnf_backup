@@ -2,14 +2,11 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
 import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
+import ListSearchActions from '@/components/ListSearchActions'
 import PaginationFooter from '@/components/PaginationFooter'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import { getPagination } from '@/lib/pagination'
-import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
-import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { loadJournalEntryFormOptions } from '@/lib/journal-entry-form-options'
 import { createRecordLabelMapFromOptions, formatRecordLabel } from '@/lib/record-status-label'
@@ -47,11 +44,9 @@ export default async function JournalsPage({ searchParams }: { searchParams: Pro
 
   const orderBy = [{ createdAt: 'desc' as const }]
 
-  const [totalRows, formOptions, companySettings, cabinetFiles] = await Promise.all([
+  const [totalRows, formOptions] = await Promise.all([
     prisma.journalEntry.count({ where }),
     loadJournalEntryFormOptions(),
-    loadCompanyInformationSettings(),
-    loadCompanyCabinetFiles(),
   ])
   const statusOptions = Array.from(new Set(formOptions.statusFilterValues))
   const statusLabelMap = createRecordLabelMapFromOptions(formOptions.statusOptions)
@@ -67,13 +62,9 @@ export default async function JournalsPage({ searchParams }: { searchParams: Pro
     return '/journals?' + s.toString()
   }
 
-  const selectedLogoValue = companySettings.companyLogoPagesFileId
-  const companyLogoPages = cabinetFiles.find((file) => file.id === selectedLogoValue) ?? cabinetFiles.find((file) => file.originalName === selectedLogoValue) ?? cabinetFiles.find((file) => file.storedName === selectedLogoValue) ?? (!selectedLogoValue ? cabinetFiles[0] : undefined)
-
   return (
     <div className="min-h-full px-8 py-8">
       <div className="mb-6 flex items-center justify-between gap-4">
-        {companyLogoPages ? <img src={companyLogoPages.url} alt="Company logo" className="h-16 w-auto rounded" /> : null}
         <div>
           <h1 className="text-xl font-semibold text-white">Journal Entries</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{totalRows} total</p>
@@ -100,8 +91,12 @@ export default async function JournalsPage({ searchParams }: { searchParams: Pro
           <input type="hidden" name="page" value="1" /><input type="hidden" name="status" value={statusFilter} />
           <div className="flex gap-3 items-center flex-nowrap">
             <input type="text" name="q" defaultValue={params.q ?? ''} placeholder="Search journal id, description, status" className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
-            <ExportButton tableId="journals-list" fileName="journals" exportAllUrl={buildMasterDataExportUrl('journals', params.q ?? '')} />
-            <ColumnSelector tableId="journals-list" columns={JE_COLUMNS} />
+            <ListSearchActions
+              tableId="journals-list"
+              exportFileName="journals"
+              exportAllUrl={buildMasterDataExportUrl('journals', params.q ?? '')}
+              columns={JE_COLUMNS}
+            />
           </div>
         </form>
         <div className="record-list-scroll-region overflow-x-auto" data-column-selector-table="journals-list">
@@ -126,7 +121,13 @@ export default async function JournalsPage({ searchParams }: { searchParams: Pro
                   <td data-column="date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.date, moneySettings)}</td>
                   <td data-column="description" className="px-4 py-2 text-sm truncate max-w-[200px]" style={{ color: 'var(--text-secondary)' }}>{row.description ?? '\u2014'}</td>
                   <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{formatRecordLabel(row.status, statusLabelMap)}</td>
-                  <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(row.total, undefined, moneySettings)}</td>
+                  <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {fmtCurrency(
+                      row.total,
+                      row.currency?.code ?? row.currency?.currencyId ?? undefined,
+                      moneySettings,
+                    )}
+                  </td>
                   <td data-column="subsidiary" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.subsidiary?.name ?? '\u2014'}</td>
                   <td data-column="currency" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.currency?.code ?? '\u2014'}</td>
                   <td data-column="period" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.accountingPeriod?.name ?? '\u2014'}</td>
@@ -138,16 +139,13 @@ export default async function JournalsPage({ searchParams }: { searchParams: Pro
                   <td data-column="db-id" className="px-4 py-2 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>{row.id}</td>
                   <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.createdAt, moneySettings)}</td>
                   <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.updatedAt, moneySettings)}</td>
-                  <td data-column="actions" className="px-4 py-2 text-sm"><span className="flex items-center gap-2">
-                    <Link
-                      href={`/journals/${row.id}?edit=1`}
-                      className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                      style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                    >
-                      Edit
-                    </Link>
-                    <DeleteButton id={row.id} endpoint="/api/journals" label={row.number} />
-                  </span></td>
+                  <td data-column="actions" className="px-4 py-2 text-sm">
+                    <ListRowActions
+                      viewHref={`/journals/${row.id}`}
+                      editHref={`/journals/${row.id}?edit=1`}
+                      deleteButton={{ id: row.id, endpoint: '/api/journals', label: row.number }}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -3,7 +3,7 @@ export const MASTER_DATA_TABLE_DIVIDER_STYLE = {
 } as const
 
 export const MASTER_DATA_HEADER_CELL_CLASSNAME =
-  'sticky top-0 z-10 px-2.5 py-2 text-left text-sm font-medium uppercase tracking-wide'
+  'px-2.5 py-2 text-left text-sm font-medium uppercase tracking-wide'
 
 export const MASTER_DATA_HEADER_CELL_STYLE = {
   color: 'var(--text-muted)',

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { loadPostingAccountSelectOptions } from '@/lib/posting-account-options'
 import { COUNTRY_OPTIONS } from '@/lib/address-country-config'
 
 export type FieldSourceType = 'reference' | 'managed-list' | 'system'
@@ -17,6 +18,7 @@ const MANAGED_LIST_LABELS: Record<string, string> = {
   'ACCOUNTING-PERIOD-STATUS': 'Accounting Period Status',
   'BILL-STATUS': 'Bill Status',
   'BILL-PAYMENT-STATUS': 'Bill Payment Status',
+  'CLEARING-DOCUMENT-STATUS': 'Clearing Document Status',
   'COA-CASH-FLOW-CATEGORY': 'Cash Flow Category',
   'COA-FS-CATEGORY': 'Financial Statement Category',
   'COA-FS-GROUP': 'Financial Statement Group',
@@ -101,11 +103,19 @@ const MANAGED_LIST_DEFAULT_OPTIONS: Record<string, SelectOption[]> = {
     { value: 'Cleared', label: 'Cleared' },
     { value: 'Void', label: 'Void' },
   ],
+  'CLEARING-DOCUMENT-STATUS': [
+    { value: 'Draft', label: 'Draft' },
+    { value: 'Pending Approval', label: 'Pending Approval' },
+    { value: 'Approved', label: 'Approved' },
+    { value: 'Posted', label: 'Posted' },
+    { value: 'Void', label: 'Void' },
+    { value: 'Reversed', label: 'Reversed' },
+  ],
   'EXCHANGE-RATE-TYPE': [
     { value: 'Spot', label: 'Spot' },
     { value: 'Average', label: 'Average' },
     { value: 'Closing', label: 'Closing' },
-    { value: 'Budget', label: 'Budget' },
+    { value: 'Historical', label: 'Historical' },
   ],
   'FULFILL-STATUS': [
     { value: 'Pending', label: 'Pending' },
@@ -115,8 +125,11 @@ const MANAGED_LIST_DEFAULT_OPTIONS: Record<string, SelectOption[]> = {
   ],
   'JOURNAL-STATUS': [
     { value: 'Draft', label: 'Draft' },
+    { value: 'Pending Approval', label: 'Pending Approval' },
+    { value: 'Approved', label: 'Approved' },
     { value: 'Posted', label: 'Posted' },
     { value: 'Void', label: 'Void' },
+    { value: 'Reversed', label: 'Reversed' },
   ],
   'JOURNAL-SOURCE-TYPE': [
     { value: 'Manual', label: 'Manual' },
@@ -249,12 +262,7 @@ export function getListSourceText(source: ListSourceDefinition): string | undefi
 async function loadReferenceOptions(sourceKey: string): Promise<SelectOption[]> {
   switch (sourceKey) {
     case 'chartOfAccounts': {
-      const accounts = await prisma.chartOfAccounts.findMany({
-        where: { active: true },
-        orderBy: { accountId: 'asc' },
-        select: { id: true, accountId: true, accountNumber: true, name: true },
-      })
-      return accounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.accountNumber} - ${account.name}` }))
+      return loadPostingAccountSelectOptions()
     }
     case 'currencies': {
       const currencies = await prisma.currency.findMany({

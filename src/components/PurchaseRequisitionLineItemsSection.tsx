@@ -41,6 +41,7 @@ export default function PurchaseRequisitionLineItemsSection({
   requisitionId,
   items,
   lineRows,
+  currencyCode,
   moneySettings,
   lineSettings,
   lineColumns,
@@ -48,6 +49,7 @@ export default function PurchaseRequisitionLineItemsSection({
   requisitionId: string
   items: Array<{ id: string; itemId: string; name: string; listPrice: number }>
   lineRows: LineRow[]
+  currencyCode?: string | null
   moneySettings?: Parameters<typeof fmtCurrency>[2]
   lineSettings?: PurchaseRequisitionLineSettings
   lineColumns?: Record<PurchaseRequisitionLineColumnKey, PurchaseRequisitionLineColumnCustomization>
@@ -91,9 +93,9 @@ export default function PurchaseRequisitionLineItemsSection({
       case 'quantity':
         return line.quantity
       case 'unit-price':
-        return fmtCurrency(line.unitPrice, undefined, moneySettings)
+        return fmtCurrency(line.unitPrice, currencyCode ?? undefined, moneySettings)
       case 'line-total':
-        return fmtCurrency(line.lineTotal, undefined, moneySettings)
+        return fmtCurrency(line.lineTotal, currencyCode ?? undefined, moneySettings)
       case 'notes':
         return line.notes ?? '-'
       default:

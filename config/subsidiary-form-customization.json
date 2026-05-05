@@ -73,7 +73,7 @@
       "order": 0,
       "column": 1
     },
-    "defaultCurrencyId": {
+    "localCurrencyId": {
       "visible": true,
       "section": "Currency",
       "order": 0,
@@ -85,7 +85,7 @@
       "order": 0,
       "column": 2
     },
-    "reportingCurrencyId": {
+    "groupCurrencyId": {
       "visible": true,
       "section": "Currency",
       "order": 1,

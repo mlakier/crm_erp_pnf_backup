@@ -5,10 +5,12 @@
     "Workflow & Timing",
     "Sourcing & Financials",
     "Record Keys",
-    "System Dates"
+    "System Dates",
+    "4-Currency Context"
   ],
   "sectionRows": {
-    "Document Identity": 2,
+    "4-Currency Context": 4,
+    "Document Identity": 3,
     "Workflow & Timing": 2,
     "Sourcing & Financials": 3,
     "Record Keys": 2,
@@ -27,17 +29,29 @@
       "order": 0,
       "column": 1
     },
-    "vendorId": {
+    "vendorBillNumber": {
       "visible": true,
       "section": "Document Identity",
       "order": 0,
       "column": 2
     },
-    "purchaseOrderId": {
+    "vendorBillDate": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 1,
+      "column": 1
+    },
+    "vendorId": {
       "visible": true,
       "section": "Document Identity",
       "order": 0,
       "column": 3
+    },
+    "purchaseOrderId": {
+      "visible": true,
+      "section": "Document Identity",
+      "order": 1,
+      "column": 2
     },
     "userId": {
       "visible": true,
@@ -98,6 +112,96 @@
       "section": "System Dates",
       "order": 0,
       "column": 2
+    },
+    "currency-transaction-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 1
+    },
+    "currency-local-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 1
+    },
+    "currency-functional-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 1
+    },
+    "currency-group-amount": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 1
+    },
+    "currency-fx-audit": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 3
+    },
+    "currency-local-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 2
+    },
+    "currency-functional-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 2
+    },
+    "currency-group-fx-rate": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 2
+    },
+    "currency-fx-rate-type": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 2
+    },
+    "currency-realized-fx-functional": {
+      "visible": false,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 3
+    },
+    "currency-realized-fx-local": {
+      "visible": false,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 3
+    },
+    "currency-realized-fx-group": {
+      "visible": false,
+      "section": "4-Currency Context",
+      "order": 3,
+      "column": 3
+    },
+    "currency-translation-status": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 0,
+      "column": 3
+    },
+    "currency-posting-status": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 1,
+      "column": 3
+    },
+    "currency-open-item-number": {
+      "visible": true,
+      "section": "4-Currency Context",
+      "order": 2,
+      "column": 3
     }
   },
   "lineSettings": {
@@ -108,6 +212,17 @@
       "visible": true,
       "order": 0,
       "widthMode": "compact",
+      "showColumnMode": "always",
+      "editDisplay": "label",
+      "viewDisplay": "label",
+      "dropdownDisplay": "label",
+      "dropdownSort": "label"
+    },
+    "line-type": {
+      "visible": true,
+      "order": 1,
+      "widthMode": "normal",
+      "showColumnMode": "always",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
@@ -115,26 +230,39 @@
     },
     "item-id": {
       "visible": true,
-      "order": 1,
-      "widthMode": "normal",
-      "editDisplay": "idAndLabel",
-      "viewDisplay": "idAndLabel",
+      "order": 2,
+      "widthMode": "compact",
+      "showColumnMode": "itemOnly",
+      "editDisplay": "id",
+      "viewDisplay": "id",
       "dropdownDisplay": "idAndLabel",
       "dropdownSort": "id"
     },
     "description": {
       "visible": true,
-      "order": 2,
-      "widthMode": "wide",
+      "order": 3,
+      "widthMode": "compact",
+      "showColumnMode": "always",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
       "dropdownSort": "label"
     },
+    "expense-account": {
+      "visible": true,
+      "order": 4,
+      "widthMode": "compact",
+      "showColumnMode": "expenseOnly",
+      "editDisplay": "idAndLabel",
+      "viewDisplay": "idAndLabel",
+      "dropdownDisplay": "idAndLabel",
+      "dropdownSort": "id"
+    },
     "quantity": {
       "visible": true,
-      "order": 3,
-      "widthMode": "normal",
+      "order": 5,
+      "widthMode": "compact",
+      "showColumnMode": "always",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
@@ -142,8 +270,9 @@
     },
     "unit-price": {
       "visible": true,
-      "order": 4,
-      "widthMode": "normal",
+      "order": 6,
+      "widthMode": "compact",
+      "showColumnMode": "always",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
@@ -151,8 +280,9 @@
     },
     "line-total": {
       "visible": true,
-      "order": 5,
-      "widthMode": "normal",
+      "order": 7,
+      "widthMode": "compact",
+      "showColumnMode": "always",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
@@ -160,8 +290,9 @@
     },
     "notes": {
       "visible": true,
-      "order": 6,
-      "widthMode": "wide",
+      "order": 8,
+      "widthMode": "compact",
+      "showColumnMode": "always",
       "editDisplay": "label",
       "viewDisplay": "label",
       "dropdownDisplay": "label",
@@ -263,7 +394,7 @@
       "widthMode": "wide"
     },
     "description": {
-      "visible": true,
+      "visible": false,
       "order": 5,
       "widthMode": "wide"
     },
@@ -275,6 +406,26 @@
     "credit": {
       "visible": true,
       "order": 7,
+      "widthMode": "normal"
+    },
+    "txnAmount": {
+      "visible": true,
+      "order": 8,
+      "widthMode": "normal"
+    },
+    "localAmount": {
+      "visible": true,
+      "order": 9,
+      "widthMode": "normal"
+    },
+    "functionalAmount": {
+      "visible": true,
+      "order": 10,
+      "widthMode": "normal"
+    },
+    "groupAmount": {
+      "visible": true,
+      "order": 11,
       "widthMode": "normal"
     }
   },

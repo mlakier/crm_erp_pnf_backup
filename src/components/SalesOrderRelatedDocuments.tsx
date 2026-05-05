@@ -9,6 +9,7 @@ type QuoteDoc = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   validUntil: string | null
   opportunityName: string | null
 }
@@ -19,6 +20,7 @@ type OpportunityDoc = {
   name: string
   status: string
   total: number
+  currencyCode?: string | null
 }
 
 type FulfillmentDoc = {
@@ -34,6 +36,7 @@ type InvoiceDoc = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   dueDate: string | null
   createdAt: string
 }
@@ -42,6 +45,7 @@ type CashReceiptDoc = {
   id: string
   number: string | null
   amount: number
+  currencyCode?: string | null
   date: string
   method: string | null
   reference: string | null
@@ -54,6 +58,7 @@ export default function SalesOrderRelatedDocuments({
   fulfillments,
   invoices,
   cashReceipts,
+  defaultCurrencyCode,
   showFulfillments = true,
   embedded = false,
   showDisplayControl = true,
@@ -63,10 +68,13 @@ export default function SalesOrderRelatedDocuments({
   fulfillments: FulfillmentDoc[]
   invoices: InvoiceDoc[]
   cashReceipts: CashReceiptDoc[]
+  defaultCurrencyCode?: string | null
   showFulfillments?: boolean
   embedded?: boolean
   showDisplayControl?: boolean
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined)
   const fulfillmentTab = {
     key: 'fulfillments',
     label: 'Fulfillments',
@@ -114,13 +122,13 @@ export default function SalesOrderRelatedDocuments({
               </Link>,
               opportunity.name,
               <RelatedDocumentsStatusBadge key="status" status={opportunity.status} />,
-              fmtCurrency(opportunity.total),
+              formatAmount(opportunity.total, opportunity.currencyCode),
             ],
             filterValues: [
               opportunity.number,
               opportunity.name,
               opportunity.status,
-              fmtCurrency(opportunity.total),
+              formatAmount(opportunity.total, opportunity.currencyCode),
             ],
           })),
         },
@@ -138,14 +146,14 @@ export default function SalesOrderRelatedDocuments({
                 {quote.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={quote.status} />,
-              fmtCurrency(quote.total),
+              formatAmount(quote.total, quote.currencyCode),
               quote.validUntil ? fmtDocumentDate(quote.validUntil) : '-',
               quote.opportunityName ?? '-',
             ],
             filterValues: [
               quote.number,
               quote.status,
-              fmtCurrency(quote.total),
+              formatAmount(quote.total, quote.currencyCode),
               quote.validUntil ? fmtDocumentDate(quote.validUntil) : '-',
               quote.opportunityName ?? '-',
             ],
@@ -166,14 +174,14 @@ export default function SalesOrderRelatedDocuments({
                 {invoice.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={invoice.status} />,
-              fmtCurrency(invoice.total),
+              formatAmount(invoice.total, invoice.currencyCode),
               fmtDocumentDate(invoice.createdAt),
               invoice.dueDate ? fmtDocumentDate(invoice.dueDate) : '-',
             ],
             filterValues: [
               invoice.number,
               invoice.status,
-              fmtCurrency(invoice.total),
+              formatAmount(invoice.total, invoice.currencyCode),
               fmtDocumentDate(invoice.createdAt),
               invoice.dueDate ? fmtDocumentDate(invoice.dueDate) : '-',
             ],
@@ -192,7 +200,7 @@ export default function SalesOrderRelatedDocuments({
               <Link key="link" href={`/invoice-receipts/${receipt.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
                 {receipt.number ?? receipt.id}
               </Link>,
-              fmtCurrency(receipt.amount),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date),
               receipt.method ?? '-',
               receipt.reference ?? '-',
@@ -200,7 +208,7 @@ export default function SalesOrderRelatedDocuments({
             ],
             filterValues: [
               receipt.number ?? receipt.id,
-              fmtCurrency(receipt.amount),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date),
               receipt.method ?? '-',
               receipt.reference ?? '-',

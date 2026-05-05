@@ -1,12 +1,11 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtPhone, normalizePhone } from '@/lib/format'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
 import PaginationFooter from '@/components/PaginationFooter'
-import EditButton from '@/components/EditButton'
 import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
 import { formatMasterDataDate } from '@/lib/master-data-display'
@@ -154,11 +153,12 @@ export default async function ContactsPage({
                 <MasterDataMutedCell columnId="created">{formatMasterDataDate(contact.createdAt)}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="last-modified">{formatMasterDataDate(contact.updatedAt)}</MasterDataMutedCell>
                 <MasterDataBodyCell columnId="actions" style={{ color: 'var(--text-secondary)' }}>
-                  <div className="flex items-center gap-2">
-                    <EditButton
-                      resource="contacts"
-                      id={contact.id}
-                      fields={[
+                  <ListRowActions
+                    viewHref={`/contacts/${contact.id}`}
+                    editButton={{
+                      resource: 'contacts',
+                      id: contact.id,
+                      fields: [
                         ...(formCustomization.fields.firstName.visible ? [{ name: 'firstName', label: 'First Name', value: contact.firstName }] : []),
                         ...(formCustomization.fields.lastName.visible ? [{ name: 'lastName', label: 'Last Name', value: contact.lastName }] : []),
                         ...(formCustomization.fields.email.visible ? [{ name: 'email', label: 'Email', value: contact.email ?? '', type: 'email' as const }] : []),
@@ -228,10 +228,10 @@ export default async function ContactsPage({
                               placeholder: 'Inactive',
                             }]
                           : []),
-                      ]}
-                    />
-                    <DeleteButton resource="contacts" id={contact.id} />
-                  </div>
+                      ],
+                    }}
+                    deleteButton={{ resource: 'contacts', id: contact.id }}
+                  />
                 </MasterDataBodyCell>
               </tr>
             ))}

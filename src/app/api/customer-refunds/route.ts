@@ -3,9 +3,23 @@ import { prisma } from '@/lib/prisma'
 import { parseMoneyValue } from '@/lib/money'
 import { loadListValues } from '@/lib/load-list-values'
 import { generateCustomerRefundNumber } from '@/lib/customer-refund-number'
-import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
+import { loadCompanySetupSettings } from '@/lib/company-setup-settings-store'
+import { loadConfiguredRealizedFxPostingAccounts } from '@/lib/company-setup-account-resolver'
+import { deriveOpenItemCurrencyContext } from '@/lib/open-item-currency-context'
 import { generateNextJournalNumber } from '@/lib/journal-number'
 import { logActivity, logCommunicationActivity } from '@/lib/activity'
+import {
+  buildRealizedFxJournalLines,
+  computeRealizedFxLayerAmount,
+  deriveCarriedSettlementAmount,
+} from '@/lib/settlement-fx-journal'
+import {
+  applyOpenItems,
+  ensureOpenItemForSource,
+  findExistingOpenItemApplication,
+  syncOpenItemStatus,
+} from '@/lib/open-item-service'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 
 const CUSTOMER_REFUND_POSTING_STATUSES = new Set(['processed'])
 
@@ -59,7 +73,7 @@ async function computeReceiptOverpayment(receiptId: string, excludingRefundId?: 
 }
 
 async function findCustomerRefundPostingAccounts(bankAccountId: string | null | undefined) {
-  const companySettings = await loadCompanyInformationSettings()
+  const companySettings = await loadCompanySetupSettings()
 
   const arAccount =
     (companySettings.defaultArAccountId
@@ -98,19 +112,7 @@ async function findCustomerRefundPostingAccounts(bankAccountId: string | null | 
           select: { id: true },
         })
       : null)
-    ?? await prisma.chartOfAccounts.findFirst({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      select: { id: true },
-    })
+    ?? (await loadCashBankPostingAccounts())[0]
 
   return {
     arAccountId: arAccount?.id ?? null,
@@ -142,66 +144,284 @@ async function postCustomerRefundJournal(refundId: string) {
   if (!Number.isFinite(amount) || amount <= 0) return
 
   const { arAccountId, bankAccountId } = await findCustomerRefundPostingAccounts(refund.bankAccountId)
-  if (!arAccountId || !bankAccountId) return
+  const realizedFxAccounts = await loadConfiguredRealizedFxPostingAccounts()
 
-  const journalNumber = await generateNextJournalNumber()
-  await prisma.journalEntry.create({
-    data: {
-      number: journalNumber,
-      date: refund.date,
-      description: `Customer refund ${refund.number}`,
-      journalType: 'standard',
-      status: 'approved',
-      total: amount,
-      sourceType: 'customer-refund',
-      sourceId: refund.id,
-      subsidiaryId: refund.subsidiaryId,
-      currencyId: refund.currencyId,
-      userId: refund.userId,
-      lineItems: {
-        create: [
-          {
-            displayOrder: 0,
-            description: `${refund.number} customer refund`,
-            memo: refund.reference ?? null,
-            debit: amount,
-            credit: 0,
-            accountId: arAccountId,
-            subsidiaryId: refund.subsidiaryId,
-            customerId: refund.customerId,
-          },
-          {
-            displayOrder: 1,
-            description: `${refund.number} cash disbursement`,
-            memo: refund.reference ?? null,
-            debit: 0,
-            credit: amount,
-            accountId: bankAccountId,
-            subsidiaryId: refund.subsidiaryId,
-            customerId: refund.customerId,
-          },
-        ],
+  if (refund.cashReceipt?.invoice) {
+    const receiptCurrencyContext = await deriveOpenItemCurrencyContext({
+      subsidiaryId: refund.cashReceipt.invoice.subsidiaryId ?? null,
+      transactionCurrencyId: refund.cashReceipt.invoice.currencyId ?? null,
+      transactionAmount: refund.cashReceipt.amount,
+    })
+
+    const receiptOpenItem = await ensureOpenItemForSource({
+      openItemType: 'customer_receipt',
+      accountType: 'Asset',
+      accountId: bankAccountId,
+      subsidiaryId: refund.cashReceipt.invoice.subsidiaryId ?? null,
+      transactionCurrencyId: receiptCurrencyContext.transactionCurrencyId,
+      localCurrencyId: receiptCurrencyContext.localCurrencyId,
+      functionalCurrencyId: receiptCurrencyContext.functionalCurrencyId,
+      groupCurrencyId: receiptCurrencyContext.groupCurrencyId,
+      sourceTransactionType: 'invoice-receipt',
+      sourceTransactionId: refund.cashReceipt.id,
+      sourceNumber: refund.cashReceipt.number ?? refund.cashReceipt.id,
+      counterpartyType: 'customer',
+      counterpartyId: refund.customerId,
+      documentDate: refund.cashReceipt.date,
+      postingDate: refund.cashReceipt.date,
+      originalTransactionAmount: refund.cashReceipt.amount,
+      originalLocalAmount: receiptCurrencyContext.originalLocalAmount,
+      originalFunctionalAmount: receiptCurrencyContext.originalFunctionalAmount,
+      originalGroupAmount: receiptCurrencyContext.originalGroupAmount,
+      memo: refund.cashReceipt.reference ?? null,
+      createdById: refund.userId ?? null,
+    })
+
+    const refundCurrencyContext = await deriveOpenItemCurrencyContext({
+      subsidiaryId: refund.subsidiaryId ?? refund.cashReceipt.invoice.subsidiaryId ?? null,
+      transactionCurrencyId: refund.currencyId ?? refund.cashReceipt.invoice.currencyId ?? null,
+      transactionAmount: amount,
+      effectiveDate: refund.date,
+      rateType: 'spot',
+    })
+
+    const refundOpenItem = await ensureOpenItemForSource({
+      openItemType: 'customer_refund',
+      accountType: 'Asset',
+      accountId: bankAccountId,
+      subsidiaryId: refund.subsidiaryId ?? refund.cashReceipt.invoice.subsidiaryId ?? null,
+      transactionCurrencyId: refundCurrencyContext.transactionCurrencyId,
+      localCurrencyId: refundCurrencyContext.localCurrencyId,
+      functionalCurrencyId: refundCurrencyContext.functionalCurrencyId,
+      groupCurrencyId: refundCurrencyContext.groupCurrencyId,
+      sourceTransactionType: 'customer-refund',
+      sourceTransactionId: refund.id,
+      sourceNumber: refund.number,
+      counterpartyType: 'customer',
+      counterpartyId: refund.customerId,
+      documentDate: refund.date,
+      postingDate: refund.date,
+      dueDate: refund.date,
+      originalTransactionAmount: amount,
+      originalLocalAmount: refundCurrencyContext.originalLocalAmount,
+      originalFunctionalAmount: refundCurrencyContext.originalFunctionalAmount,
+      originalGroupAmount: refundCurrencyContext.originalGroupAmount,
+      memo: refund.reference ?? refund.notes ?? null,
+      createdById: refund.userId ?? null,
+    })
+
+    const existingApplication = await findExistingOpenItemApplication({
+      fromOpenItemId: refundOpenItem.id,
+      toOpenItemId: receiptOpenItem.id,
+      settlementTransactionType: 'customer-refund',
+      settlementTransactionId: refund.id,
+    })
+
+    const postedApplication = existingApplication ?? (
+      await applyOpenItems({
+        fromOpenItemId: refundOpenItem.id,
+        toOpenItemId: receiptOpenItem.id,
+        applicationType: 'customer_refund_application',
+        settlementTransactionType: 'customer-refund',
+        settlementTransactionId: refund.id,
+        applicationDate: refund.date,
+        postingDate: refund.date,
+        transactionAmount: amount,
+        localAmount: refundCurrencyContext.originalLocalAmount,
+        functionalAmount: refundCurrencyContext.originalFunctionalAmount,
+        groupAmount: refundCurrencyContext.originalGroupAmount,
+        memo: refund.reference ?? refund.notes ?? null,
+        createdById: refund.userId ?? null,
+        clearingType: 'customer_refund_application',
+        automationSource: 'customer-refund-posting',
+      })
+    ).application
+
+    if (existingJournal) return
+
+    if (!arAccountId || !bankAccountId) return
+
+    const localAmount = postedApplication.localAmount == null ? null : Number(postedApplication.localAmount)
+    const functionalAmount =
+      postedApplication.functionalAmount == null ? null : Number(postedApplication.functionalAmount)
+    const groupAmount = postedApplication.groupAmount == null ? null : Number(postedApplication.groupAmount)
+    const realizedFxLocalAmount =
+      postedApplication.realizedFxLocalAmount == null ? null : Number(postedApplication.realizedFxLocalAmount)
+    const realizedFxFunctionalAmount =
+      postedApplication.realizedFxFunctionalAmount == null ? null : Number(postedApplication.realizedFxFunctionalAmount)
+    const realizedFxGroupAmount = computeRealizedFxLayerAmount({
+      originalTransactionAmount:
+        receiptOpenItem.originalTransactionAmount == null ? null : Number(receiptOpenItem.originalTransactionAmount),
+      originalTranslatedAmount:
+        receiptOpenItem.originalGroupAmount == null ? null : Number(receiptOpenItem.originalGroupAmount),
+      settledTransactionAmount: amount,
+      settledTranslatedAmount:
+        refundCurrencyContext.originalGroupAmount == null ? null : Number(refundCurrencyContext.originalGroupAmount),
+    })
+
+    const arLocalDebit = deriveCarriedSettlementAmount(localAmount, realizedFxLocalAmount)
+    const arFunctionalDebit = deriveCarriedSettlementAmount(functionalAmount, realizedFxFunctionalAmount)
+    const arGroupDebit = deriveCarriedSettlementAmount(groupAmount, realizedFxGroupAmount)
+
+    const fxLines = buildRealizedFxJournalLines({
+      description: `${refund.number} realized FX`,
+      memo: refund.reference ?? refund.notes ?? null,
+      subsidiaryId: refund.subsidiaryId ?? refund.cashReceipt.invoice.subsidiaryId ?? null,
+      customerId: refund.customerId,
+      realizedFxGainAccountId: realizedFxAccounts.realizedFxGainAccountId,
+      realizedFxLossAccountId: realizedFxAccounts.realizedFxLossAccountId,
+      orientation: 'asset',
+      localAmount: realizedFxLocalAmount,
+      functionalAmount: realizedFxFunctionalAmount,
+      groupAmount: realizedFxGroupAmount,
+      startingDisplayOrder: 2,
+    })
+
+    const journalNumber = await generateNextJournalNumber()
+    await prisma.journalEntry.create({
+      data: {
+        number: journalNumber,
+        date: refund.date,
+        description: `Customer refund ${refund.number}`,
+        journalType: 'standard',
+        status: 'approved',
+        total: amount,
+        sourceType: 'customer-refund',
+        sourceId: refund.id,
+        subsidiaryId: refund.subsidiaryId,
+        currencyId: refund.currencyId,
+        userId: refund.userId,
+        lineItems: {
+          create: [
+            {
+              displayOrder: 0,
+              description: `${refund.number} customer refund`,
+              memo: refund.reference ?? null,
+              activityTypeCode: 'ar_settlement',
+              debit: amount,
+              credit: 0,
+              localDebit: arLocalDebit == null ? undefined : arLocalDebit,
+              functionalDebit: arFunctionalDebit == null ? undefined : arFunctionalDebit,
+              groupDebit: arGroupDebit == null ? undefined : arGroupDebit,
+              accountId: arAccountId,
+              subsidiaryId: refund.subsidiaryId,
+              customerId: refund.customerId,
+            },
+            {
+              displayOrder: 1,
+              description: `${refund.number} cash disbursement`,
+              memo: refund.reference ?? null,
+              activityTypeCode: 'cash_disbursement',
+              debit: 0,
+              credit: amount,
+              localCredit:
+                refundCurrencyContext.originalLocalAmount == null
+                  ? undefined
+                  : Number(refundCurrencyContext.originalLocalAmount),
+              functionalCredit:
+                refundCurrencyContext.originalFunctionalAmount == null
+                  ? undefined
+                  : Number(refundCurrencyContext.originalFunctionalAmount),
+              groupCredit:
+                refundCurrencyContext.originalGroupAmount == null
+                  ? undefined
+                  : Number(refundCurrencyContext.originalGroupAmount),
+              accountId: bankAccountId,
+              subsidiaryId: refund.subsidiaryId,
+              customerId: refund.customerId,
+            },
+            ...fxLines,
+          ],
+        },
       },
-    },
-  })
+    })
 
-  await logActivity({
-    entityType: 'customer-refund',
-    entityId: refund.id,
-    action: 'post',
-    summary: `Posted customer refund ${refund.number} to GL`,
-    userId: refund.userId ?? undefined,
-  })
+    await logActivity({
+      entityType: 'customer-refund',
+      entityId: refund.id,
+      action: 'post',
+      summary: `Posted customer refund ${refund.number} to GL`,
+      userId: refund.userId ?? undefined,
+    })
+    return
+  }
+
+  if (!existingJournal) return
 }
 
 async function unpostCustomerRefundJournal(refundId: string) {
-  await prisma.journalEntry.deleteMany({
-    where: { sourceType: 'customer-refund', sourceId: refundId },
+  await prisma.$transaction(async (tx) => {
+    const applications = await tx.openItemApplication.findMany({
+      where: {
+        settlementTransactionType: 'customer-refund',
+        settlementTransactionId: refundId,
+      },
+      select: {
+        id: true,
+        fromOpenItemId: true,
+        toOpenItemId: true,
+      },
+    })
+
+    const applicationIds = applications.map((application) => application.id)
+    const openItemIdsToResync = Array.from(
+      new Set(
+        applications.flatMap((application) =>
+          [application.fromOpenItemId, application.toOpenItemId].filter(
+            (value): value is string => Boolean(value),
+          ),
+        ),
+      ),
+    )
+
+    if (applicationIds.length) {
+      await tx.openItemEntry.deleteMany({
+        where: {
+          sourceApplicationId: { in: applicationIds },
+        },
+      })
+      await tx.openItemApplication.deleteMany({
+        where: { id: { in: applicationIds } },
+      })
+      await tx.clearingDocumentHeader.deleteMany({
+        where: {
+          sourceTransactionType: 'customer-refund',
+          sourceTransactionId: refundId,
+        },
+      })
+    }
+
+    const refundOpenItems = await tx.openItem.findMany({
+      where: {
+        sourceTransactionType: 'customer-refund',
+        sourceTransactionId: refundId,
+      },
+      select: { id: true },
+    })
+    const refundOpenItemIds = refundOpenItems.map((item) => item.id)
+
+    if (refundOpenItemIds.length) {
+      await tx.openItemEntry.deleteMany({
+        where: { openItemId: { in: refundOpenItemIds } },
+      })
+      await tx.openItem.deleteMany({
+        where: { id: { in: refundOpenItemIds } },
+      })
+    }
+
+    await tx.journalEntry.deleteMany({
+      where: { sourceType: 'customer-refund', sourceId: refundId },
+    })
+
+    for (const openItemId of openItemIdsToResync.filter((id) => !refundOpenItemIds.includes(id))) {
+      await syncOpenItemStatus(openItemId, { tx })
+    }
   })
 }
 
 async function syncCustomerRefundPosting(refundId: string, status: string) {
   if (CUSTOMER_REFUND_POSTING_STATUSES.has(status.toLowerCase())) {
+    await unpostCustomerRefundJournal(refundId)
     await postCustomerRefundJournal(refundId)
     return
   }
@@ -221,18 +441,14 @@ async function validateCustomerRefund({
 }) {
   if (!customerId) throw new Error('Customer is required')
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Refund amount must be greater than zero')
-
-  if (!cashReceiptId) {
-    return {
-      subsidiaryId: null as string | null,
-      currencyId: null as string | null,
-      userId: null as string | null,
-    }
-  }
+  if (!cashReceiptId) throw new Error('Refund source invoice receipt is required')
 
   const { receipt, availableAmount } = await computeReceiptOverpayment(cashReceiptId, currentRefundId)
   if (receipt.invoice.customerId !== customerId) {
     throw new Error('Selected overpayment source does not belong to the chosen customer')
+  }
+  if (!receipt.invoice.subsidiaryId || !receipt.invoice.currencyId) {
+    throw new Error('Selected invoice receipt does not have complete transaction subsidiary/currency context')
   }
   if ((receipt.overpaymentHandling ?? '').toLowerCase() !== 'refund_pending') {
     throw new Error('Selected invoice receipt is not marked for refund')
@@ -245,8 +461,8 @@ async function validateCustomerRefund({
   }
 
   return {
-    subsidiaryId: receipt.invoice.subsidiaryId ?? null,
-    currencyId: receipt.invoice.currencyId ?? null,
+    subsidiaryId: receipt.invoice.subsidiaryId,
+    currencyId: receipt.invoice.currencyId,
     userId: receipt.invoice.userId ?? null,
   }
 }

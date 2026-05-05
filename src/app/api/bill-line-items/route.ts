@@ -7,7 +7,7 @@ import { calcLineTotal, parseMoneyValue, parseQuantity } from '@/lib/money'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { billId, itemId, description, quantity, unitPrice, userId, notes } = body
+    const { billId, itemId, lineType, expenseAccountId, description, quantity, unitPrice, userId, notes } = body
 
     if (!billId || !description) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -20,10 +20,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unit price must be zero or greater' }, { status: 400 })
     }
 
+    const normalizedLineType = lineType === 'expense' ? 'expense' : 'item'
+    if (normalizedLineType === 'expense' && !String(expenseAccountId ?? '').trim()) {
+      return NextResponse.json({ error: 'Expense account is required for expense lines' }, { status: 400 })
+    }
+
     const lineItem = await prisma.billLineItem.create({
       data: {
         billId,
-        itemId: itemId || null,
+        lineType: normalizedLineType,
+        itemId: normalizedLineType === 'expense' ? null : itemId || null,
+        expenseAccountId: normalizedLineType === 'expense' ? String(expenseAccountId).trim() : null,
         description,
         quantity: parsedQuantity,
         unitPrice: parsedUnitPrice,
@@ -55,7 +62,7 @@ export async function PUT(request: NextRequest) {
     if (!id) return NextResponse.json({ error: 'Missing line item id' }, { status: 400 })
 
     const body = await request.json()
-    const { itemId, description, quantity, unitPrice, userId, notes } = body
+    const { itemId, lineType, expenseAccountId, description, quantity, unitPrice, userId, notes } = body
 
     const existing = await prisma.billLineItem.findUnique({ where: { id } })
     if (!existing) {
@@ -73,10 +80,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unit price must be zero or greater' }, { status: 400 })
     }
 
+    const normalizedLineType = lineType === 'expense' ? 'expense' : 'item'
+    if (normalizedLineType === 'expense' && !String(expenseAccountId ?? '').trim()) {
+      return NextResponse.json({ error: 'Expense account is required for expense lines' }, { status: 400 })
+    }
+
     const updated = await prisma.billLineItem.update({
       where: { id },
       data: {
-        itemId: itemId || null,
+        lineType: normalizedLineType,
+        itemId: normalizedLineType === 'expense' ? null : itemId || null,
+        expenseAccountId: normalizedLineType === 'expense' ? String(expenseAccountId).trim() : null,
         description: String(description).trim(),
         quantity: parsedQuantity,
         unitPrice: parsedUnitPrice,

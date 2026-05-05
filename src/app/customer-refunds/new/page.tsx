@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { loadListValues } from '@/lib/load-list-values'
 import CustomerRefundPageClient from '@/components/CustomerRefundPageClient'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 
 export const runtime = 'nodejs'
 
@@ -13,19 +15,7 @@ export default async function NewCustomerRefundPage({
 
   const [customers, cashAccounts, methodValues, statusValues, refundSources, duplicateSource] = await Promise.all([
     prisma.customer.findMany({ orderBy: [{ name: 'asc' }] }),
-    prisma.chartOfAccounts.findMany({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      orderBy: [{ accountId: 'asc' }],
-    }),
+    loadCashBankPostingAccounts(),
     loadListValues('PAYMENT-METHOD'),
     loadListValues('CUSTOMER-REFUND-STATUS'),
     prisma.cashReceipt.findMany({
@@ -73,7 +63,7 @@ export default async function NewCustomerRefundPage({
     <CustomerRefundPageClient
       mode="create"
       customers={customers.map((customer) => ({ value: customer.id, label: `${customer.customerId ?? 'CUSTOMER'} - ${customer.name}` }))}
-      bankAccountOptions={cashAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` }))}
+      bankAccountOptions={cashAccounts.map((account) => ({ value: account.id, label: formatGlAccountLabel(account) }))}
       methodOptions={methodValues.map((value) => ({ value: value.toLowerCase(), label: value }))}
       statusOptions={statusValues.map((value) => ({ value: value.toLowerCase(), label: value }))}
       refundSources={mappedRefundSources}

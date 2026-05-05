@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { loadListValues } from '@/lib/load-list-values'
-import { logActivity, logFieldChangeActivities } from '@/lib/activity'
+import { logActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 
 function normalizeBoolean(value: unknown, fallback = false) {
   if (typeof value === 'boolean') return value
@@ -77,6 +77,23 @@ export async function POST(req: NextRequest) {
     entityId: row.id,
     action: 'create',
     summary: `Created accounting period ${row.name}`,
+  })
+  await logRecordSnapshotActivities({
+    entityType: 'accounting-period',
+    entityId: row.id,
+    action: 'create',
+    context: 'Accounting Period',
+    fields: [
+      { fieldName: 'Name', value: row.name },
+      { fieldName: 'Start Date', value: row.startDate },
+      { fieldName: 'End Date', value: row.endDate },
+      { fieldName: 'Subsidiary', value: row.subsidiaryId },
+      { fieldName: 'Status', value: row.status },
+      { fieldName: 'Closed', value: row.closed },
+      { fieldName: 'AR Locked', value: row.arLocked },
+      { fieldName: 'AP Locked', value: row.apLocked },
+      { fieldName: 'Inventory Locked', value: row.inventoryLocked },
+    ],
   })
   return NextResponse.json(row, { status: 201 })
 }
@@ -162,6 +179,23 @@ export async function DELETE(req: NextRequest) {
     entityId: id,
     action: 'delete',
     summary: `Deleted accounting period ${existing.name}`,
+  })
+  await logRecordSnapshotActivities({
+    entityType: 'accounting-period',
+    entityId: id,
+    action: 'delete',
+    context: 'Accounting Period',
+    fields: [
+      { fieldName: 'Name', value: existing.name },
+      { fieldName: 'Start Date', value: existing.startDate },
+      { fieldName: 'End Date', value: existing.endDate },
+      { fieldName: 'Subsidiary', value: existing.subsidiaryId },
+      { fieldName: 'Status', value: existing.status },
+      { fieldName: 'Closed', value: existing.closed },
+      { fieldName: 'AR Locked', value: existing.arLocked },
+      { fieldName: 'AP Locked', value: existing.apLocked },
+      { fieldName: 'Inventory Locked', value: existing.inventoryLocked },
+    ],
   })
   return NextResponse.json({ ok: true })
 }

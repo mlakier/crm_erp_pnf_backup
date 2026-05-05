@@ -3,8 +3,7 @@ import { prisma } from '@/lib/prisma'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
-import EditButton from '@/components/EditButton'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
@@ -156,11 +155,12 @@ export default async function AccountingPeriodsPage({
                   <MasterDataMutedCell columnId="created">{formatMasterDataDate(period.createdAt)}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="last-modified">{formatMasterDataDate(period.updatedAt)}</MasterDataMutedCell>
                   <MasterDataBodyCell columnId="actions">
-                    <div className="flex items-center gap-2">
-                      <EditButton
-                        resource="accounting-periods"
-                        id={period.id}
-                        fields={[
+                    <ListRowActions
+                      viewHref={`/accounting-periods/${period.id}`}
+                      editButton={{
+                        resource: 'accounting-periods',
+                        id: period.id,
+                        fields: [
                           { name: 'name', label: 'Name', value: period.name },
                           { name: 'startDate', label: 'Start Date', value: new Date(period.startDate).toISOString().slice(0, 10), type: 'date' },
                           { name: 'endDate', label: 'End Date', value: new Date(period.endDate).toISOString().slice(0, 10), type: 'date' },
@@ -170,10 +170,10 @@ export default async function AccountingPeriodsPage({
                           { name: 'arLocked', label: 'AR Locked', value: String(period.arLocked), type: 'checkbox', placeholder: 'AR Locked' },
                           { name: 'apLocked', label: 'AP Locked', value: String(period.apLocked), type: 'checkbox', placeholder: 'AP Locked' },
                           { name: 'inventoryLocked', label: 'Inventory Locked', value: String(period.inventoryLocked), type: 'checkbox', placeholder: 'Inventory Locked' },
-                        ]}
-                      />
-                      <DeleteButton resource="accounting-periods" id={period.id} label={period.name} />
-                    </div>
+                        ],
+                      }}
+                      deleteButton={{ resource: 'accounting-periods', id: period.id, label: period.name }}
+                    />
                   </MasterDataBodyCell>
                 </tr>
               ))

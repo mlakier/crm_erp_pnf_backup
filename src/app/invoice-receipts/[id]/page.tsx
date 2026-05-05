@@ -13,6 +13,7 @@ import InvoiceReceiptDetailCustomizeMode from '@/components/InvoiceReceiptDetail
 import TransactionStatsRow from '@/components/TransactionStatsRow'
 import SystemNotesSection from '@/components/SystemNotesSection'
 import CommunicationsSection from '@/components/CommunicationsSection'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
 import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
 import TransactionActionStack from '@/components/TransactionActionStack'
@@ -21,6 +22,7 @@ import InvoiceReceiptRelatedDocuments from '@/components/InvoiceReceiptRelatedDo
 import InvoiceReceiptGlImpactSection from '@/components/InvoiceReceiptGlImpactSection'
 import InvoiceReceiptDetailEditor from '@/components/InvoiceReceiptDetailEditor'
 import InvoiceReceiptApplicationsSection from '@/components/InvoiceReceiptApplicationsSection'
+import TransactionFourCurrencySection from '@/components/TransactionFourCurrencySection'
 import { parseCommunicationSummary, parseFieldChangeSummary } from '@/lib/activity'
 import {
   buildLinkedReferenceFieldDefinitions,
@@ -34,6 +36,10 @@ import {
   buildTransactionExportHeaderFields,
 } from '@/lib/transaction-detail-helpers'
 import {
+  buildPostedCurrencyReadoutSection,
+  CURRENCY_READOUT_SECTION_TITLE,
+} from '@/lib/four-currency-readout'
+import {
   roundMoney,
   type InvoiceReceiptApplicationInput,
 } from '@/lib/invoice-receipt-applications'
@@ -45,6 +51,9 @@ import {
 } from '@/lib/invoice-receipt-detail-customization'
 import { loadInvoiceReceiptDetailCustomization } from '@/lib/invoice-receipt-detail-customization-store'
 import type { TransactionStatDefinition } from '@/lib/transaction-page-config'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
+import { loadDocumentRelationshipSummaries } from '@/lib/document-relationships'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 
 export const runtime = 'nodejs'
 
@@ -66,7 +75,7 @@ export default async function InvoiceReceiptDetailPage({
   const isCustomizing = customize === '1'
   const { moneySettings } = await loadCompanyDisplaySettings()
 
-  const [receipt, customization, invoices, paymentMethodValues, statusValues, cashAccounts] = await Promise.all([
+  const [receipt, receiptOpenItem, receiptApplicationFx, customization, invoices, paymentMethodValues, statusValues, cashAccounts, currencies, linkedDocuments] = await Promise.all([
     prisma.cashReceipt.findUnique({
       where: { id },
       include: {
@@ -74,6 +83,8 @@ export default async function InvoiceReceiptDetailPage({
         invoice: {
           include: {
             customer: true,
+            subsidiary: true,
+            currency: true,
             salesOrder: {
               include: {
                 quote: {
@@ -96,6 +107,37 @@ export default async function InvoiceReceiptDetailPage({
           },
           orderBy: [{ createdAt: 'asc' }],
         },
+      },
+    }),
+    prisma.openItem.findFirst({
+      where: {
+        sourceTransactionType: 'invoice-receipt',
+        sourceTransactionId: id,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        openItemNumber: true,
+        transactionCurrencyId: true,
+        localCurrencyId: true,
+        functionalCurrencyId: true,
+        groupCurrencyId: true,
+        originalTransactionAmount: true,
+        originalLocalAmount: true,
+        originalFunctionalAmount: true,
+        originalGroupAmount: true,
+        isOpen: true,
+        status: true,
+      },
+    }),
+    prisma.openItemApplication.aggregate({
+      where: {
+        settlementTransactionType: 'invoice-receipt',
+        settlementTransactionId: id,
+      },
+      _sum: {
+        realizedFxLocalAmount: true,
+        realizedFxFunctionalAmount: true,
       },
     }),
     loadInvoiceReceiptDetailCustomization(),
@@ -122,18 +164,14 @@ export default async function InvoiceReceiptDetailPage({
     }),
     loadListValues('PAYMENT-METHOD'),
     loadListValues('INV-RECEIPT-STATUS'),
-    prisma.chartOfAccounts.findMany({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      orderBy: [{ accountId: 'asc' }],
+    loadCashBankPostingAccounts(),
+    prisma.currency.findMany({
+      orderBy: { code: 'asc' },
+      select: { id: true, currencyId: true, code: true, name: true },
+    }),
+    loadDocumentRelationshipSummaries({
+      recordType: 'invoice-receipt',
+      recordId: id,
     }),
   ])
 
@@ -145,7 +183,7 @@ export default async function InvoiceReceiptDetailPage({
       lineItems: {
         include: {
           account: {
-            select: { accountId: true, name: true },
+            select: { accountId: true, accountNumber: true, name: true },
           },
         },
       },
@@ -181,7 +219,7 @@ export default async function InvoiceReceiptDetailPage({
   }))
   const bankAccountOptions = cashAccounts.map((account) => ({
     value: account.id,
-    label: `${account.accountId} - ${account.name}`,
+    label: formatGlAccountLabel(account),
   }))
   const methodOptions = paymentMethodValues.map((value) => ({
     value: value.toLowerCase(),
@@ -198,6 +236,13 @@ export default async function InvoiceReceiptDetailPage({
   ]
   const statusLabelMap = createRecordLabelMapFromValues(statusValues)
   const formattedStatus = formatRecordLabel(receipt.status, statusLabelMap)
+  const currencyLabelById = new Map(
+    currencies.map((currency) => [currency.id, `${currency.code ?? currency.currencyId} - ${currency.name}`]),
+  )
+  const currencyCodeById = new Map(
+    currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]),
+  )
+  const receiptCurrencyCode = currencyCodeById.get(receipt.invoice.currencyId ?? '') ?? null
   const formattedOverpaymentHandling =
     overpaymentHandlingOptions.find((option) => option.value === (receipt.overpaymentHandling ?? ''))?.label
     ?? 'Require Full Application'
@@ -217,7 +262,7 @@ export default async function InvoiceReceiptDetailPage({
       id: 'amount',
       label: 'Receipt Amount',
       accent: true,
-      getValue: (record) => fmtCurrency(record.amount, undefined, moneySettings),
+        getValue: (record) => fmtCurrency(record.amount, receiptCurrencyCode ?? undefined, moneySettings),
       getValueTone: () => 'accent',
     },
     {
@@ -275,7 +320,7 @@ export default async function InvoiceReceiptDetailPage({
     ]),
   )
 
-  const headerFieldDefinitions: Record<InvoiceReceiptDetailFieldKey, InvoiceReceiptHeaderField> = {
+  const headerFieldDefinitions: Record<string, InvoiceReceiptHeaderField> = {
     customerName: {
       key: 'customerName',
       label: 'Customer Name',
@@ -334,11 +379,40 @@ export default async function InvoiceReceiptDetailPage({
       subsectionTitle: 'Record Keys',
       subsectionDescription: 'Internal and linked transaction identifiers for this receipt.',
     },
+    subsidiaryId: {
+      key: 'subsidiaryId',
+      label: 'Subsidiary',
+      value: receipt.invoice.subsidiaryId ?? '',
+      displayValue: receipt.invoice.subsidiary
+        ? `${receipt.invoice.subsidiary.subsidiaryId} - ${receipt.invoice.subsidiary.name}`
+        : '-',
+      helpText: 'Subsidiary inherited from the linked invoice posting context.',
+      fieldType: 'list',
+      sourceText: 'Invoice transaction',
+      subsectionTitle: 'Record Keys',
+      subsectionDescription: 'Internal and linked transaction identifiers for this receipt.',
+      href: receipt.invoice.subsidiaryId ? `/subsidiaries/${receipt.invoice.subsidiaryId}` : undefined,
+    },
+    currencyId: {
+      key: 'currencyId',
+      label: 'Currency',
+      value: receipt.invoice.currencyId ?? '',
+      displayValue: receipt.invoice.currency
+        ? `${receipt.invoice.currency.code ?? receipt.invoice.currency.currencyId} - ${receipt.invoice.currency.name}`
+        : '-',
+      helpText: 'Transaction currency inherited from the linked invoice posting context.',
+      fieldType: 'list',
+      sourceText: 'Invoice transaction',
+      subsectionTitle: 'Record Keys',
+      subsectionDescription: 'Internal and linked transaction identifiers for this receipt.',
+      href: receipt.invoice.currencyId ? `/currencies/${receipt.invoice.currencyId}` : undefined,
+    },
     bankAccountId: {
       key: 'bankAccountId',
       label: 'Bank Account',
       value: receipt.bankAccountId ?? '',
-      displayValue: receipt.bankAccount ? `${receipt.bankAccount.accountId} - ${receipt.bankAccount.name}` : '-',
+      displayValue: receipt.bankAccount ? formatGlAccountLabel(receipt.bankAccount) : '-',
+      href: receipt.bankAccount ? `/chart-of-accounts/${receipt.bankAccount.id}` : null,
       editable: !postingLocked,
       type: 'select',
       options: bankAccountOptions,
@@ -386,7 +460,7 @@ export default async function InvoiceReceiptDetailPage({
       key: 'amount',
       label: 'Amount',
       value: String(receipt.amount),
-      displayValue: fmtCurrency(receipt.amount, undefined, moneySettings),
+      displayValue: fmtCurrency(receipt.amount, receiptCurrencyCode ?? undefined, moneySettings),
       editable: !postingLocked,
       type: 'number',
       helpText: postingLocked
@@ -467,17 +541,41 @@ export default async function InvoiceReceiptDetailPage({
   headerFieldDefinitions.customerNumber.href = customerHref
   headerFieldDefinitions.invoiceId.href = invoiceHref
 
-  const headerSections = buildConfiguredTransactionSections({
-    fields: INVOICE_RECEIPT_DETAIL_FIELDS,
-    layout: customization,
-    fieldDefinitions: headerFieldDefinitions,
-    sectionDescriptions,
-  })
   const referenceFieldDefinitions = buildLinkedReferenceFieldDefinitions(INVOICE_RECEIPT_REFERENCE_SOURCES, {
     invoice: receipt.invoice,
   }, {
     invoice: invoiceHref,
   })
+  const invoiceReferenceCurrencyCode =
+    currencyCodeById.get(receipt.invoice.currencyId ?? '') ?? null
+  if (referenceFieldDefinitions.invoiceTotal) {
+    referenceFieldDefinitions.invoiceTotal = {
+      ...referenceFieldDefinitions.invoiceTotal,
+      displayValue: fmtCurrency(receipt.invoice.total, invoiceReferenceCurrencyCode ?? undefined, moneySettings),
+      value: String(receipt.invoice.total),
+    }
+  }
+  if (referenceFieldDefinitions.invoiceDueDate) {
+    referenceFieldDefinitions.invoiceDueDate = {
+      ...referenceFieldDefinitions.invoiceDueDate,
+      displayValue: receipt.invoice.dueDate ? fmtDocumentDate(receipt.invoice.dueDate, moneySettings) : '-',
+      value: receipt.invoice.dueDate?.toISOString?.() ?? (receipt.invoice.dueDate ? String(receipt.invoice.dueDate) : ''),
+    }
+  }
+  if (referenceFieldDefinitions.invoiceCreatedAt) {
+    referenceFieldDefinitions.invoiceCreatedAt = {
+      ...referenceFieldDefinitions.invoiceCreatedAt,
+      displayValue: fmtDocumentDate(receipt.invoice.createdAt, moneySettings),
+      value: receipt.invoice.createdAt.toISOString(),
+    }
+  }
+  if (referenceFieldDefinitions.invoiceUpdatedAt) {
+    referenceFieldDefinitions.invoiceUpdatedAt = {
+      ...referenceFieldDefinitions.invoiceUpdatedAt,
+      displayValue: fmtDocumentDate(receipt.invoice.updatedAt, moneySettings),
+      value: receipt.invoice.updatedAt.toISOString(),
+    }
+  }
   const allFieldDefinitions: Record<string, RecordHeaderField> = {
     ...headerFieldDefinitions,
     ...referenceFieldDefinitions,
@@ -487,7 +585,7 @@ export default async function InvoiceReceiptDetailPage({
     fields: INVOICE_RECEIPT_DETAIL_FIELDS,
     fieldDefinitions: headerFieldDefinitions,
     previewOverrides: {
-      amount: fmtCurrency(receipt.amount, undefined, moneySettings),
+        amount: fmtCurrency(receipt.amount, receiptCurrencyCode ?? undefined, moneySettings),
       date: fmtDocumentDate(receipt.date, moneySettings),
       createdAt: fmtDocumentDate(receipt.createdAt, moneySettings),
       updatedAt: fmtDocumentDate(receipt.updatedAt, moneySettings),
@@ -556,6 +654,63 @@ export default async function InvoiceReceiptDetailPage({
     })
     .filter((section): section is NonNullable<typeof section> => Boolean(section))
   const referenceColumns = Math.max(1, ...referenceSections.map((section) => section.columns))
+  const formatMonetaryValue = (
+    value: number | string | null | undefined | { toString(): string; toNumber?: () => number },
+    currencyCode?: string | null,
+  ) => fmtCurrency(value, currencyCode ?? undefined, moneySettings)
+  const currencyReadoutSection = buildPostedCurrencyReadoutSection({
+    postingStatus: receiptOpenItem
+      ? receiptOpenItem.isOpen
+        ? `Posted to open item (${receiptOpenItem.status})`
+        : `Posted and settled (${receiptOpenItem.status})`
+      : 'Not posted to open items yet',
+    openItemId: receiptOpenItem?.id ?? null,
+    openItemNumber: receiptOpenItem?.openItemNumber ?? null,
+    transactionAmount: receiptOpenItem?.originalTransactionAmount ?? receipt.amount,
+    transactionCurrencyCode: currencyCodeById.get(receiptOpenItem?.transactionCurrencyId ?? receipt.invoice.currencyId ?? '') ?? null,
+    transactionCurrencyLabel:
+      currencyLabelById.get(receiptOpenItem?.transactionCurrencyId ?? receipt.invoice.currencyId ?? '') ??
+      null,
+    localAmount: receiptOpenItem?.originalLocalAmount ?? null,
+    localCurrencyCode: currencyCodeById.get(receiptOpenItem?.localCurrencyId ?? '') ?? null,
+    localCurrencyLabel: currencyLabelById.get(receiptOpenItem?.localCurrencyId ?? '') ?? null,
+    functionalAmount: receiptOpenItem?.originalFunctionalAmount ?? null,
+    functionalCurrencyCode: currencyCodeById.get(receiptOpenItem?.functionalCurrencyId ?? '') ?? null,
+    functionalCurrencyLabel: currencyLabelById.get(receiptOpenItem?.functionalCurrencyId ?? '') ?? null,
+    groupAmount: receiptOpenItem?.originalGroupAmount ?? null,
+    groupCurrencyCode: currencyCodeById.get(receiptOpenItem?.groupCurrencyId ?? '') ?? null,
+    groupCurrencyLabel: currencyLabelById.get(receiptOpenItem?.groupCurrencyId ?? '') ?? null,
+    realizedFxLocalAmount: receiptApplicationFx._sum.realizedFxLocalAmount,
+    realizedFxFunctionalAmount: receiptApplicationFx._sum.realizedFxFunctionalAmount,
+    fxRateType: receipt.fxRateType ?? null,
+    fxRateSource: receipt.fxRateSource ?? null,
+    fxEffectiveDateLabel: receipt.fxEffectiveDate ? fmtDocumentDate(receipt.fxEffectiveDate, moneySettings) : null,
+    formatCurrency: formatMonetaryValue,
+  })
+  const fieldDefinitionsWithCurrency: Record<string, RecordHeaderField> = {
+    ...allFieldDefinitions,
+    ...Object.fromEntries(currencyReadoutSection.fields.map((field) => [field.key, field])),
+  }
+  const customizeFieldsWithCurrency = [
+    ...customizeFields,
+  ]
+  const configuredHeaderSections = buildConfiguredTransactionSections({
+    fields: INVOICE_RECEIPT_DETAIL_FIELDS,
+    layout: customization,
+    fieldDefinitions: fieldDefinitionsWithCurrency,
+    sectionDescriptions: {
+      ...sectionDescriptions,
+      [CURRENCY_READOUT_SECTION_TITLE]: 'Read the transaction, local, functional, and group amounts from the posted invoice receipt context.',
+    },
+  })
+  const configuredCurrencySection =
+    configuredHeaderSections.find((section) => section.title === CURRENCY_READOUT_SECTION_TITLE) ?? currencyReadoutSection
+  const headerSections = configuredHeaderSections.filter((section) => section.title !== CURRENCY_READOUT_SECTION_TITLE)
+  const transactionCurrencyCode =
+    currencyCodeById.get(receiptOpenItem?.transactionCurrencyId ?? receipt.invoice.currencyId ?? '') ?? null
+  const localCurrencyCode = currencyCodeById.get(receiptOpenItem?.localCurrencyId ?? '') ?? null
+  const functionalCurrencyCode = currencyCodeById.get(receiptOpenItem?.functionalCurrencyId ?? '') ?? null
+  const groupCurrencyCode = currencyCodeById.get(receiptOpenItem?.groupCurrencyId ?? '') ?? null
 
   return (
     <RecordDetailPageShell
@@ -565,14 +720,34 @@ export default async function InvoiceReceiptDetailPage({
       title={receipt.invoice.customer.name}
       widthClassName="w-full max-w-none"
       actions={
-        isCustomizing ? null : (
-          <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
-            cancelHref={detailHref}
-            formId={`inline-record-form-${receipt.id}`}
-            recordId={receipt.id}
-            primaryActions={
-              isEditing ? (
+        <TransactionActionStack
+          mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
+          cancelHref={detailHref}
+          formId={`inline-record-form-${receipt.id}`}
+          recordId={receipt.id}
+          primaryActions={
+            isEditing ? (
+              <Link
+                href={`${detailHref}?customize=1`}
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+              >
+                Customize
+              </Link>
+            ) : (
+              <>
+                <MasterDataDetailCreateMenu
+                  newHref="/invoice-receipts/new"
+                  duplicateHref={`/invoice-receipts/new?duplicateFrom=${encodeURIComponent(receipt.id)}`}
+                />
+                <MasterDataDetailExportMenu
+                  title={receipt.number ?? receipt.id}
+                  fileName={`invoice-receipt-${receipt.number ?? receipt.id}`}
+                  sections={headerSections.map((section) => ({
+                    title: section.title,
+                    fields: buildTransactionExportHeaderFields([section]),
+                  }))}
+                />
                 <Link
                   href={`${detailHref}?customize=1`}
                   className="rounded-md border px-3 py-2 text-sm"
@@ -580,40 +755,18 @@ export default async function InvoiceReceiptDetailPage({
                 >
                   Customize
                 </Link>
-              ) : (
-                <>
-                  <MasterDataDetailCreateMenu
-                    newHref="/invoice-receipts/new"
-                    duplicateHref={`/invoice-receipts/new?duplicateFrom=${encodeURIComponent(receipt.id)}`}
-                  />
-                  <MasterDataDetailExportMenu
-                    title={receipt.number ?? receipt.id}
-                    fileName={`invoice-receipt-${receipt.number ?? receipt.id}`}
-                    sections={headerSections.map((section) => ({
-                      title: section.title,
-                      fields: buildTransactionExportHeaderFields([section]),
-                    }))}
-                  />
-                  <Link
-                    href={`${detailHref}?customize=1`}
-                    className="rounded-md border px-3 py-2 text-sm"
-                    style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-                  >
-                    Customize
-                  </Link>
-                  <Link
-                    href={`${detailHref}?edit=1`}
-                    className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                    style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                  >
-                    Edit
-                  </Link>
-                  <DeleteButton resource="invoice-receipts" id={receipt.id} />
-                </>
-              )
-            }
-          />
-        )
+                <Link
+                  href={`${detailHref}?edit=1`}
+                  className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                  style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+                >
+                  Edit
+                </Link>
+                <DeleteButton resource="invoice-receipts" id={receipt.id} />
+              </>
+            )
+          }
+        />
       }
     >
       <TransactionDetailFrame
@@ -630,16 +783,21 @@ export default async function InvoiceReceiptDetailPage({
         }
         header={
           isCustomizing ? (
-            <InvoiceReceiptDetailCustomizeMode
-              detailHref={detailHref}
-              initialLayout={customization}
-              fields={customizeFields}
-              referenceSourceDefinitions={referenceSourceDefinitions}
-              sectionDescriptions={sectionDescriptions}
-              statPreviewCards={statPreviewCards}
-            />
+              <InvoiceReceiptDetailCustomizeMode
+                detailHref={detailHref}
+                initialLayout={customization}
+                fields={customizeFieldsWithCurrency}
+                referenceSourceDefinitions={referenceSourceDefinitions}
+                sectionDescriptions={sectionDescriptions}
+                statPreviewCards={statPreviewCards}
+              />
           ) : (
             <div className="space-y-6">
+              <TransactionFourCurrencySection
+                section={configuredCurrencySection}
+                layout={customization}
+                description="Read the transaction, local, functional, and group amounts from the posted invoice receipt context."
+              />
               {referenceSections.length > 0 ? (
                 <RecordHeaderDetails
                   editing={false}
@@ -670,6 +828,7 @@ export default async function InvoiceReceiptDetailPage({
                     date: invoice.createdAt,
                     subsidiaryId: invoice.subsidiaryId ?? null,
                     currencyId: invoice.currencyId ?? null,
+                    currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                     userId: invoice.userId ?? null,
                     openAmount: roundMoney(Number(invoice.total) - invoice.cashReceiptApplications.reduce((sum, application) => {
                       if (application.cashReceiptId === receipt.id) return sum
@@ -718,14 +877,42 @@ export default async function InvoiceReceiptDetailPage({
         }
         lineItems={null}
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'customer',
+                label: 'Customer',
+                count: 1,
+                emptyMessage: 'No related customer is linked to this invoice receipt.',
+                rows: [
+                  {
+                    id: receipt.invoice.customer.id,
+                    type: 'Customer',
+                    reference: receipt.invoice.customer.customerId ?? receipt.invoice.customer.id,
+                    name: receipt.invoice.customer.name,
+                    details:
+                      [receipt.invoice.customer.email, receipt.invoice.customer.phone].filter(Boolean).join(' | ') || '-',
+                    href: `/customers/${receipt.invoice.customer.id}`,
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={1}
+        relatedDocuments={isCustomizing ? null : (
           <InvoiceReceiptRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={receiptCurrencyCode}
             invoice={{
               id: receipt.invoice.id,
               number: receipt.invoice.number,
               status: receipt.invoice.status,
               total: Number(receipt.invoice.total),
+              currencyCode: invoiceReferenceCurrencyCode,
             }}
             salesOrder={
               receipt.invoice.salesOrder
@@ -734,6 +921,7 @@ export default async function InvoiceReceiptDetailPage({
                     number: receipt.invoice.salesOrder.number,
                     status: receipt.invoice.salesOrder.status,
                     total: Number(receipt.invoice.salesOrder.total),
+                    currencyCode: receiptCurrencyCode,
                   }
                 : null
             }
@@ -744,6 +932,7 @@ export default async function InvoiceReceiptDetailPage({
                     number: receipt.invoice.salesOrder.quote.number,
                     status: receipt.invoice.salesOrder.quote.status,
                     total: Number(receipt.invoice.salesOrder.quote.total),
+                    currencyCode: receiptCurrencyCode,
                   }
                 : null
             }
@@ -757,24 +946,21 @@ export default async function InvoiceReceiptDetailPage({
                     name: receipt.invoice.salesOrder.quote.opportunity.name,
                     status: receipt.invoice.salesOrder.quote.opportunity.stage,
                     total: Number(receipt.invoice.salesOrder.quote.opportunity.amount ?? 0),
+                    currencyCode: receiptCurrencyCode,
                   }
                 : null
             }
+            linkedDocuments={linkedDocuments}
             moneySettings={moneySettings}
           />
         )}
-        relatedRecordsCount={
+        relatedDocumentsCount={
           1 +
           (receipt.invoice.salesOrder ? 1 : 0) +
           (receipt.invoice.salesOrder?.quote ? 1 : 0) +
-          (receipt.invoice.salesOrder?.quote?.opportunity ? 1 : 0)
+          (receipt.invoice.salesOrder?.quote?.opportunity ? 1 : 0) +
+          linkedDocuments.length
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this invoice receipt yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         supplementarySections={
           isCustomizing ? null : (
             <>
@@ -790,6 +976,7 @@ export default async function InvoiceReceiptDetailPage({
                     date: invoice.createdAt,
                     subsidiaryId: invoice.subsidiaryId ?? null,
                     currencyId: invoice.currencyId ?? null,
+                    currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                     userId: invoice.userId ?? null,
                     openAmount: roundMoney(Number(invoice.total) - invoice.cashReceiptApplications.reduce((sum, application) => {
                       if (application.cashReceiptId === receipt.id) return sum
@@ -806,12 +993,19 @@ export default async function InvoiceReceiptDetailPage({
                   requiresFullApplication={receipt.status.toLowerCase() === 'posted'}
                   overpaymentHandling={receipt.overpaymentHandling ?? ''}
                   moneySettings={moneySettings}
+                  receiptCurrencyCode={receiptCurrencyCode}
                 />
               ) : null}
               <InvoiceReceiptGlImpactSection
                 rows={glImpactRows}
                 settings={customization.glImpactSettings}
                 columnCustomization={customization.glImpactColumns}
+                currencyCodes={{
+                  transaction: transactionCurrencyCode,
+                  local: localCurrencyCode,
+                  functional: functionalCurrencyCode,
+                  group: groupCurrencyCode,
+                }}
               />
             </>
           )
@@ -828,7 +1022,7 @@ export default async function InvoiceReceiptDetailPage({
               counterpartyName: receipt.invoice.customer.name,
               counterpartyEmail: receipt.invoice.customer.email ?? null,
               status: formattedStatus,
-              total: fmtCurrency(receipt.amount, undefined, moneySettings),
+                total: fmtCurrency(receipt.amount, receiptCurrencyCode ?? undefined, moneySettings),
               lineItems: [],
             })}
           />

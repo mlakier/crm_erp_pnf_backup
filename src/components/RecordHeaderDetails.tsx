@@ -203,7 +203,7 @@ export default function RecordHeaderDetails({
               return <div key={`empty-${columnIndex + 1}-${rowIndex + 1}`} />
             }
             return (
-              <div key={cellField.key}>
+              <div key={`${cellField.key}-${columnIndex + 1}-${rowIndex + 1}`}>
                 {renderField(cellField, false)}
               </div>
             )
@@ -227,8 +227,14 @@ export default function RecordHeaderDetails({
 
     return (
       <div
-        key={field.key}
-        style={useExplicitPlacement ? { gridColumnStart: column, gridRowStart: row } : undefined}
+        style={
+          useExplicitPlacement
+            ? {
+                ...(typeof field.column === 'number' ? { gridColumnStart: column } : {}),
+                ...(typeof field.order === 'number' ? { gridRowStart: row } : {}),
+              }
+            : undefined
+        }
       >
         <dt className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
           <span>{field.label}</span>
@@ -459,7 +465,11 @@ export default function RecordHeaderDetails({
                     if (leftColumn !== rightColumn) return leftColumn - rightColumn
                     return (left.order ?? 0) - (right.order ?? 0)
                   })
-                  .map((field) => renderField(field, true))}
+                  .map((field, index) => (
+                    <div key={`${field.key}-${field.column ?? 1}-${field.order ?? 0}-${index}`}>
+                      {renderField(field, true)}
+                    </div>
+                  ))}
               </div>
             )}
         </div>
@@ -512,7 +522,11 @@ export default function RecordHeaderDetails({
                     if (leftColumn !== rightColumn) return leftColumn - rightColumn
                     return (left.order ?? 0) - (right.order ?? 0)
                   })
-                  .map((field) => renderField(field, !subsectionTitle))}
+                  .map((field, index) => (
+                    <div key={`${field.key}-${field.column ?? 1}-${field.order ?? 0}-${index}`}>
+                      {renderField(field, !subsectionTitle)}
+                    </div>
+                  ))}
               </div>
             </div>
           )
@@ -544,7 +558,11 @@ export default function RecordHeaderDetails({
                     if (leftColumn !== rightColumn) return leftColumn - rightColumn
                     return (left.order ?? 0) - (right.order ?? 0)
                   })
-                  .map((field) => renderField(field, true))}
+                  .map((field, index) => (
+                    <div key={`${field.key}-${field.column ?? 1}-${field.order ?? 0}-${index}`}>
+                      {renderField(field, true)}
+                    </div>
+                  ))}
               </div>
             )}
         </div>
@@ -611,9 +629,11 @@ export default function RecordHeaderDetails({
                     className={index > 0 ? 'border-t pt-4' : ''}
                     style={index > 0 ? { borderColor: 'var(--border-muted)' } : undefined}
                   >
-                    <div>
-                      <h2 className="text-base font-semibold text-white">{section.title}</h2>
-                    </div>
+                    {section.title ? (
+                      <div>
+                        <h2 className="text-base font-semibold text-white">{section.title}</h2>
+                      </div>
+                    ) : null}
                     {showSubsections ? renderSectionBody(section, true) : renderFlatSectionGrid(section, true)}
                   </div>
                 ))}
@@ -862,7 +882,8 @@ function splitMultiValue(value: string) {
 
 function renderReadOnlyValue(field: RecordHeaderField, value: string) {
   const content = field.displayValue ?? formatDisplayValue(field, value)
-  if (!field.href) return content
+  const resolvedHref = field.href ?? null
+  if (!resolvedHref) return content
   if (isValidElement(content)) return content
   if (field.displayValue !== undefined && typeof content === 'object' && content !== null) return content
 
@@ -870,7 +891,7 @@ function renderReadOnlyValue(field: RecordHeaderField, value: string) {
   if (!textContent || textContent === '-') return content
 
   return (
-    <Link href={field.href} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+    <Link href={resolvedHref} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
       {content}
     </Link>
   )

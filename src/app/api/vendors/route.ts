@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity } from '@/lib/activity'
+import { logActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { generateNextVendorNumber } from '@/lib/vendor-number'
 import { normalizePhone } from '@/lib/format'
 import { isFieldRequiredServer } from '@/lib/form-requirements-store'
@@ -102,6 +102,24 @@ export async function POST(request: NextRequest) {
       action: 'create',
       summary: `Created vendor ${vendor.vendorNumber ?? vendor.name} ${vendor.name}`,
     })
+    await logRecordSnapshotActivities({
+      entityType: 'vendor',
+      entityId: vendor.id,
+      userId,
+      action: 'create',
+      context: 'Vendor Details',
+      fields: [
+        { fieldName: 'Business Id', value: vendor.vendorNumber },
+        { fieldName: 'Name', value: vendor.name },
+        { fieldName: 'Email', value: vendor.email },
+        { fieldName: 'Phone', value: vendor.phone },
+        { fieldName: 'Address', value: vendor.address },
+        { fieldName: 'Tax ID', value: vendor.taxId },
+        { fieldName: 'Primary Subsidiary', value: vendor.subsidiaryId },
+        { fieldName: 'Primary Currency', value: vendor.currencyId },
+        { fieldName: 'Inactive', value: vendor.inactive },
+      ],
+    })
 
     return NextResponse.json(vendor, { status: 201 })
   } catch {
@@ -128,6 +146,9 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    const before = await prisma.vendor.findUnique({ where: { id } })
+    if (!before) return NextResponse.json({ error: 'Vendor not found' }, { status: 404 })
+
     const vendor = await prisma.vendor.update({
       where: { id },
       data: {
@@ -147,6 +168,21 @@ export async function PUT(request: NextRequest) {
       entityId: vendor.id,
       action: 'update',
       summary: `Updated vendor ${vendor.vendorNumber ?? vendor.name} ${vendor.name}`,
+    })
+    await logFieldChangeActivities({
+      entityType: 'vendor',
+      entityId: vendor.id,
+      context: 'Vendor Details',
+      changes: [
+        { fieldName: 'Name', oldValue: before.name, newValue: vendor.name },
+        { fieldName: 'Email', oldValue: before.email, newValue: vendor.email },
+        { fieldName: 'Phone', oldValue: before.phone, newValue: vendor.phone },
+        { fieldName: 'Address', oldValue: before.address, newValue: vendor.address },
+        { fieldName: 'Tax ID', oldValue: before.taxId, newValue: vendor.taxId },
+        { fieldName: 'Primary Subsidiary', oldValue: before.subsidiaryId, newValue: vendor.subsidiaryId },
+        { fieldName: 'Primary Currency', oldValue: before.currencyId, newValue: vendor.currencyId },
+        { fieldName: 'Inactive', oldValue: before.inactive, newValue: vendor.inactive },
+      ],
     })
 
     return NextResponse.json(vendor)
@@ -174,6 +210,25 @@ export async function DELETE(request: NextRequest) {
       action: 'delete',
       summary: `Deleted vendor ${existing?.name ?? id}`,
     })
+    if (existing) {
+      await logRecordSnapshotActivities({
+        entityType: 'vendor',
+        entityId: id,
+        action: 'delete',
+        context: 'Vendor Details',
+        fields: [
+          { fieldName: 'Business Id', value: existing.vendorNumber },
+          { fieldName: 'Name', value: existing.name },
+          { fieldName: 'Email', value: existing.email },
+          { fieldName: 'Phone', value: existing.phone },
+          { fieldName: 'Address', value: existing.address },
+          { fieldName: 'Tax ID', value: existing.taxId },
+          { fieldName: 'Primary Subsidiary', value: existing.subsidiaryId },
+          { fieldName: 'Primary Currency', value: existing.currencyId },
+          { fieldName: 'Inactive', value: existing.inactive },
+        ],
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch {

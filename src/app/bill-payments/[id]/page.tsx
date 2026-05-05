@@ -18,9 +18,11 @@ import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
 import TransactionActionStack from '@/components/TransactionActionStack'
 import DeleteButton from '@/components/DeleteButton'
 import BillPaymentRelatedDocuments from '@/components/BillPaymentRelatedDocuments'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import BillPaymentGlImpactSection from '@/components/BillPaymentGlImpactSection'
 import BillPaymentApplicationsSection from '@/components/BillPaymentApplicationsSection'
 import BillPaymentDetailEditor from '@/components/BillPaymentDetailEditor'
+import TransactionFourCurrencySection from '@/components/TransactionFourCurrencySection'
 import { parseCommunicationSummary, parseFieldChangeSummary } from '@/lib/activity'
 import {
   buildLinkedReferenceFieldDefinitions,
@@ -34,6 +36,10 @@ import {
   buildTransactionExportHeaderFields,
 } from '@/lib/transaction-detail-helpers'
 import {
+  buildPostedCurrencyReadoutSection,
+  CURRENCY_READOUT_SECTION_TITLE,
+} from '@/lib/four-currency-readout'
+import {
   BILL_PAYMENT_DETAIL_FIELDS,
   BILL_PAYMENT_REFERENCE_SOURCES,
   BILL_PAYMENT_STAT_CARDS,
@@ -45,6 +51,9 @@ import {
   roundMoney,
   type BillPaymentApplicationInput,
 } from '@/lib/bill-payment-applications'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
+import { loadDocumentRelationshipSummaries } from '@/lib/document-relationships'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 
 export const runtime = 'nodejs'
 
@@ -66,7 +75,7 @@ export default async function BillPaymentDetailPage({
   const isCustomizing = customize === '1'
   const { moneySettings } = await loadCompanyDisplaySettings()
 
-  const [payment, statusValues, methodValues, customization, cashAccounts, vendors, candidateBills] = await Promise.all([
+  const [payment, paymentOpenItem, paymentApplicationFx, statusValues, methodValues, customization, cashAccounts, vendors, candidateBills, currencies, linkedDocuments] = await Promise.all([
     prisma.billPayment.findUnique({
       where: { id },
       include: {
@@ -75,6 +84,8 @@ export default async function BillPaymentDetailPage({
         bill: {
           include: {
             vendor: true,
+            subsidiary: true,
+            currency: true,
             purchaseOrder: {
               include: {
                 vendor: true,
@@ -95,22 +106,41 @@ export default async function BillPaymentDetailPage({
         },
       },
     }),
+    prisma.openItem.findFirst({
+      where: {
+        sourceTransactionType: 'bill-payment',
+        sourceTransactionId: id,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        openItemNumber: true,
+        transactionCurrencyId: true,
+        localCurrencyId: true,
+        functionalCurrencyId: true,
+        groupCurrencyId: true,
+        originalTransactionAmount: true,
+        originalLocalAmount: true,
+        originalFunctionalAmount: true,
+        originalGroupAmount: true,
+        isOpen: true,
+        status: true,
+      },
+    }),
+    prisma.openItemApplication.aggregate({
+      where: {
+        settlementTransactionType: 'bill-payment',
+        settlementTransactionId: id,
+      },
+      _sum: {
+        realizedFxLocalAmount: true,
+        realizedFxFunctionalAmount: true,
+      },
+    }),
     loadListValues('BILL-PAYMENT-STATUS'),
     loadListValues('PAYMENT-METHOD'),
     loadBillPaymentDetailCustomization(),
-    prisma.chartOfAccounts.findMany({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      orderBy: [{ accountId: 'asc' }],
-    }),
+    loadCashBankPostingAccounts(),
     prisma.vendor.findMany({
       where: { inactive: false },
       orderBy: [{ vendorNumber: 'asc' }, { name: 'asc' }],
@@ -137,6 +167,14 @@ export default async function BillPaymentDetailPage({
       orderBy: { createdAt: 'desc' },
       take: 200,
     }),
+    prisma.currency.findMany({
+      orderBy: { code: 'asc' },
+      select: { id: true, currencyId: true, code: true, name: true },
+    }),
+    loadDocumentRelationshipSummaries({
+      recordType: 'bill-payment',
+      recordId: id,
+    }),
   ])
 
   if (!payment) notFound()
@@ -156,6 +194,8 @@ export default async function BillPaymentDetailPage({
           where: { id: { in: allBillIds } },
           include: {
             vendor: true,
+            subsidiary: true,
+            currency: true,
             purchaseOrder: {
               include: {
                 vendor: true,
@@ -200,7 +240,7 @@ export default async function BillPaymentDetailPage({
       lineItems: {
         include: {
           account: {
-            select: { accountId: true, name: true },
+            select: { accountId: true, accountNumber: true, name: true },
           },
         },
       },
@@ -219,6 +259,12 @@ export default async function BillPaymentDetailPage({
   })
 
   const detailHref = `/bill-payments/${payment.id}`
+  const currencyLabelById = new Map(
+    currencies.map((currency) => [currency.id, `${currency.code ?? currency.currencyId} - ${currency.name}`]),
+  )
+  const currencyCodeById = new Map(
+    currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]),
+  )
   const paymentApplications: BillPaymentApplicationInput[] =
     payment.applications.length > 0
       ? payment.applications.map((application) => ({
@@ -258,6 +304,7 @@ export default async function BillPaymentDetailPage({
             date: bill.date,
             subsidiaryId: bill.subsidiaryId ?? null,
             currencyId: bill.currencyId ?? null,
+            currencyCode: currencyCodeById.get(bill.currencyId ?? '') ?? null,
             userId: bill.userId ?? null,
             openAmount: roundMoney(Number(bill.total) - appliedViaApplications - appliedViaLegacyPayments),
           }]
@@ -273,18 +320,59 @@ export default async function BillPaymentDetailPage({
             date: primaryBill.date,
             subsidiaryId: primaryBill.subsidiaryId ?? null,
             currencyId: primaryBill.currencyId ?? null,
+            currencyCode: currencyCodeById.get(primaryBill.currencyId ?? '') ?? null,
             userId: primaryBill.userId ?? null,
             openAmount: 0,
           }]
         : []
   const statusLabelMap = createRecordLabelMapFromValues(statusValues)
   const formattedStatus = formatRecordLabel(payment.status, statusLabelMap)
+  const paymentCurrencyCode =
+    currencyCodeById.get(paymentOpenItem?.transactionCurrencyId ?? primaryBill?.currencyId ?? '') ?? null
   const statusOptions = statusValues.map((value) => ({ value: value.toLowerCase(), label: value }))
   const methodOptions = methodValues.map((value) => ({ value: value.toLowerCase(), label: value }))
   const bankAccountOptions = cashAccounts.map((account) => ({
     value: account.id,
-    label: `${account.accountId} - ${account.name}`,
+    label: formatGlAccountLabel(account),
   }))
+  const relatedMasterDataTabs = [
+    payment.vendor
+      ? {
+          key: 'vendors',
+          label: 'Vendors',
+          count: 1,
+          emptyMessage: 'No linked vendors.',
+          rows: [
+            {
+              id: payment.vendor.id,
+              type: 'Vendor',
+              reference: payment.vendor.vendorNumber ?? payment.vendor.id,
+              name: payment.vendor.name,
+              details: payment.vendor.email ?? payment.vendor.phone ?? 'Linked vendor',
+              href: `/vendors/${payment.vendor.id}`,
+            },
+          ],
+        }
+      : null,
+    payment.bankAccount
+      ? {
+          key: 'gl-accounts',
+          label: 'GL Accounts',
+          count: 1,
+          emptyMessage: 'No linked GL accounts.',
+          rows: [
+            {
+              id: payment.bankAccount.id,
+              type: 'Posting Account',
+              reference: payment.bankAccount.accountNumber ?? payment.bankAccount.accountId,
+              name: payment.bankAccount.name,
+              details: 'Linked bank / cash posting account',
+              href: `/chart-of-accounts/${payment.bankAccount.id}`,
+            },
+          ],
+        }
+      : null,
+  ].filter((tab): tab is NonNullable<typeof tab> => Boolean(tab))
 
   const sectionDescriptions: Record<string, string> = {
     'Document Identity': 'Core bill payment identifiers and source-bill context.',
@@ -298,7 +386,7 @@ export default async function BillPaymentDetailPage({
       id: 'amount',
       label: 'Payment Amount',
       accent: true,
-      getValue: (record) => fmtCurrency(record.amount, undefined, moneySettings),
+        getValue: (record) => fmtCurrency(record.amount, paymentCurrencyCode ?? undefined, moneySettings),
       getValueTone: () => 'accent',
     },
     {
@@ -363,7 +451,7 @@ export default async function BillPaymentDetailPage({
     ]),
   )
 
-  const headerFieldDefinitions: Record<BillPaymentDetailFieldKey, BillPaymentHeaderField> = {
+  const headerFieldDefinitions: Record<string, BillPaymentHeaderField> = {
     id: {
       key: 'id',
       label: 'DB Id',
@@ -417,11 +505,40 @@ export default async function BillPaymentDetailPage({
       subsectionDescription: 'Core bill payment identifiers and source-bill context.',
       href: payment.applications.length === 0 && primaryBill ? `/bills/${primaryBill.id}` : undefined,
     },
+    subsidiaryId: {
+      key: 'subsidiaryId',
+      label: 'Subsidiary',
+      value: primaryBill?.subsidiaryId ?? '',
+      displayValue: primaryBill?.subsidiary
+        ? `${primaryBill.subsidiary.subsidiaryId} - ${primaryBill.subsidiary.name}`
+        : '-',
+      helpText: 'Subsidiary derived from the applied bill posting context.',
+      fieldType: 'list',
+      sourceText: 'Bill transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill payment identifiers and source-bill context.',
+      href: primaryBill?.subsidiaryId ? `/subsidiaries/${primaryBill.subsidiaryId}` : undefined,
+    },
+    currencyId: {
+      key: 'currencyId',
+      label: 'Currency',
+      value: primaryBill?.currencyId ?? '',
+      displayValue: primaryBill?.currency
+        ? `${primaryBill.currency.code ?? primaryBill.currency.currencyId} - ${primaryBill.currency.name}`
+        : '-',
+      helpText: 'Transaction currency derived from the applied bill posting context.',
+      fieldType: 'list',
+      sourceText: 'Bill transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill payment identifiers and source-bill context.',
+      href: primaryBill?.currencyId ? `/currencies/${primaryBill.currencyId}` : undefined,
+    },
     bankAccountId: {
       key: 'bankAccountId',
       label: 'Bank Account',
       value: payment.bankAccountId ?? '',
-      displayValue: payment.bankAccount ? `${payment.bankAccount.accountId} - ${payment.bankAccount.name}` : '-',
+      displayValue: payment.bankAccount ? formatGlAccountLabel(payment.bankAccount) : '-',
+      href: payment.bankAccount ? `/chart-of-accounts/${payment.bankAccount.id}` : null,
       editable: true,
       type: 'select',
       options: bankAccountOptions,
@@ -435,7 +552,7 @@ export default async function BillPaymentDetailPage({
       key: 'amount',
       label: 'Amount',
       value: String(payment.amount),
-      displayValue: fmtCurrency(payment.amount, undefined, moneySettings),
+      displayValue: fmtCurrency(payment.amount, paymentCurrencyCode ?? undefined, moneySettings),
       helpText: paymentApplications.length > 0 ? 'Payment amount derived from the bill applications below.' : 'Payment amount applied to the bill.',
       fieldType: 'currency',
       subsectionTitle: 'Payment Terms',
@@ -527,13 +644,6 @@ export default async function BillPaymentDetailPage({
     },
   }
 
-  const headerSections = buildConfiguredTransactionSections({
-    fields: BILL_PAYMENT_DETAIL_FIELDS,
-    layout: customization,
-    fieldDefinitions: headerFieldDefinitions,
-    sectionDescriptions,
-  })
-
   const referenceFieldDefinitions = buildLinkedReferenceFieldDefinitions(
     BILL_PAYMENT_REFERENCE_SOURCES,
     primaryBill ? { bill: primaryBill } : {},
@@ -549,7 +659,7 @@ export default async function BillPaymentDetailPage({
     fields: BILL_PAYMENT_DETAIL_FIELDS,
     fieldDefinitions: headerFieldDefinitions,
     previewOverrides: {
-      amount: fmtCurrency(payment.amount, undefined, moneySettings),
+        amount: fmtCurrency(payment.amount, paymentCurrencyCode ?? undefined, moneySettings),
       date: fmtDocumentDate(payment.date, moneySettings),
       createdAt: fmtDocumentDate(payment.createdAt, moneySettings),
       updatedAt: fmtDocumentDate(payment.updatedAt, moneySettings),
@@ -624,6 +734,63 @@ export default async function BillPaymentDetailPage({
     .filter((section): section is NonNullable<typeof section> => Boolean(section))
 
   const referenceColumns = Math.max(1, ...referenceSections.map((section) => section.columns))
+  const formatMonetaryValue = (
+    value: number | string | null | undefined | { toString(): string; toNumber?: () => number },
+    currencyCode?: string | null,
+  ) => fmtCurrency(value, currencyCode ?? undefined, moneySettings)
+  const currencyReadoutSection = buildPostedCurrencyReadoutSection({
+    postingStatus: paymentOpenItem
+      ? paymentOpenItem.isOpen
+        ? `Posted to open item (${paymentOpenItem.status})`
+        : `Posted and settled (${paymentOpenItem.status})`
+      : 'Not posted to open items yet',
+    openItemId: paymentOpenItem?.id ?? null,
+    openItemNumber: paymentOpenItem?.openItemNumber ?? null,
+    transactionAmount: paymentOpenItem?.originalTransactionAmount ?? payment.amount,
+    transactionCurrencyCode: currencyCodeById.get(paymentOpenItem?.transactionCurrencyId ?? primaryBill?.currencyId ?? '') ?? null,
+    transactionCurrencyLabel:
+      currencyLabelById.get(paymentOpenItem?.transactionCurrencyId ?? primaryBill?.currencyId ?? '') ??
+      null,
+    localAmount: paymentOpenItem?.originalLocalAmount ?? null,
+    localCurrencyCode: currencyCodeById.get(paymentOpenItem?.localCurrencyId ?? '') ?? null,
+    localCurrencyLabel: currencyLabelById.get(paymentOpenItem?.localCurrencyId ?? '') ?? null,
+    functionalAmount: paymentOpenItem?.originalFunctionalAmount ?? null,
+    functionalCurrencyCode: currencyCodeById.get(paymentOpenItem?.functionalCurrencyId ?? '') ?? null,
+    functionalCurrencyLabel: currencyLabelById.get(paymentOpenItem?.functionalCurrencyId ?? '') ?? null,
+    groupAmount: paymentOpenItem?.originalGroupAmount ?? null,
+    groupCurrencyCode: currencyCodeById.get(paymentOpenItem?.groupCurrencyId ?? '') ?? null,
+    groupCurrencyLabel: currencyLabelById.get(paymentOpenItem?.groupCurrencyId ?? '') ?? null,
+    realizedFxLocalAmount: paymentApplicationFx._sum.realizedFxLocalAmount,
+    realizedFxFunctionalAmount: paymentApplicationFx._sum.realizedFxFunctionalAmount,
+    fxRateType: payment.fxRateType ?? null,
+    fxRateSource: payment.fxRateSource ?? null,
+    fxEffectiveDateLabel: payment.fxEffectiveDate ? fmtDocumentDate(payment.fxEffectiveDate, moneySettings) : null,
+    formatCurrency: formatMonetaryValue,
+  })
+  const fieldDefinitionsWithCurrency: Record<string, RecordHeaderField> = {
+    ...allFieldDefinitions,
+    ...Object.fromEntries(currencyReadoutSection.fields.map((field) => [field.key, field])),
+  }
+  const customizeFieldsWithCurrency = [
+    ...customizeFields,
+  ]
+  const configuredHeaderSections = buildConfiguredTransactionSections({
+    fields: BILL_PAYMENT_DETAIL_FIELDS,
+    layout: customization,
+    fieldDefinitions: fieldDefinitionsWithCurrency,
+    sectionDescriptions: {
+      ...sectionDescriptions,
+      [CURRENCY_READOUT_SECTION_TITLE]: 'Read the transaction, local, functional, and group amounts from the posted bill payment context.',
+    },
+  })
+  const configuredCurrencySection =
+    configuredHeaderSections.find((section) => section.title === CURRENCY_READOUT_SECTION_TITLE) ?? currencyReadoutSection
+  const headerSections = configuredHeaderSections.filter((section) => section.title !== CURRENCY_READOUT_SECTION_TITLE)
+  const transactionCurrencyCode =
+    currencyCodeById.get(paymentOpenItem?.transactionCurrencyId ?? primaryBill?.currencyId ?? '') ?? null
+  const localCurrencyCode = currencyCodeById.get(paymentOpenItem?.localCurrencyId ?? '') ?? null
+  const functionalCurrencyCode = currencyCodeById.get(paymentOpenItem?.functionalCurrencyId ?? '') ?? null
+  const groupCurrencyCode = currencyCodeById.get(paymentOpenItem?.groupCurrencyId ?? '') ?? null
 
   return (
     <RecordDetailPageShell
@@ -633,14 +800,34 @@ export default async function BillPaymentDetailPage({
       title={`Bill Payment for ${payment.vendor?.name ?? primaryBill?.vendor?.name ?? 'Vendor'}`}
       widthClassName="w-full max-w-none"
       actions={
-        isCustomizing ? null : (
-          <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
-            cancelHref={detailHref}
-            formId={`inline-record-form-${payment.id}`}
-              recordId={payment.id}
-            primaryActions={
-              isEditing ? (
+        <TransactionActionStack
+          mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
+          cancelHref={detailHref}
+          formId={`inline-record-form-${payment.id}`}
+          recordId={payment.id}
+          primaryActions={
+            isEditing ? (
+              <Link
+                href={`${detailHref}?customize=1`}
+                className="rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
+              >
+                Customize
+              </Link>
+            ) : (
+              <>
+                <MasterDataDetailCreateMenu
+                  newHref="/bill-payments/new"
+                  duplicateHref={`/bill-payments/new?duplicateFrom=${encodeURIComponent(payment.id)}`}
+                />
+                <MasterDataDetailExportMenu
+                  title={payment.number}
+                  fileName={`bill-payment-${payment.number}`}
+                  sections={headerSections.map((section) => ({
+                    title: section.title,
+                    fields: buildTransactionExportHeaderFields([section]),
+                  }))}
+                />
                 <Link
                   href={`${detailHref}?customize=1`}
                   className="rounded-md border px-3 py-2 text-sm"
@@ -648,40 +835,18 @@ export default async function BillPaymentDetailPage({
                 >
                   Customize
                 </Link>
-              ) : (
-                <>
-                  <MasterDataDetailCreateMenu
-                    newHref="/bill-payments/new"
-                    duplicateHref={`/bill-payments/new?duplicateFrom=${encodeURIComponent(payment.id)}`}
-                  />
-                  <MasterDataDetailExportMenu
-                    title={payment.number}
-                    fileName={`bill-payment-${payment.number}`}
-                    sections={headerSections.map((section) => ({
-                      title: section.title,
-                      fields: buildTransactionExportHeaderFields([section]),
-                    }))}
-                  />
-                  <Link
-                    href={`${detailHref}?customize=1`}
-                    className="rounded-md border px-3 py-2 text-sm"
-                    style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-                  >
-                    Customize
-                  </Link>
-                  <Link
-                    href={`${detailHref}?edit=1`}
-                    className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                    style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                  >
-                    Edit
-                  </Link>
-                  <DeleteButton endpoint="/api/bill-payments" id={payment.id} label={payment.number} />
-                </>
-              )
-            }
-          />
-        )
+                <Link
+                  href={`${detailHref}?edit=1`}
+                  className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                  style={{ backgroundColor: 'var(--accent-primary-strong)' }}
+                >
+                  Edit
+                </Link>
+                <DeleteButton endpoint="/api/bill-payments" id={payment.id} label={payment.number} />
+              </>
+            )
+          }
+        />
       }
     >
       <TransactionDetailFrame
@@ -698,16 +863,21 @@ export default async function BillPaymentDetailPage({
         }
         header={
           isCustomizing ? (
-            <BillPaymentDetailCustomizeMode
-              detailHref={detailHref}
-              initialLayout={customization}
-              fields={customizeFields}
-              referenceSourceDefinitions={referenceSourceDefinitions}
-              sectionDescriptions={sectionDescriptions}
-              statPreviewCards={statPreviewCards}
-            />
+              <BillPaymentDetailCustomizeMode
+                detailHref={detailHref}
+                initialLayout={customization}
+                fields={customizeFieldsWithCurrency}
+                referenceSourceDefinitions={referenceSourceDefinitions}
+                sectionDescriptions={sectionDescriptions}
+                statPreviewCards={statPreviewCards}
+              />
           ) : (
             <div className="space-y-6">
+              <TransactionFourCurrencySection
+                section={configuredCurrencySection}
+                layout={customization}
+                description="Read the transaction, local, functional, and group amounts from the posted bill payment context."
+              />
               {referenceSections.length > 0 ? (
                 <RecordHeaderDetails
                   editing={false}
@@ -797,12 +967,17 @@ export default async function BillPaymentDetailPage({
           )
         }
         lineItems={null}
-        relatedRecords={isCustomizing || !primaryBill ? null : (
+        relatedMasterData={isCustomizing ? null : (
+          <RelatedRecordsSection embedded tabs={relatedMasterDataTabs} showDisplayControl={false} />
+        )}
+        relatedMasterDataCount={relatedMasterDataTabs.reduce((sum, tab) => sum + tab.count, 0)}
+        relatedTransactionDocuments={isCustomizing || (!primaryBill && linkedDocuments.length === 0) ? null : (
           <BillPaymentRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={paymentCurrencyCode}
             purchaseRequisitions={
-              primaryBill.purchaseOrder?.requisition
+              primaryBill?.purchaseOrder?.requisition
                 ? [
                     {
                       id: primaryBill.purchaseOrder.requisition.id,
@@ -810,12 +985,13 @@ export default async function BillPaymentDetailPage({
                       status: primaryBill.purchaseOrder.requisition.status,
                       total: Number(primaryBill.purchaseOrder.requisition.total),
                       createdAt: primaryBill.purchaseOrder.requisition.createdAt.toISOString(),
+                      currencyCode: paymentCurrencyCode,
                     },
                   ]
                 : []
             }
             purchaseOrders={
-              primaryBill.purchaseOrder
+              primaryBill?.purchaseOrder
                 ? [
                     {
                       id: primaryBill.purchaseOrder.id,
@@ -823,12 +999,13 @@ export default async function BillPaymentDetailPage({
                       status: primaryBill.purchaseOrder.status,
                       total: Number(primaryBill.purchaseOrder.total),
                       createdAt: primaryBill.purchaseOrder.createdAt.toISOString(),
+                      currencyCode: paymentCurrencyCode,
                     },
                   ]
                 : []
             }
             receipts={
-              primaryBill.purchaseOrder?.receipts.map((receipt) => ({
+              primaryBill?.purchaseOrder?.receipts.map((receipt) => ({
                 id: receipt.id,
                 number: receipt.id,
                 date: receipt.date.toISOString(),
@@ -837,34 +1014,36 @@ export default async function BillPaymentDetailPage({
                 notes: receipt.notes ?? null,
               })) ?? []
             }
-            bills={[
-              {
-                id: primaryBill.id,
-                number: primaryBill.number,
-                status: primaryBill.status,
-                total: Number(primaryBill.total),
-                date: primaryBill.date.toISOString(),
-                dueDate: primaryBill.dueDate ? primaryBill.dueDate.toISOString() : null,
-                notes: primaryBill.notes ?? null,
-              },
-            ]}
+            bills={
+              primaryBill
+                ? [
+                    {
+                      id: primaryBill.id,
+                      number: primaryBill.number,
+                      status: primaryBill.status,
+                      total: Number(primaryBill.total),
+                      date: primaryBill.date.toISOString(),
+                      dueDate: primaryBill.dueDate ? primaryBill.dueDate.toISOString() : null,
+                      notes: primaryBill.notes ?? null,
+                      currencyCode: paymentCurrencyCode,
+                    },
+                  ]
+                : []
+            }
+            linkedDocuments={linkedDocuments}
             moneySettings={moneySettings}
           />
         )}
-        relatedRecordsCount={
-          primaryBill
-            ? (primaryBill.purchaseOrder?.requisition ? 1 : 0) +
-              (primaryBill.purchaseOrder ? 1 : 0) +
-              (primaryBill.purchaseOrder?.receipts.length ?? 0) +
-              1
-            : 0
+        relatedTransactionDocumentsCount={
+          (
+            primaryBill
+              ? (primaryBill.purchaseOrder?.requisition ? 1 : 0) +
+                (primaryBill.purchaseOrder ? 1 : 0) +
+                (primaryBill.purchaseOrder?.receipts.length ?? 0) +
+                1
+              : 0
+          ) + linkedDocuments.length
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this bill payment yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         communications={isCustomizing ? null : (
           <CommunicationsSection
             embedded
@@ -877,7 +1056,7 @@ export default async function BillPaymentDetailPage({
               counterpartyName: payment.vendor?.name ?? primaryBill?.vendor?.name ?? 'Vendor',
               counterpartyEmail: payment.vendor?.email ?? primaryBill?.vendor?.email ?? null,
               status: formattedStatus,
-              total: fmtCurrency(payment.amount, undefined, moneySettings),
+                total: fmtCurrency(payment.amount, paymentCurrencyCode ?? undefined, moneySettings),
               lineItems: [],
               sendEmailEndpoint: '/api/bill-payments?action=send-email',
               recordIdFieldName: 'billPaymentId',
@@ -901,12 +1080,19 @@ export default async function BillPaymentDetailPage({
                   selectedVendorId={payment.vendorId ?? primaryBill?.vendorId ?? ''}
                   applications={paymentApplications}
                   moneySettings={moneySettings}
+                  paymentCurrencyCode={paymentCurrencyCode}
                 />
               ) : null}
               <BillPaymentGlImpactSection
                 rows={glImpactRows}
                 settings={customization.glImpactSettings}
                 columnCustomization={customization.glImpactColumns}
+                currencyCodes={{
+                  transaction: transactionCurrencyCode,
+                  local: localCurrencyCode,
+                  functional: functionalCurrencyCode,
+                  group: groupCurrencyCode,
+                }}
               />
             </>
           )

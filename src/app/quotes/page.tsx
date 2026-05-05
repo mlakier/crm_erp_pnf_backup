@@ -241,7 +241,13 @@ export default async function QuotesPage({
                       )}
                     </td>
                     <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{formatRecordLabel(quote.status, statusLabelMap)}</td>
-                    <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(quote.total, undefined, moneySettings)}</td>
+                    <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {fmtCurrency(
+                        quote.total,
+                        quote.currency?.code ?? quote.currency?.currencyId ?? undefined,
+                        moneySettings,
+                      )}
+                    </td>
                     <td data-column="valid-until" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{quote.validUntil ? fmtDocumentDate(quote.validUntil, moneySettings) : '—'}</td>
                     <td data-column="subsidiary" className="px-4 py-2 text-sm">
                       {quote.subsidiary ? (

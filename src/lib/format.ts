@@ -110,14 +110,18 @@ export function fmtCurrency(
   formatOptions?: { context?: 'default' | 'documentHeader' },
 ): string {
   const settings = resolveMoneySettings(moneySettings)
-  const currencyCode = (currency ?? settings.fallbackCurrencyCode).trim().toUpperCase() || settings.fallbackCurrencyCode
+  const normalizedCurrency = currency?.trim().toUpperCase() || null
+  const currencyCode = normalizedCurrency ?? settings.fallbackCurrencyCode
   const numericValue = roundMoney(value ?? 0, settings.decimalPlaces)
   const absoluteValue = Math.abs(numericValue)
   const isZero = absoluteValue === 0
   const shouldShowCurrency =
-    settings.showCurrencyOn === 'all'
-    || (settings.showCurrencyOn === 'foreignOnly' && currencyCode !== settings.fallbackCurrencyCode)
-    || (settings.showCurrencyOn === 'documentHeadersOnly' && formatOptions?.context === 'documentHeader')
+    normalizedCurrency != null
+    && (
+      settings.showCurrencyOn === 'all'
+      || (settings.showCurrencyOn === 'foreignOnly' && currencyCode !== settings.fallbackCurrencyCode)
+      || (settings.showCurrencyOn === 'documentHeadersOnly' && formatOptions?.context === 'documentHeader')
+    )
 
   if (isZero) {
     if (settings.zeroFormat === 'blank') return ''
@@ -183,6 +187,36 @@ export function fmtDocumentDate(
       return `${year}-${month}-${day}`
     default:
       return date.toLocaleDateString(settings.locale)
+  }
+}
+
+export function fmtDateOnly(
+  value: Date | string | null | undefined,
+  moneySettings?: Partial<MoneySettings>,
+  fallback = '-',
+): string {
+  if (!value) return fallback
+  const settings = resolveMoneySettings(moneySettings)
+
+  const isoDateOnly =
+    typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)
+      ? value.slice(0, 10)
+      : value instanceof Date
+        ? value.toISOString().slice(0, 10)
+        : new Date(value).toISOString().slice(0, 10)
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDateOnly)) return fallback
+
+  const [year, month, day] = isoDateOnly.split('-')
+  switch (settings.documentDateFormat) {
+    case 'MM/DD/YYYY':
+      return `${month}/${day}/${year}`
+    case 'DD/MM/YYYY':
+      return `${day}/${month}/${year}`
+    case 'YYYY-MM-DD':
+      return `${year}-${month}-${day}`
+    default:
+      return `${month}/${day}/${year}`
   }
 }
 

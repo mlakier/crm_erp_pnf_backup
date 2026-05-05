@@ -18,6 +18,7 @@ export type TransactionAllocationLineRow = {
   totalAmount: number
   openAmount: number
   allocatedAmount: number
+  currencyCode?: string | null
 }
 
 export default function TransactionAllocationLinesSection({
@@ -95,8 +96,8 @@ export default function TransactionAllocationLinesSection({
                 </RecordDetailCell>
                 <RecordDetailCell>{row.status}</RecordDetailCell>
                 <RecordDetailCell>{fmtDocumentDate(row.date, moneySettings)}</RecordDetailCell>
-                <RecordDetailCell className="text-right">{fmtCurrency(row.totalAmount, undefined, moneySettings)}</RecordDetailCell>
-                <RecordDetailCell className="text-right">{fmtCurrency(row.openAmount, undefined, moneySettings)}</RecordDetailCell>
+                <RecordDetailCell className="text-right">{fmtCurrency(row.totalAmount, row.currencyCode ?? undefined, moneySettings)}</RecordDetailCell>
+                <RecordDetailCell className="text-right">{fmtCurrency(row.openAmount, row.currencyCode ?? undefined, moneySettings)}</RecordDetailCell>
                 <RecordDetailCell className="text-right">
                   {editing ? (
                     <input
@@ -115,7 +116,7 @@ export default function TransactionAllocationLinesSection({
                     />
                   ) : (
                     <span style={{ color: 'var(--text-primary)' }}>
-                      {fmtCurrency(row.allocatedAmount, undefined, moneySettings)}
+                      {fmtCurrency(row.allocatedAmount, row.currencyCode ?? undefined, moneySettings)}
                     </span>
                   )}
                 </RecordDetailCell>

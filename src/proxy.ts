@@ -1,25 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getToken } from 'next-auth/jwt'
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
-
-  if (pathname.startsWith('/auth')) {
-    return NextResponse.next()
-  }
-
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
-  })
-
-  if (!token) {
-    const signInUrl = new URL('/auth/signin', req.url)
-    signInUrl.searchParams.set('callbackUrl', pathname)
-    return NextResponse.redirect(signInUrl)
-  }
-
-  return NextResponse.next()
+  void pathname
+  void req
+  const response = NextResponse.next()
+  response.headers.set('x-crm-proxy-mode', 'pass-through')
+  return response
 }
 
 export const config = {

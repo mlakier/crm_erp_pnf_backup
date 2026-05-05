@@ -102,12 +102,15 @@ export default async function IntercompanyJournalEntryDetailPage({
         description: entry.description ?? '',
         journalType: entry.journalType,
         status: entry.status,
+        isOpenItemRelevant: entry.isOpenItemRelevant ? 'true' : 'false',
         subsidiaryId: entry.subsidiaryId ?? '',
         currencyId: entry.currencyId ?? '',
         accountingPeriodId: entry.accountingPeriodId ?? '',
         total: entry.total.toString(),
         sourceType: entry.sourceType ?? '',
         sourceId: entry.sourceId ?? '',
+        reversesJournalEntryId: entry.reversesJournalEntryId ?? '',
+        reversalReasonCode: entry.reversalReasonCode ?? '',
         userId: entry.userId ?? '',
         postedByEmployeeId: entry.postedByEmployeeId ?? '',
         approvedByEmployeeId: entry.approvedByEmployeeId ?? '',
@@ -125,6 +128,7 @@ export default async function IntercompanyJournalEntryDetailPage({
         key: line.id,
         displayOrder: line.displayOrder,
         accountId: line.accountId,
+        activityTypeCode: line.activityTypeCode ?? '',
         description: line.description ?? '',
         debit: String(toNumericValue(line.debit, 0)),
         credit: String(toNumericValue(line.credit, 0)),
@@ -137,6 +141,7 @@ export default async function IntercompanyJournalEntryDetailPage({
         vendorId: line.vendorId ?? '',
         itemId: line.itemId ?? '',
         employeeId: line.employeeId ?? '',
+        settlesOpenItemId: line.settlesOpenItemId ?? '',
       }))}
       moneySettings={moneySettings}
       systemNotes={systemNotes}

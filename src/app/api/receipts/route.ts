@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { logActivity, logCommunicationActivity, logFieldChangeActivities } from '@/lib/activity'
+import { logActivity, logCommunicationActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import { canReceivePurchaseOrderLine } from '@/lib/item-business-rules'
 import { syncReceiptQuantity } from '@/lib/receipt-quantity'
 import { generateNextJournalNumber } from '@/lib/journal-number'
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    const { purchaseOrderId, quantity, date, status, notes, userId, lineItems } = body
+    const { purchaseOrderId, quantity, date, status, notes, userId, lineItems, subsidiaryId, currencyId } = body
 
     if (!purchaseOrderId || !userId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -266,6 +266,8 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         number: true,
+        subsidiaryId: true,
+        currencyId: true,
         lineItems: {
           select: {
             id: true,
@@ -279,6 +281,22 @@ export async function POST(request: NextRequest) {
 
     if (!purchaseOrderForReceipt) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 })
+    }
+
+    if (
+      subsidiaryId
+      && purchaseOrderForReceipt.subsidiaryId
+      && subsidiaryId !== purchaseOrderForReceipt.subsidiaryId
+    ) {
+      return NextResponse.json({ error: 'Receipt subsidiary must match the linked purchase order subsidiary' }, { status: 400 })
+    }
+
+    if (
+      currencyId
+      && purchaseOrderForReceipt.currencyId
+      && currencyId !== purchaseOrderForReceipt.currencyId
+    ) {
+      return NextResponse.json({ error: 'Receipt currency must match the linked purchase order currency' }, { status: 400 })
     }
 
     const receivableLines = purchaseOrderForReceipt.lineItems.filter((line) => canReceivePurchaseOrderLine(line.item))
@@ -312,6 +330,8 @@ export async function POST(request: NextRequest) {
     const receipt = await prisma.receipt.create({
       data: {
         purchaseOrderId,
+        subsidiaryId: purchaseOrderForReceipt.subsidiaryId ?? null,
+        currencyId: purchaseOrderForReceipt.currencyId ?? null,
         quantity: initialQuantity,
         date: date ? new Date(date) : new Date(),
         status: status || 'pending',
@@ -342,6 +362,22 @@ export async function POST(request: NextRequest) {
       action: 'create',
       summary: `Created receipt ${receipt.id}`,
       userId,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'receipt',
+      entityId: receipt.id,
+      userId,
+      action: 'create',
+      context: 'Receipt Details',
+      fields: [
+        { fieldName: 'Purchase Order', value: receipt.purchaseOrderId },
+        { fieldName: 'Subsidiary', value: receipt.subsidiaryId ?? '-' },
+        { fieldName: 'Currency', value: receipt.currencyId ?? '-' },
+        { fieldName: 'Quantity', value: receipt.quantity },
+        { fieldName: 'Date', value: receipt.date },
+        { fieldName: 'Status', value: receipt.status },
+        { fieldName: 'Notes', value: receipt.notes },
+      ],
     })
 
     await logActivity({
@@ -386,6 +422,20 @@ export async function DELETE(request: NextRequest) {
       summary: `Deleted receipt ${existing.id}`,
       userId: purchaseOrder?.userId,
     })
+    await logRecordSnapshotActivities({
+      entityType: 'receipt',
+      entityId: existing.id,
+      userId: purchaseOrder?.userId ?? null,
+      action: 'delete',
+      context: 'Receipt Details',
+      fields: [
+        { fieldName: 'Purchase Order', value: existing.purchaseOrderId },
+        { fieldName: 'Quantity', value: existing.quantity },
+        { fieldName: 'Date', value: existing.date },
+        { fieldName: 'Status', value: existing.status },
+        { fieldName: 'Notes', value: existing.notes },
+      ],
+    })
 
     await logActivity({
       entityType: 'purchase-order',
@@ -428,6 +478,12 @@ export async function PUT(request: NextRequest) {
         : null,
       body.quantity !== undefined && before.quantity !== receipt.quantity
         ? { fieldName: 'Quantity', oldValue: String(before.quantity), newValue: String(receipt.quantity) }
+        : null,
+      before.subsidiaryId !== receipt.subsidiaryId
+        ? { fieldName: 'Subsidiary', oldValue: before.subsidiaryId ?? '-', newValue: receipt.subsidiaryId ?? '-' }
+        : null,
+      before.currencyId !== receipt.currencyId
+        ? { fieldName: 'Currency', oldValue: before.currencyId ?? '-', newValue: receipt.currencyId ?? '-' }
         : null,
       body.notes !== undefined && (before.notes ?? '') !== (receipt.notes ?? '')
         ? { fieldName: 'Notes', oldValue: before.notes ?? '-', newValue: receipt.notes ?? '-' }

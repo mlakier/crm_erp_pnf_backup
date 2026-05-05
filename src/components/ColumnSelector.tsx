@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import {
   type SavedSearchFieldOption,
   getSavedSearchMetadataStorageKey,
+  type SavedSearchLinkedResultSource,
   type SavedSearchColumnOption,
   type SavedSearchDefinitionState,
   type SavedSearchFilterDefinition,
@@ -24,6 +25,19 @@ type SavedColumnView = {
 }
 
 const BUILT_IN_VIEW_ID = '__built-in-default'
+function ensureLockedColumnVisibility(visibleColumnIds: string[], columns: SavedSearchColumnOption[]) {
+  const lockedIds = columns.filter((column) => column.locked || column.id === 'actions').map((column) => column.id)
+  const seen = new Set<string>()
+  const next: string[] = []
+
+  for (const id of [...lockedIds, ...visibleColumnIds]) {
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    next.push(id)
+  }
+
+  return next
+}
 
 function loadOrder(raw: string | null): string[] {
   if (!raw) return []
@@ -77,6 +91,7 @@ export default function ColumnSelector({
   filterDefinitions = [],
   criteriaFields,
   resultFields,
+  linkedResultSources,
 }: {
   tableId: string
   columns: SavedSearchColumnOption[]
@@ -86,12 +101,13 @@ export default function ColumnSelector({
   filterDefinitions?: SavedSearchFilterDefinition[]
   criteriaFields?: SavedSearchFieldOption[]
   resultFields?: SavedSearchFieldOption[]
+  linkedResultSources?: SavedSearchLinkedResultSource[]
 }) {
   const pathname = usePathname()
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
   const [columnOrder, setColumnOrder] = useState<string[]>([])
+  const [activeAddedLinkedFieldIds, setActiveAddedLinkedFieldIds] = useState<string[]>([])
   const currentViewId = useSyncExternalStore(subscribeToLocationChange, getCurrentViewIdSnapshot, () => '')
-  const fixedStartColumnIds = useMemo(() => new Set(columns.slice(0, 2).map((column) => column.id)), [columns])
   const fixedEndColumnIds = useMemo(
     () => new Set(columns.filter((column) => column.id === 'actions').map((column) => column.id)),
     [columns],
@@ -102,9 +118,9 @@ export default function ColumnSelector({
         columns
           .filter((column) => column.locked)
           .map((column) => column.id)
-          .concat(Array.from(fixedStartColumnIds), Array.from(fixedEndColumnIds)),
+          .concat(Array.from(fixedEndColumnIds)),
       ),
-    [columns, fixedEndColumnIds, fixedStartColumnIds],
+    [columns, fixedEndColumnIds],
   )
   const validColumnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns])
   const explicitDefaultColumns = useMemo(() => columns.filter((column) => column.defaultVisible !== undefined), [columns])
@@ -174,14 +190,17 @@ export default function ColumnSelector({
       setHiddenColumns(defaultHiddenColumns)
       setColumnOrder([])
     }
+    setActiveAddedLinkedFieldIds([])
   }, [defaultHiddenColumns, persistColumnState])
 
   const applyView = useCallback((view: SavedColumnView, persist = true) => {
-    const visibleIds = new Set(view.columnIds.filter((id) => validColumnIds.has(id)))
+    const ensuredVisibleColumnIds = ensureLockedColumnVisibility(view.columnIds, columns).filter((id) => validColumnIds.has(id))
+    const visibleIds = new Set(ensuredVisibleColumnIds)
     const nextHidden = columns
       .filter((column) => !lockedColumnIds.has(column.id) && !visibleIds.has(column.id))
       .map((column) => column.id)
     const nextOrder = sanitizeOrder(view.columnOrder)
+    const nextAddedLinkedFieldIds = view.filterState?.results?.addedLinkedFieldIds ?? []
 
     if (persist) {
       persistColumnState(nextHidden, nextOrder)
@@ -189,6 +208,7 @@ export default function ColumnSelector({
       setHiddenColumns(nextHidden)
       setColumnOrder(nextOrder)
     }
+    setActiveAddedLinkedFieldIds(nextAddedLinkedFieldIds)
   }, [columns, lockedColumnIds, persistColumnState, sanitizeOrder, validColumnIds])
 
   const syncFromStorage = useCallback((includeEmptyOrder = true) => {
@@ -220,13 +240,15 @@ export default function ColumnSelector({
     if (options.applyDefault) {
       if (options.requestedViewId === BUILT_IN_VIEW_ID) {
         if (data.builtInBaseline) {
-          const visibleIds = new Set(data.builtInBaseline.columnIds.filter((id) => validColumnIds.has(id)))
+          const ensuredVisibleColumnIds = ensureLockedColumnVisibility(data.builtInBaseline.columnIds, columns).filter((id) => validColumnIds.has(id))
+          const visibleIds = new Set(ensuredVisibleColumnIds)
           const nextHidden = columns
             .filter((column) => !lockedColumnIds.has(column.id) && !visibleIds.has(column.id))
             .map((column) => column.id)
           const nextOrder = sanitizeOrder(data.builtInBaseline.columnOrder)
           setHiddenColumns(nextHidden)
           setColumnOrder(nextOrder)
+          setActiveAddedLinkedFieldIds(data.builtInBaseline.filterState?.results?.addedLinkedFieldIds ?? [])
         } else {
           applyBuiltInDefault(false)
         }
@@ -239,8 +261,16 @@ export default function ColumnSelector({
       const activeView = requestedView ?? defaultView
       if (activeView) {
         applyView(activeView, false)
-      } else if (defaultView) {
-        applyView(defaultView, false)
+      } else if (data.builtInBaseline) {
+        const ensuredVisibleColumnIds = ensureLockedColumnVisibility(data.builtInBaseline.columnIds, columns).filter((id) => validColumnIds.has(id))
+        const visibleIds = new Set(ensuredVisibleColumnIds)
+        const nextHidden = columns
+          .filter((column) => !lockedColumnIds.has(column.id) && !visibleIds.has(column.id))
+          .map((column) => column.id)
+        const nextOrder = sanitizeOrder(data.builtInBaseline.columnOrder)
+        setHiddenColumns(nextHidden)
+        setColumnOrder(nextOrder)
+        setActiveAddedLinkedFieldIds(data.builtInBaseline.filterState?.results?.addedLinkedFieldIds ?? [])
       } else {
         applyBuiltInDefault(false)
       }
@@ -296,12 +326,13 @@ export default function ColumnSelector({
       filters: filterDefinitions,
       criteriaFields,
       resultFields,
+      linkedResultSources,
     }
     window.localStorage.setItem(
       getSavedSearchMetadataStorageKey(tableId),
       JSON.stringify(metadata),
     )
-  }, [basePath, columns, criteriaFields, filterDefinitions, pathname, resultFields, tableId, title])
+  }, [basePath, columns, criteriaFields, filterDefinitions, linkedResultSources, pathname, resultFields, tableId, title])
 
   const sortableColumns = useMemo(() => {
     const nonLocked = columns.filter((column) => !lockedColumnIds.has(column.id))
@@ -319,19 +350,24 @@ export default function ColumnSelector({
       if (colMap.has(column.id)) ordered.push(column)
     }
     return ordered
-  }, [columns, columnOrder, lockedColumnIds])
+  }, [columnOrder, columns, lockedColumnIds])
 
   useEffect(() => {
     if (!enableReordering) return
 
     const tableContainer = document.querySelector(`[data-column-selector-table="${tableId}"]`)
     if (!tableContainer) return
-    const tableElement = tableContainer
+    const tableElement = tableContainer.querySelector('table')
+    if (!tableElement) return
+    const activeTableElement = tableElement
 
-    const pinnedStartIds = columns.filter((column) => fixedStartColumnIds.has(column.id)).map((column) => column.id)
+    const lockedStartIds = columns
+      .filter((column) => column.locked && !fixedEndColumnIds.has(column.id))
+      .map((column) => column.id)
+      .filter((id) => !hiddenColumns.includes(id))
     const pinnedEndIds = columns.filter((column) => fixedEndColumnIds.has(column.id)).map((column) => column.id)
     const nonLockedIds = sortableColumns.map((column) => column.id)
-    const fullOrder = [...pinnedStartIds, ...nonLockedIds, ...pinnedEndIds]
+    const fullOrder = [...lockedStartIds, ...nonLockedIds, ...pinnedEndIds]
 
     let isReordering = false
 
@@ -374,7 +410,7 @@ export default function ColumnSelector({
     function reorderAll() {
       if (isReordering) return
       isReordering = true
-      tableElement.querySelectorAll('tr').forEach(reorderRow)
+      activeTableElement.querySelectorAll('tr').forEach(reorderRow)
       setTimeout(() => {
         isReordering = false
       }, 0)
@@ -399,7 +435,7 @@ export default function ColumnSelector({
         window.cancelAnimationFrame(frameId)
       }
     }
-  }, [columns, enableReordering, fixedEndColumnIds, fixedStartColumnIds, lockedColumnIds, sortableColumns, tableId])
+  }, [columns, enableReordering, fixedEndColumnIds, hiddenColumns, lockedColumnIds, sortableColumns, tableId])
 
   const styleMarkup = useMemo(() => {
     if (hiddenColumns.length === 0) return ''
@@ -414,8 +450,22 @@ export default function ColumnSelector({
   }, [hiddenColumns, lockedColumnIds, tableId])
 
   const countableColumns = useMemo(
-    () => columns.filter((column) => column.id !== 'actions'),
-    [columns],
+    () => {
+      const linkedFieldMap = new Map(
+        (linkedResultSources ?? []).flatMap((source) => source.fields.map((field) => [field.id, field] as const)),
+      )
+      const activeLinkedFields = activeAddedLinkedFieldIds
+        .map((id) => linkedFieldMap.get(id))
+        .filter((field): field is SavedSearchFieldOption => Boolean(field))
+      const universe = (resultFields?.length ? [...resultFields, ...activeLinkedFields] : columns).filter((column) => column.id !== 'actions')
+      const seen = new Set<string>()
+      return universe.filter((column) => {
+        if (seen.has(column.id)) return false
+        seen.add(column.id)
+        return true
+      })
+    },
+    [activeAddedLinkedFieldIds, columns, linkedResultSources, resultFields],
   )
   const visibleCount = countableColumns.filter((column) => !hiddenColumns.includes(column.id)).length
   const totalCount = countableColumns.length

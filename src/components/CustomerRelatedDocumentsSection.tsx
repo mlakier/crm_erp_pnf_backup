@@ -12,6 +12,7 @@ type OpportunityDoc = {
   name: string
   status: string
   total: number
+  currencyCode?: string | null
   closeDate: string | null
 }
 
@@ -20,6 +21,7 @@ type QuoteDoc = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   validUntil: string | null
   createdAt: string
 }
@@ -29,6 +31,7 @@ type SalesOrderDoc = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   createdAt: string
 }
 
@@ -46,6 +49,7 @@ type InvoiceDoc = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   dueDate: string | null
   paidDate: string | null
 }
@@ -54,6 +58,7 @@ type InvoiceReceiptDoc = {
   id: string
   number: string | null
   amount: number
+  currencyCode?: string | null
   date: string
   method: string | null
   reference: string | null
@@ -67,6 +72,7 @@ export default function CustomerRelatedDocumentsSection({
   fulfillments,
   invoices,
   invoiceReceipts,
+  defaultCurrencyCode,
   embedded = false,
   showDisplayControl = true,
 }: {
@@ -76,9 +82,12 @@ export default function CustomerRelatedDocumentsSection({
   fulfillments: FulfillmentDoc[]
   invoices: InvoiceDoc[]
   invoiceReceipts: InvoiceReceiptDoc[]
+  defaultCurrencyCode?: string | null
   embedded?: boolean
   showDisplayControl?: boolean
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined)
   return (
     <TransactionRelatedDocumentsTabs
       embedded={embedded}
@@ -100,14 +109,14 @@ export default function CustomerRelatedDocumentsSection({
               </Link>,
               opportunity.name,
               <RelatedDocumentsStatusBadge key="status" status={opportunity.status} />,
-              fmtCurrency(opportunity.total),
+              formatAmount(opportunity.total, opportunity.currencyCode),
               opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate) : '-',
             ],
             filterValues: [
               opportunity.number,
               opportunity.name,
               opportunity.status,
-              fmtCurrency(opportunity.total),
+              formatAmount(opportunity.total, opportunity.currencyCode),
               opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate) : '-',
             ],
           })),
@@ -126,14 +135,14 @@ export default function CustomerRelatedDocumentsSection({
                 {quote.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={quote.status} />,
-              fmtCurrency(quote.total),
+              formatAmount(quote.total, quote.currencyCode),
               quote.validUntil ? fmtDocumentDate(quote.validUntil) : '-',
               fmtDocumentDate(quote.createdAt),
             ],
             filterValues: [
               quote.number,
               quote.status,
-              fmtCurrency(quote.total),
+              formatAmount(quote.total, quote.currencyCode),
               quote.validUntil ? fmtDocumentDate(quote.validUntil) : '-',
               fmtDocumentDate(quote.createdAt),
             ],
@@ -153,13 +162,13 @@ export default function CustomerRelatedDocumentsSection({
                 {salesOrder.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={salesOrder.status} />,
-              fmtCurrency(salesOrder.total),
+              formatAmount(salesOrder.total, salesOrder.currencyCode),
               fmtDocumentDate(salesOrder.createdAt),
             ],
             filterValues: [
               salesOrder.number,
               salesOrder.status,
-              fmtCurrency(salesOrder.total),
+              formatAmount(salesOrder.total, salesOrder.currencyCode),
               fmtDocumentDate(salesOrder.createdAt),
             ],
           })),
@@ -205,14 +214,14 @@ export default function CustomerRelatedDocumentsSection({
                 {invoice.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={invoice.status} />,
-              fmtCurrency(invoice.total),
+              formatAmount(invoice.total, invoice.currencyCode),
               invoice.dueDate ? fmtDocumentDate(invoice.dueDate) : '-',
               invoice.paidDate ? fmtDocumentDate(invoice.paidDate) : '-',
             ],
             filterValues: [
               invoice.number,
               invoice.status,
-              fmtCurrency(invoice.total),
+              formatAmount(invoice.total, invoice.currencyCode),
               invoice.dueDate ? fmtDocumentDate(invoice.dueDate) : '-',
               invoice.paidDate ? fmtDocumentDate(invoice.paidDate) : '-',
             ],
@@ -231,7 +240,7 @@ export default function CustomerRelatedDocumentsSection({
               <Link key="link" href={`/invoice-receipts/${receipt.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
                 {receipt.number ?? receipt.id}
               </Link>,
-              fmtCurrency(receipt.amount),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date),
               receipt.method ?? '-',
               receipt.reference ?? '-',
@@ -239,7 +248,7 @@ export default function CustomerRelatedDocumentsSection({
             ],
             filterValues: [
               receipt.number ?? receipt.id,
-              fmtCurrency(receipt.amount),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date),
               receipt.method ?? '-',
               receipt.reference ?? '-',

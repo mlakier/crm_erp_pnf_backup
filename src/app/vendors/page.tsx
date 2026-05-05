@@ -2,8 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtPhone, normalizePhone } from '@/lib/format'
 import CreatePageLinkButton from '@/components/CreatePageLinkButton'
-import DeleteButton from '@/components/DeleteButton'
-import EditButton from '@/components/EditButton'
+import ListRowActions from '@/components/ListRowActions'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -137,11 +136,12 @@ export default async function VendorsPage({
                 <MasterDataMutedCell columnId="created" className="whitespace-nowrap px-4 py-2 text-sm">{formatMasterDataDate(vendor.createdAt)}</MasterDataMutedCell>
                 <MasterDataMutedCell columnId="last-modified" className="whitespace-nowrap px-4 py-2 text-sm">{formatMasterDataDate(vendor.updatedAt)}</MasterDataMutedCell>
                 <MasterDataBodyCell columnId="actions" className="whitespace-nowrap px-4 py-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <EditButton
-                      resource="vendors"
-                      id={vendor.id}
-                      fields={[
+                  <ListRowActions
+                    viewHref={`/vendors/${vendor.id}`}
+                    editButton={{
+                      resource: 'vendors',
+                      id: vendor.id,
+                      fields: [
                         ...(formCustomization.fields.vendorNumber.visible ? [{ name: 'vendorNumber', label: 'Vendor ID', value: vendor.vendorNumber ?? '' }] : []),
                         ...(formCustomization.fields.name.visible ? [{ name: 'name', label: 'Name', value: vendor.name }] : []),
                         ...(formCustomization.fields.email.visible ? [{ name: 'email', label: 'Email', value: vendor.email ?? '', type: 'email' as const }] : []),
@@ -175,10 +175,10 @@ export default async function VendorsPage({
                               options: fieldOptions.inactive ?? [],
                             }]
                           : []),
-                      ]}
-                    />
-                    <DeleteButton resource="vendors" id={vendor.id} />
-                  </div>
+                      ],
+                    }}
+                    deleteButton={{ resource: 'vendors', id: vendor.id }}
+                  />
                 </MasterDataBodyCell>
               </tr>
             ))}

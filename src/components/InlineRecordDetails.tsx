@@ -433,7 +433,11 @@ function SectionFieldGrid({
               {field.helpText ? <FieldTooltip content={buildTooltipContent(field)} /> : null}
             </dt>
             <dd className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {formatDisplayValue(field, values[field.name] ?? '', optionLabelsByField[field.name] ?? {})}
+              {(() => {
+                const rawValue = values[field.name] ?? ''
+                const content = formatDisplayValue(field, rawValue, optionLabelsByField[field.name] ?? {})
+                return content
+              })()}
             </dd>
           </div>
         )

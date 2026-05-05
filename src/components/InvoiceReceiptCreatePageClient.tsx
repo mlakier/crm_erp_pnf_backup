@@ -34,6 +34,8 @@ type InvoiceOption = {
   date: string
   subsidiaryId: string | null
   currencyId: string | null
+  subsidiaryLabel?: string | null
+  currencyLabel?: string | null
   userId: string | null
   openAmount: number
 }
@@ -78,6 +80,8 @@ export default function InvoiceReceiptCreatePageClient({
   const [applications, setApplications] = useState<InvoiceReceiptApplicationInput[]>(initialApplications)
   const [headerValues, setHeaderValues] = useState<Record<string, string>>({
     invoiceId: initialHeaderValues?.invoiceId ?? invoices[0]?.id ?? '',
+    subsidiaryId: initialHeaderValues?.subsidiaryId ?? invoices[0]?.subsidiaryId ?? '',
+    currencyId: initialHeaderValues?.currencyId ?? invoices[0]?.currencyId ?? '',
     bankAccountId: initialHeaderValues?.bankAccountId ?? bankAccountOptions[0]?.value ?? '',
     status: initialHeaderValues?.status ?? statusOptions.find((option) => option.value === 'draft')?.value ?? statusOptions[0]?.value ?? 'draft',
     overpaymentHandling: initialHeaderValues?.overpaymentHandling ?? '',
@@ -122,12 +126,20 @@ export default function InvoiceReceiptCreatePageClient({
     )
   }, [invoices, selectedCustomerId])
 
+  useEffect(() => {
+    setHeaderValues((current) => ({
+      ...current,
+      subsidiaryId: selectedInvoice?.subsidiaryId ?? '',
+      currencyId: selectedInvoice?.currencyId ?? '',
+    }))
+  }, [selectedInvoice?.subsidiaryId, selectedInvoice?.currencyId])
+
   const invoiceOptions = invoices.map((invoice) => ({
     value: invoice.id,
     label: `${invoice.number} - ${invoice.customerName}`,
   }))
 
-  const headerFieldDefinitions: Record<InvoiceReceiptDetailFieldKey, InvoiceReceiptHeaderField> = {
+  const headerFieldDefinitions: Record<string, InvoiceReceiptHeaderField> = {
     customerName: {
       key: 'customerName',
       label: 'Customer Name',
@@ -175,6 +187,30 @@ export default function InvoiceReceiptCreatePageClient({
       type: 'select',
       options: invoiceOptions,
       helpText: 'Select an invoice to establish customer context for the receipt applications below.',
+      fieldType: 'list',
+      sourceText: 'Invoice transaction',
+      subsectionTitle: 'Record Keys',
+      subsectionDescription: 'Internal and linked transaction identifiers for this receipt.',
+    },
+    subsidiaryId: {
+      key: 'subsidiaryId',
+      label: 'Subsidiary',
+      value: headerValues.subsidiaryId ?? '',
+      displayValue: selectedInvoice?.subsidiaryLabel ?? selectedInvoice?.subsidiaryId ?? '-',
+      editable: false,
+      helpText: 'Subsidiary inherited from the linked invoice posting context.',
+      fieldType: 'list',
+      sourceText: 'Invoice transaction',
+      subsectionTitle: 'Record Keys',
+      subsectionDescription: 'Internal and linked transaction identifiers for this receipt.',
+    },
+    currencyId: {
+      key: 'currencyId',
+      label: 'Currency',
+      value: headerValues.currencyId ?? '',
+      displayValue: selectedInvoice?.currencyLabel ?? selectedInvoice?.currencyId ?? '-',
+      editable: false,
+      helpText: 'Transaction currency inherited from the linked invoice posting context.',
       fieldType: 'list',
       sourceText: 'Invoice transaction',
       subsectionTitle: 'Record Keys',
@@ -317,6 +353,8 @@ export default function InvoiceReceiptCreatePageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           invoiceId: values.invoiceId,
+          subsidiaryId: values.subsidiaryId || null,
+          currencyId: values.currencyId || null,
           bankAccountId: values.bankAccountId || null,
           status: values.status,
           overpaymentHandling: values.overpaymentHandling || null,

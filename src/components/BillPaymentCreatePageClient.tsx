@@ -61,6 +61,8 @@ export default function BillPaymentCreatePageClient({
   const [applications, setApplications] = useState<BillPaymentApplicationInput[]>(initialApplications)
   const [headerValues, setHeaderValues] = useState<Record<string, string>>({
     vendorId: initialHeaderValues?.vendorId ?? vendors[0]?.value ?? '',
+    subsidiaryId: initialHeaderValues?.subsidiaryId ?? '',
+    currencyId: initialHeaderValues?.currencyId ?? '',
     bankAccountId: initialHeaderValues?.bankAccountId ?? bankAccountOptions[0]?.value ?? '',
     amount: initialHeaderValues?.amount ?? (initialApplications.length > 0 ? String(roundMoney(sumBillPaymentApplications(initialApplications))) : ''),
     date: initialHeaderValues?.date ?? new Date().toISOString().slice(0, 10),
@@ -73,6 +75,10 @@ export default function BillPaymentCreatePageClient({
   const selectedVendor = useMemo(
     () => vendors.find((vendor) => vendor.value === (headerValues.vendorId ?? '')) ?? null,
     [headerValues.vendorId, vendors],
+  )
+  const selectedPostingBill = useMemo(
+    () => bills.find((bill) => bill.id === (applications[0]?.billId ?? '')) ?? null,
+    [applications, bills],
   )
 
   const paymentAmount = useMemo(
@@ -99,7 +105,15 @@ export default function BillPaymentCreatePageClient({
     )
   }, [bills, headerValues.vendorId])
 
-  const headerFieldDefinitions: Record<BillPaymentDetailFieldKey, BillPaymentHeaderField> = {
+  useEffect(() => {
+    setHeaderValues((current) => ({
+      ...current,
+      subsidiaryId: selectedPostingBill?.subsidiaryId ?? '',
+      currencyId: selectedPostingBill?.currencyId ?? '',
+    }))
+  }, [selectedPostingBill?.subsidiaryId, selectedPostingBill?.currencyId])
+
+  const headerFieldDefinitions: Record<string, BillPaymentHeaderField> = {
     id: {
       key: 'id',
       label: 'DB Id',
@@ -141,6 +155,30 @@ export default function BillPaymentCreatePageClient({
       displayValue: applications.length > 0 ? `${applications.length} applied bill${applications.length === 1 ? '' : 's'}` : '-',
       editable: false,
       helpText: 'Primary linked bill derived from the applied bill rows below.',
+      fieldType: 'list',
+      sourceText: 'Bill transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill payment identifiers and source-bill context.',
+    },
+    subsidiaryId: {
+      key: 'subsidiaryId',
+      label: 'Subsidiary',
+      value: headerValues.subsidiaryId ?? '',
+      displayValue: selectedPostingBill?.subsidiaryLabel ?? selectedPostingBill?.subsidiaryId ?? '-',
+      editable: false,
+      helpText: 'Subsidiary derived from the applied bill posting context.',
+      fieldType: 'list',
+      sourceText: 'Bill transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill payment identifiers and source-bill context.',
+    },
+    currencyId: {
+      key: 'currencyId',
+      label: 'Currency',
+      value: headerValues.currencyId ?? '',
+      displayValue: selectedPostingBill?.currencyLabel ?? selectedPostingBill?.currencyCode ?? selectedPostingBill?.currencyId ?? '-',
+      editable: false,
+      helpText: 'Transaction currency derived from the applied bill posting context.',
       fieldType: 'list',
       sourceText: 'Bill transaction',
       subsectionTitle: 'Document Identity',
@@ -282,6 +320,8 @@ export default function BillPaymentCreatePageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vendorId: values.vendorId,
+          subsidiaryId: values.subsidiaryId || null,
+          currencyId: values.currencyId || null,
           bankAccountId: values.bankAccountId || null,
           amount: values.amount,
           date: values.date,

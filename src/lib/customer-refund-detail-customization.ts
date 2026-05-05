@@ -18,6 +18,12 @@ import {
   QUOTE_FULL_REFERENCE_FIELDS,
   SALES_ORDER_FULL_REFERENCE_FIELDS,
 } from '@/lib/linked-record-reference-catalogs'
+import {
+  buildDefaultCurrencyReadoutFieldCustomizations,
+  CURRENCY_READOUT_CUSTOMIZE_FIELDS,
+  CURRENCY_READOUT_SECTION_TITLE,
+  type CurrencyReadoutFieldKey,
+} from '@/lib/four-currency-readout'
 
 export type CustomerRefundDetailFieldKey =
   | 'customerName'
@@ -27,6 +33,8 @@ export type CustomerRefundDetailFieldKey =
   | 'customerId'
   | 'cashReceiptId'
   | 'bankAccountId'
+  | 'subsidiaryId'
+  | 'currencyId'
   | 'amount'
   | 'date'
   | 'method'
@@ -36,6 +44,7 @@ export type CustomerRefundDetailFieldKey =
   | 'journalEntry'
   | 'createdAt'
   | 'updatedAt'
+  | CurrencyReadoutFieldKey
 
 export type CustomerRefundDetailFieldMeta = {
   id: CustomerRefundDetailFieldKey
@@ -80,6 +89,8 @@ export const CUSTOMER_REFUND_DETAIL_FIELDS: CustomerRefundDetailFieldMeta[] = [
   { id: 'customerId', label: 'Customer', fieldType: 'list', source: 'Customer record', description: 'Customer receiving the refund.' },
   { id: 'cashReceiptId', label: 'Refund Source', fieldType: 'text', source: 'Invoice receipt transaction', description: 'Refund-pending invoice receipt that funded this refund.' },
   { id: 'bankAccountId', label: 'Bank Account', fieldType: 'list', source: 'Chart of accounts', description: 'Cash or bank account used for the refund disbursement.' },
+  { id: 'subsidiaryId', label: 'Subsidiary', fieldType: 'list', source: 'Subsidiary record', description: 'Transaction subsidiary on this customer refund.' },
+  { id: 'currencyId', label: 'Currency', fieldType: 'list', source: 'Currency record', description: 'Transaction currency on this customer refund.' },
   { id: 'amount', label: 'Amount', fieldType: 'currency', description: 'Refund amount issued to the customer.' },
   { id: 'date', label: 'Refund Date', fieldType: 'date', description: 'Date the refund was issued.' },
   { id: 'method', label: 'Payment Method', fieldType: 'list', source: 'Payment method list', description: 'Disbursement method for the refund.' },
@@ -89,11 +100,12 @@ export const CUSTOMER_REFUND_DETAIL_FIELDS: CustomerRefundDetailFieldMeta[] = [
   { id: 'journalEntry', label: 'GL Posting', fieldType: 'text', source: 'Journal entry', description: 'Journal entry created when the refund posts to GL.' },
   { id: 'createdAt', label: 'Created', fieldType: 'date', description: 'Date/time the customer refund record was created.' },
   { id: 'updatedAt', label: 'Last Modified', fieldType: 'date', description: 'Date/time the customer refund record was last modified.' },
+  ...CURRENCY_READOUT_CUSTOMIZE_FIELDS,
 ]
 
 const CUSTOMER_REFUND_SOURCE_RECEIPT_FIELDS: LinkedRecordReferenceSource['fields'] = [
   { id: 'receiptDbId', label: 'DB Id', fieldType: 'text', source: 'Invoice receipt transaction', description: 'Internal database identifier for the linked invoice receipt.', path: ['id'] },
-  { id: 'receiptNumber', label: 'Invoice Receipt #', fieldType: 'text', source: 'Invoice receipt transaction', description: 'Identifier for the linked invoice receipt.', path: ['number'] },
+  { id: 'receiptNumber', label: 'Invoice Receipt #', fieldType: 'text', source: 'Invoice receipt transaction', description: 'Identifier for the linked invoice receipt.', path: ['number'], linksToSourceRecord: true },
   { id: 'receiptStatus', label: 'Status', fieldType: 'list', source: 'Invoice receipt transaction', description: 'Status from the linked invoice receipt.', path: ['status'] },
   { id: 'receiptAmount', label: 'Amount', fieldType: 'currency', source: 'Invoice receipt transaction', description: 'Total amount from the linked invoice receipt.', path: ['amount'] },
   { id: 'receiptDate', label: 'Receipt Date', fieldType: 'date', source: 'Invoice receipt transaction', description: 'Receipt date from the linked invoice receipt.', path: ['date'] },
@@ -169,9 +181,16 @@ export const CUSTOMER_REFUND_REFERENCE_SOURCES: LinkedRecordReferenceSource[] = 
 ]
 
 export function defaultCustomerRefundDetailCustomization(): CustomerRefundDetailCustomizationConfig {
+  const glImpactColumns = defaultTransactionGlImpactColumns()
+  glImpactColumns.txnAmount.visible = true
+  glImpactColumns.localAmount.visible = true
+  glImpactColumns.functionalAmount.visible = true
+  glImpactColumns.groupAmount.visible = true
+
   return {
     formColumns: 3,
     sections: [
+      CURRENCY_READOUT_SECTION_TITLE,
       'Document Identity',
       'Customer Snapshot',
       'Refund Terms',
@@ -179,6 +198,7 @@ export function defaultCustomerRefundDetailCustomization(): CustomerRefundDetail
       'System Dates',
     ],
     sectionRows: {
+      [CURRENCY_READOUT_SECTION_TITLE]: 4,
       'Document Identity': 1,
       'Customer Snapshot': 1,
       'Refund Terms': 3,
@@ -198,17 +218,20 @@ export function defaultCustomerRefundDetailCustomization(): CustomerRefundDetail
       status: { visible: true, section: 'Refund Terms', order: 1, column: 2 },
       reference: { visible: true, section: 'Refund Terms', order: 1, column: 3 },
       notes: { visible: true, section: 'Refund Terms', order: 2, column: 1 },
+      subsidiaryId: { visible: true, section: 'Refund Terms', order: 2, column: 2 },
+      currencyId: { visible: true, section: 'Refund Terms', order: 2, column: 3 },
       id: { visible: true, section: 'Record Keys', order: 0, column: 1 },
       createdAt: { visible: true, section: 'System Dates', order: 0, column: 1 },
       updatedAt: { visible: true, section: 'System Dates', order: 0, column: 2 },
       journalEntry: { visible: true, section: 'System Dates', order: 0, column: 3 },
+      ...buildDefaultCurrencyReadoutFieldCustomizations({ showRealizedFx: true }),
     },
     referenceLayouts: [
       buildDefaultTransactionReferenceLayout(CUSTOMER_REFUND_REFERENCE_SOURCES, 'customer'),
       buildDefaultTransactionReferenceLayout(CUSTOMER_REFUND_REFERENCE_SOURCES, 'receipt', 'reference-receipt-1'),
     ],
     glImpactSettings: defaultTransactionGlImpactSettings(),
-    glImpactColumns: defaultTransactionGlImpactColumns(),
+    glImpactColumns,
     statCards: [
       { id: 'refund-amount', metric: 'amount', visible: true, order: 0 },
       { id: 'refund-status', metric: 'status', visible: true, order: 1 },

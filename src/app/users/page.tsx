@@ -21,9 +21,7 @@ import { buildFieldMetaById, loadFieldOptionsMap } from '@/lib/field-source-help
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
 import { sanitizeSavedSearchDefinitionState, type SavedSearchCriterion } from '@/lib/saved-search-metadata'
 import { buildUserSavedSearchFields, USER_SAVED_SEARCH_FILTERS } from '@/lib/users-saved-search-metadata'
-import { loadSavedSearchBuiltInBaseline } from '@/lib/saved-search-builtins-store'
-
-const BUILT_IN_VIEW_ID = '__built-in-default'
+import { loadEffectiveSavedSearchDefinition } from '@/lib/load-effective-saved-search-definition'
 const USER_JOINED_COLUMN_IDS = new Set([
   'role.name',
   'department.name',
@@ -259,29 +257,14 @@ export default async function UsersPage({
   const params = await searchParams
   const session = await getServerSession(authOptions)
   const selectedViewId = (params.view ?? '').trim()
-  const builtInViewSelected = selectedViewId === BUILT_IN_VIEW_ID
   const defaultViewUserId = session?.user?.id ?? null
   const userFieldMetaById = buildFieldMetaById(USER_FORM_FIELDS)
-  const builtInBaseline = builtInViewSelected
-    ? await loadSavedSearchBuiltInBaseline(userListDefinition.tableId)
-    : null
-
-  const savedView = defaultViewUserId
-    ? await prisma.savedListView.findFirst({
-        where: builtInViewSelected
-          ? undefined
-          : selectedViewId
-          ? { id: selectedViewId, userId: defaultViewUserId, tableId: userListDefinition.tableId }
-          : { userId: defaultViewUserId, tableId: userListDefinition.tableId, isDefault: true },
-        select: {
-          id: true,
-          filterState: true,
-        },
-      })
-    : null
-
   const savedDefinition = sanitizeSavedSearchDefinitionState(
-    builtInBaseline?.filterState ?? (savedView ? JSON.parse(savedView.filterState) : null),
+    await loadEffectiveSavedSearchDefinition({
+      tableId: userListDefinition.tableId,
+      userId: defaultViewUserId,
+      selectedViewId,
+    }),
   )
   const query = (params.q ?? savedDefinition.filterValues.keyword ?? '').trim()
   const sort = params.sort ?? savedDefinition.filterValues.sort ?? DEFAULT_RECORD_LIST_SORT
@@ -370,7 +353,7 @@ export default async function UsersPage({
     const s = new URLSearchParams()
     if (query) s.set('q', query)
     if (sort) s.set('sort', sort)
-    if (savedView?.id) s.set('view', savedView.id)
+    if (selectedViewId) s.set('view', selectedViewId)
     s.set('page', String(p))
     return `/users?${s.toString()}`
   }
@@ -453,7 +436,7 @@ export default async function UsersPage({
         searchPlaceholder={userListDefinition.searchPlaceholder}
         tableId={userListDefinition.tableId}
         exportFileName={userListDefinition.exportFileName}
-        exportAllUrl={buildMasterDataExportUrl('users', query, sort, savedView?.id ? { view: savedView.id } : undefined)}
+        exportAllUrl={buildMasterDataExportUrl('users', query, sort, selectedViewId ? { view: selectedViewId } : undefined)}
         columns={userListDefinition.columns}
         sort={sort}
         sortOptions={userListDefinition.sortOptions}

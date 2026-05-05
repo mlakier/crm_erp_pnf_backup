@@ -3,10 +3,9 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
 import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
+import ListSearchActions from '@/components/ListSearchActions'
 import PaginationFooter from '@/components/PaginationFooter'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
@@ -65,7 +64,15 @@ export default async function InvoiceReceiptsPage({ searchParams }: { searchPara
   const statusLabelMap = createRecordLabelMapFromValues(statusValues)
 
   const pagination = getPagination(totalRows, params.page)
-  const rows = await prisma.cashReceipt.findMany({ where, include: { invoice: { include: { customer: true } } }, orderBy, skip: pagination.skip, take: pagination.pageSize })
+  const rows = await prisma.cashReceipt.findMany({
+    where,
+    include: {
+      invoice: { include: { customer: true, currency: true } },
+    },
+    orderBy,
+    skip: pagination.skip,
+    take: pagination.pageSize,
+  })
 
   const buildPageHref = (p: number) => {
     const s = new URLSearchParams()
@@ -126,12 +133,12 @@ export default async function InvoiceReceiptsPage({ searchParams }: { searchPara
           <input type="hidden" name="method" value={methodFilter} />
           <div className="flex gap-3 items-center flex-nowrap">
             <input type="text" name="q" defaultValue={params.q ?? ''} placeholder="Search invoice receipt id, invoice id, status, method, reference" className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
-            <ExportButton
+            <ListSearchActions
               tableId="invoice-receipts-list"
-              fileName="invoice-receipts"
+              exportFileName="invoice-receipts"
               exportAllUrl={buildMasterDataExportUrl('invoice-receipts', params.q)}
+              columns={IR_COLUMNS}
             />
-            <ColumnSelector tableId="invoice-receipts-list" columns={IR_COLUMNS} />
           </div>
         </form>
         <div className="overflow-x-auto" data-column-selector-table="invoice-receipts-list">
@@ -171,7 +178,13 @@ export default async function InvoiceReceiptsPage({ searchParams }: { searchPara
                       <span style={{ color: 'var(--text-secondary)' }}>{'\u2014'}</span>
                     )}
                   </td>
-                  <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(row.amount, undefined, moneySettings)}</td>
+                  <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {fmtCurrency(
+                      row.amount,
+                      row.invoice?.currency?.code ?? row.invoice?.currency?.currencyId ?? undefined,
+                      moneySettings,
+                    )}
+                  </td>
                   <td data-column="date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.date, moneySettings)}</td>
                   <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{formatRecordLabel(row.status, statusLabelMap)}</td>
                   <td data-column="method" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.method}</td>
@@ -179,16 +192,13 @@ export default async function InvoiceReceiptsPage({ searchParams }: { searchPara
                   <td data-column="db-id" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.id}</td>
                   <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.createdAt, moneySettings)}</td>
                   <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.updatedAt, moneySettings)}</td>
-                  <td data-column="actions" className="px-4 py-2 text-sm"><span className="flex items-center gap-2">
-                    <Link
-                      href={`/invoice-receipts/${row.id}?edit=1`}
-                      className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                      style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                    >
-                      Edit
-                    </Link>
-                    <DeleteButton id={row.id} endpoint="/api/invoice-receipts" label={row.number ?? row.invoice?.number ?? row.id} />
-                  </span></td>
+                  <td data-column="actions" className="px-4 py-2 text-sm">
+                    <ListRowActions
+                      viewHref={`/invoice-receipts/${row.id}`}
+                      editHref={`/invoice-receipts/${row.id}?edit=1`}
+                      deleteButton={{ id: row.id, endpoint: '/api/invoice-receipts', label: row.number ?? row.invoice?.number ?? row.id }}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

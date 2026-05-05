@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateFulfillmentNumber } from '@/lib/fulfillment-number'
-import { logActivity, logCommunicationActivity, logFieldChangeActivities } from '@/lib/activity'
+import { logActivity, logCommunicationActivity, logFieldChangeActivities, logRecordSnapshotActivities } from '@/lib/activity'
 import {
   coerceWorkflowValueForStep,
   getDefaultWorkflowStatus,
@@ -272,6 +272,22 @@ export async function POST(req: NextRequest) {
       summary: `Created fulfillment ${row.number} from sales order ${availability.salesOrder.number}`,
       userId: availability.salesOrder.userId,
     })
+    await logRecordSnapshotActivities({
+      entityType: 'fulfillment',
+      entityId: row.id,
+      userId: availability.salesOrder.userId,
+      action: 'create',
+      context: 'Fulfillment Header',
+      fields: [
+        { fieldName: 'Fulfillment #', value: row.number },
+        { fieldName: 'Sales Order', value: row.salesOrderId },
+        { fieldName: 'Status', value: row.status },
+        { fieldName: 'Date', value: row.date },
+        { fieldName: 'Notes', value: row.notes },
+        { fieldName: 'Subsidiary', value: row.subsidiaryId },
+        { fieldName: 'Currency', value: row.currencyId },
+      ],
+    })
 
     return NextResponse.json(row, { status: 201 })
   } catch {
@@ -416,6 +432,16 @@ export async function DELETE(req: NextRequest) {
       action: 'delete',
       summary: `Deleted fulfillment ${existing.number}`,
       userId: existing.salesOrder?.userId,
+    })
+    await logRecordSnapshotActivities({
+      entityType: 'fulfillment',
+      entityId: id,
+      userId: existing.salesOrder?.userId ?? null,
+      action: 'delete',
+      context: 'Fulfillment Header',
+      fields: [
+        { fieldName: 'Fulfillment #', value: existing.number },
+      ],
     })
 
     return NextResponse.json({ ok: true })

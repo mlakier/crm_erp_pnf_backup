@@ -3,8 +3,7 @@ import { prisma } from '@/lib/prisma'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
-import EditButton from '@/components/EditButton'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
@@ -124,11 +123,12 @@ export default async function CurrenciesPage({
                   <MasterDataMutedCell columnId="created">{formatMasterDataDate(currency.createdAt)}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="last-modified">{formatMasterDataDate(currency.updatedAt)}</MasterDataMutedCell>
                   <MasterDataBodyCell columnId="actions">
-                    <div className="flex items-center gap-2">
-                      <EditButton
-                        resource="currencies"
-                        id={currency.id}
-                        fields={[
+                    <ListRowActions
+                      viewHref={`/currencies/${currency.id}`}
+                      editButton={{
+                        resource: 'currencies',
+                        id: currency.id,
+                        fields: [
                           { name: 'currencyId', label: 'Currency Id', value: currency.currencyId },
                           { name: 'code', label: 'Code', value: currency.code },
                           { name: 'name', label: 'Name', value: currency.name },
@@ -136,10 +136,10 @@ export default async function CurrenciesPage({
                           { name: 'decimals', label: 'Decimals', value: String(currency.decimals), type: 'number' },
                           { name: 'isBase', label: 'Base Currency', value: currency.isBase ? 'true' : 'false', type: 'select', options: baseOptions },
                           { name: 'inactive', label: 'Inactive', value: currency.active ? 'false' : 'true', type: 'select', options: fieldOptions.inactive ?? [] },
-                        ]}
-                      />
-                      <DeleteButton resource="currencies" id={currency.id} />
-                    </div>
+                        ],
+                      }}
+                      deleteButton={{ resource: 'currencies', id: currency.id }}
+                    />
                   </MasterDataBodyCell>
                 </tr>
               ))

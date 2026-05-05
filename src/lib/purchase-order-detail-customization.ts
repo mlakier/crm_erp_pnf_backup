@@ -258,7 +258,7 @@ const DEFAULT_PURCHASE_ORDER_LINE_WIDTHS: Record<PurchaseOrderLineColumnKey, Pur
 
 const DEFAULT_PURCHASE_ORDER_LINE_EDIT_DISPLAY: Record<PurchaseOrderLineColumnKey, PurchaseOrderLineDisplayMode> = {
   line: 'label',
-  'item-id': 'idAndLabel',
+  'item-id': 'id',
   description: 'label',
   quantity: 'label',
   'received-qty': 'label',
@@ -266,6 +266,15 @@ const DEFAULT_PURCHASE_ORDER_LINE_EDIT_DISPLAY: Record<PurchaseOrderLineColumnKe
   'billed-qty': 'label',
   'unit-price': 'label',
   'line-total': 'label',
+}
+
+const DEFAULT_PURCHASE_ORDER_LINE_VIEW_DISPLAY: Record<PurchaseOrderLineColumnKey, PurchaseOrderLineDisplayMode> = {
+  ...DEFAULT_PURCHASE_ORDER_LINE_EDIT_DISPLAY,
+}
+
+const DEFAULT_PURCHASE_ORDER_LINE_DROPDOWN_DISPLAY: Record<PurchaseOrderLineColumnKey, PurchaseOrderLineDisplayMode> = {
+  ...DEFAULT_PURCHASE_ORDER_LINE_EDIT_DISPLAY,
+  'item-id': 'idAndLabel',
 }
 
 const DEFAULT_PURCHASE_ORDER_LINE_DROPDOWN_SORT: Record<PurchaseOrderLineColumnKey, PurchaseOrderLineDropdownSortMode> = {
@@ -374,8 +383,8 @@ export function defaultPurchaseOrderDetailCustomization(): PurchaseOrderDetailCu
           order: index,
           widthMode: DEFAULT_PURCHASE_ORDER_LINE_WIDTHS[column.id],
           editDisplay: DEFAULT_PURCHASE_ORDER_LINE_EDIT_DISPLAY[column.id],
-          viewDisplay: DEFAULT_PURCHASE_ORDER_LINE_EDIT_DISPLAY[column.id],
-          dropdownDisplay: DEFAULT_PURCHASE_ORDER_LINE_EDIT_DISPLAY[column.id],
+          viewDisplay: DEFAULT_PURCHASE_ORDER_LINE_VIEW_DISPLAY[column.id],
+          dropdownDisplay: DEFAULT_PURCHASE_ORDER_LINE_DROPDOWN_DISPLAY[column.id],
           dropdownSort: DEFAULT_PURCHASE_ORDER_LINE_DROPDOWN_SORT[column.id],
         },
       ]),

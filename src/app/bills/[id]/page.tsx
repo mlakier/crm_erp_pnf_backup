@@ -17,7 +17,9 @@ import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
 import TransactionActionStack from '@/components/TransactionActionStack'
 import DeleteButton from '@/components/DeleteButton'
 import BillRelatedDocuments from '@/components/BillRelatedDocuments'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import BillGlImpactSection from '@/components/BillGlImpactSection'
+import TransactionFourCurrencySection from '@/components/TransactionFourCurrencySection'
 import { parseCommunicationSummary, parseFieldChangeSummary } from '@/lib/activity'
 import { buildTransactionCommunicationComposePayload } from '@/lib/transaction-communications'
 import {
@@ -27,6 +29,10 @@ import {
   buildTransactionExportHeaderFields,
   getOrderedVisibleTransactionLineColumns,
 } from '@/lib/transaction-detail-helpers'
+import {
+  buildPostedCurrencyReadoutSection,
+  CURRENCY_READOUT_SECTION_TITLE,
+} from '@/lib/four-currency-readout'
 import {
   buildLinkedReferenceFieldDefinitions,
   buildLinkedReferencePreviewSources,
@@ -53,7 +59,9 @@ const BILL_STATUS_OPTIONS = [
 
 const BILL_LINE_COLUMNS = [
   { id: 'line' as const, label: 'Line' },
+  { id: 'line-type' as const, label: 'Line Type' },
   { id: 'item-id' as const, label: 'Item Id' },
+  { id: 'expense-account' as const, label: 'Expense Account' },
   { id: 'description' as const, label: 'Description' },
   { id: 'quantity' as const, label: 'Qty' },
   { id: 'unit-price' as const, label: 'Unit Price' },
@@ -75,7 +83,7 @@ export default async function BillDetailPage({
   const isCustomizing = customize === '1'
   const { moneySettings } = await loadCompanyDisplaySettings()
 
-  const [bill, vendors, purchaseOrders, subsidiaries, currencies, items, customization] = await Promise.all([
+  const [bill, billOpenItem, vendors, purchaseOrders, subsidiaries, currencies, items, expenseAccounts, customization] = await Promise.all([
     prisma.bill.findUnique({
       where: { id },
       include: {
@@ -87,10 +95,36 @@ export default async function BillDetailPage({
         subsidiary: true,
         currency: true,
         lineItems: {
-          include: { item: true },
+          include: {
+            item: true,
+            expenseAccount: {
+              select: { id: true, accountId: true, accountNumber: true, name: true },
+            },
+          },
           orderBy: [{ createdAt: 'asc' }],
         },
         billPayments: true,
+      },
+    }),
+    prisma.openItem.findFirst({
+      where: {
+        sourceTransactionType: 'bill',
+        sourceTransactionId: id,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        openItemNumber: true,
+        transactionCurrencyId: true,
+        localCurrencyId: true,
+        functionalCurrencyId: true,
+        groupCurrencyId: true,
+        originalTransactionAmount: true,
+        originalLocalAmount: true,
+        originalFunctionalAmount: true,
+        originalGroupAmount: true,
+        isOpen: true,
+        status: true,
       },
     }),
     prisma.vendor.findMany({
@@ -121,6 +155,16 @@ export default async function BillDetailPage({
       orderBy: [{ itemId: 'asc' }, { name: 'asc' }],
       select: { id: true, itemId: true, name: true, listPrice: true },
     }),
+    prisma.chartOfAccounts.findMany({
+      where: {
+        active: true,
+        isPosting: true,
+        accountType: { contains: 'expense', mode: 'insensitive' },
+      },
+      orderBy: [{ accountNumber: 'asc' }, { accountId: 'asc' }],
+      select: { id: true, accountId: true, accountNumber: true, name: true },
+      take: 500,
+    }),
     loadBillDetailCustomization(),
   ])
 
@@ -132,7 +176,7 @@ export default async function BillDetailPage({
       lineItems: {
         include: {
           account: {
-            select: { accountId: true, name: true },
+            select: { accountId: true, accountNumber: true, name: true },
           },
         },
       },
@@ -162,6 +206,7 @@ export default async function BillDetailPage({
 
   const detailHref = `/bills/${bill.id}`
   const billLabel = bill.number
+  const billDescription = bill.notes?.trim() || 'Bill'
 
   const activities = await prisma.activity.findMany({
     where: { entityType: 'bill', entityId: id },
@@ -196,6 +241,84 @@ export default async function BillDetailPage({
     value: currency.id,
     label: `${currency.code ?? currency.currencyId} - ${currency.name}`,
   }))
+  const currencyLabelById = new Map(
+    currencies.map((currency) => [currency.id, `${currency.code ?? currency.currencyId} - ${currency.name}`]),
+  )
+  const currencyCodeById = new Map(
+    currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]),
+  )
+  const relatedMasterDataTabs = [
+    {
+      key: 'vendors',
+      label: 'Vendors',
+      count: 1,
+      emptyMessage: 'No linked vendors.',
+      rows: [
+        {
+          id: bill.vendor.id,
+          type: 'Vendor',
+          reference: bill.vendor.vendorNumber ?? bill.vendor.id,
+          name: bill.vendor.name,
+          details: bill.vendor.email ?? bill.vendor.phone ?? 'Linked vendor',
+          href: `/vendors/${bill.vendor.id}`,
+        },
+      ],
+    },
+    bill.subsidiary
+      ? {
+          key: 'subsidiaries',
+          label: 'Subsidiaries',
+          count: 1,
+          emptyMessage: 'No linked subsidiaries.',
+          rows: [
+            {
+              id: bill.subsidiary.id,
+              type: 'Subsidiary',
+              reference: bill.subsidiary.subsidiaryId ?? bill.subsidiary.id,
+              name: bill.subsidiary.name,
+              details: 'Linked owning subsidiary',
+              href: `/subsidiaries/${bill.subsidiary.id}`,
+            },
+          ],
+        }
+      : null,
+    bill.currency
+      ? {
+          key: 'currencies',
+          label: 'Currencies',
+          count: 1,
+          emptyMessage: 'No linked currencies.',
+          rows: [
+            {
+              id: bill.currency.id,
+              type: 'Currency',
+              reference: bill.currency.code ?? bill.currency.currencyId ?? bill.currency.id,
+              name: bill.currency.name,
+              details: 'Linked transaction currency',
+              href: `/currencies/${bill.currency.id}`,
+            },
+          ],
+        }
+      : null,
+    bill.user
+      ? {
+          key: 'users',
+          label: 'Users',
+          count: 1,
+          emptyMessage: 'No linked users.',
+          rows: [
+            {
+              id: bill.user.id,
+              type: 'User',
+              reference: bill.user.userId ?? bill.user.id,
+              name: bill.user.name ?? bill.user.email ?? '-',
+              details: bill.user.email ?? 'Bill owner',
+              href: `/users/${bill.user.id}`,
+            },
+          ],
+        }
+      : null,
+  ].filter((tab): tab is NonNullable<typeof tab> => Boolean(tab))
 
   const sectionDescriptions: Record<string, string> = {
     'Document Identity': 'Core bill identifiers and source-document context.',
@@ -209,7 +332,7 @@ export default async function BillDetailPage({
     {
       id: 'total' as const,
       label: 'Total',
-      getValue: () => fmtCurrency(bill.total, undefined, moneySettings),
+      getValue: () => fmtCurrency(bill.total, bill.currency?.code ?? bill.currency?.currencyId ?? undefined, moneySettings),
       getValueTone: () => 'accent' as const,
     },
     {
@@ -249,7 +372,7 @@ export default async function BillDetailPage({
     supportsLink: Boolean(stat.getHref),
   }))
 
-  const headerFieldDefinitions: Record<BillDetailFieldKey, BillHeaderField> = {
+  const headerFieldDefinitions: Record<string, BillHeaderField> = {
     id: {
       key: 'id',
       label: 'DB Id',
@@ -261,12 +384,36 @@ export default async function BillDetailPage({
     },
     number: {
       key: 'number',
-      label: 'Bill Id',
+      label: 'Business Id',
       value: bill.number,
-      helpText: 'Identifier for this bill.',
+      helpText: 'Internal operational identifier for this bill.',
       fieldType: 'text',
       subsectionTitle: 'Bill Details',
       subsectionDescription: 'Core bill fields, linked records, and document totals.',
+    },
+    vendorBillNumber: {
+      key: 'vendorBillNumber',
+      label: 'Vendor Bill Number',
+      value: bill.vendorBillNumber ?? '',
+      displayValue: bill.vendorBillNumber ?? '-',
+      editable: true,
+      type: 'text',
+      helpText: 'Vendor-provided invoice or bill reference number.',
+      fieldType: 'text',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill identifiers and source-document context.',
+    },
+    vendorBillDate: {
+      key: 'vendorBillDate',
+      label: 'Vendor Bill Date',
+      value: bill.vendorBillDate ? bill.vendorBillDate.toISOString().slice(0, 10) : '',
+      displayValue: bill.vendorBillDate ? fmtDocumentDate(bill.vendorBillDate, moneySettings) : '-',
+      editable: true,
+      type: 'date',
+      helpText: 'Vendor-provided source-document date for this bill.',
+      fieldType: 'date',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill identifiers and source-document context.',
     },
     vendorId: {
       key: 'vendorId',
@@ -325,6 +472,7 @@ export default async function BillDetailPage({
       label: 'Subsidiary',
       value: bill.subsidiaryId ?? '',
       displayValue: bill.subsidiary ? `${bill.subsidiary.subsidiaryId} - ${bill.subsidiary.name}` : '-',
+      href: bill.subsidiary ? `/subsidiaries/${bill.subsidiary.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...subsidiaryOptions],
@@ -339,6 +487,7 @@ export default async function BillDetailPage({
       label: 'Currency',
       value: bill.currencyId ?? '',
       displayValue: bill.currency ? `${bill.currency.code ?? bill.currency.currencyId} - ${bill.currency.name}` : '-',
+      href: bill.currency ? `/currencies/${bill.currency.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...currencyOptions],
@@ -352,7 +501,7 @@ export default async function BillDetailPage({
       key: 'total',
       label: 'Total',
       value: String(bill.total),
-      displayValue: fmtCurrency(bill.total, undefined, moneySettings),
+      displayValue: fmtCurrency(bill.total, bill.currency?.code ?? bill.currency?.currencyId ?? undefined, moneySettings),
       helpText: 'Current bill total based on line items.',
       fieldType: 'currency',
       subsectionTitle: 'Sourcing & Financials',
@@ -430,13 +579,6 @@ export default async function BillDetailPage({
     },
   }
 
-  const headerSections = buildConfiguredTransactionSections({
-    fields: BILL_DETAIL_FIELDS,
-    layout: customization,
-    fieldDefinitions: headerFieldDefinitions,
-    sectionDescriptions,
-  })
-
   const referenceFieldDefinitions = buildLinkedReferenceFieldDefinitions(
     BILL_REFERENCE_SOURCES,
     {
@@ -460,7 +602,7 @@ export default async function BillDetailPage({
       userId: bill.user
         ? `${bill.user.userId ?? '-'}${bill.user.name ? ` - ${bill.user.name}` : ''}`
         : bill.userId || '',
-      total: fmtCurrency(bill.total, undefined, moneySettings),
+      total: fmtCurrency(bill.total, bill.currency?.code ?? bill.currency?.currencyId ?? undefined, moneySettings),
       date: fmtDocumentDate(bill.date, moneySettings),
       dueDate: bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '-',
       createdAt: fmtDocumentDate(bill.createdAt, moneySettings),
@@ -543,9 +685,13 @@ export default async function BillDetailPage({
   const lineRows = bill.lineItems.map((line, index) => ({
     id: line.id,
     displayOrder: index,
+    lineType: (line.lineType === 'expense' ? 'expense' : 'item') as 'item' | 'expense',
     itemRecordId: line.itemId,
     itemId: line.item?.itemId ?? null,
     itemName: line.item?.name ?? null,
+    expenseAccountRecordId: line.expenseAccountId,
+    expenseAccountId: line.expenseAccount?.accountId ?? null,
+    expenseAccountName: line.expenseAccount?.name ?? null,
     description: line.description,
     notes: line.notes,
     quantity: line.quantity,
@@ -555,17 +701,75 @@ export default async function BillDetailPage({
     unitPrice: Number(line.unitPrice),
     lineTotal: Number(line.lineTotal),
   }))
+  const formatMonetaryValue = (
+    value: number | string | null | undefined | { toString(): string; toNumber?: () => number },
+    currencyCode?: string | null,
+  ) => fmtCurrency(value, currencyCode ?? undefined, moneySettings)
+  const currencyReadoutSection = buildPostedCurrencyReadoutSection({
+    postingStatus: billOpenItem
+      ? billOpenItem.isOpen
+        ? `Posted to open item (${billOpenItem.status})`
+        : `Posted and settled (${billOpenItem.status})`
+      : 'Not posted to open items yet',
+    openItemId: billOpenItem?.id ?? null,
+    openItemNumber: billOpenItem?.openItemNumber ?? null,
+    transactionAmount: billOpenItem?.originalTransactionAmount ?? bill.total,
+    transactionCurrencyCode: currencyCodeById.get(billOpenItem?.transactionCurrencyId ?? bill.currencyId ?? '') ?? null,
+    transactionCurrencyLabel:
+      currencyLabelById.get(billOpenItem?.transactionCurrencyId ?? bill.currencyId ?? '') ??
+      (bill.currency ? `${bill.currency.code ?? bill.currency.currencyId} - ${bill.currency.name}` : null),
+    localAmount: billOpenItem?.originalLocalAmount ?? null,
+    localCurrencyCode: currencyCodeById.get(billOpenItem?.localCurrencyId ?? '') ?? null,
+    localCurrencyLabel: currencyLabelById.get(billOpenItem?.localCurrencyId ?? '') ?? null,
+    functionalAmount: billOpenItem?.originalFunctionalAmount ?? null,
+    functionalCurrencyCode: currencyCodeById.get(billOpenItem?.functionalCurrencyId ?? '') ?? null,
+    functionalCurrencyLabel: currencyLabelById.get(billOpenItem?.functionalCurrencyId ?? '') ?? null,
+    groupAmount: billOpenItem?.originalGroupAmount ?? null,
+    groupCurrencyCode: currencyCodeById.get(billOpenItem?.groupCurrencyId ?? '') ?? null,
+    groupCurrencyLabel: currencyLabelById.get(billOpenItem?.groupCurrencyId ?? '') ?? null,
+    fxRateType:
+      billOpenItem?.originalFunctionalAmount != null || billOpenItem?.originalGroupAmount != null ? 'spot' : null,
+    fxRateSource:
+      billOpenItem?.originalFunctionalAmount != null || billOpenItem?.originalGroupAmount != null
+        ? 'Configured exchange rates'
+        : null,
+    formatCurrency: formatMonetaryValue,
+  })
+  const fieldDefinitionsWithCurrency: Record<string, RecordHeaderField> = {
+    ...allFieldDefinitions,
+    ...Object.fromEntries(currencyReadoutSection.fields.map((field) => [field.key, field])),
+  }
+  const customizeFieldsWithCurrency = [
+    ...customizeFields,
+  ]
+  const configuredHeaderSections = buildConfiguredTransactionSections({
+    fields: BILL_DETAIL_FIELDS,
+    layout: customization,
+    fieldDefinitions: fieldDefinitionsWithCurrency,
+    sectionDescriptions: {
+      ...sectionDescriptions,
+      [CURRENCY_READOUT_SECTION_TITLE]: 'Read the transaction, local, functional, and group amounts from the posted bill context.',
+    },
+  })
+  const configuredCurrencySection =
+    configuredHeaderSections.find((section) => section.title === CURRENCY_READOUT_SECTION_TITLE) ?? currencyReadoutSection
+  const headerSections = configuredHeaderSections.filter((section) => section.title !== CURRENCY_READOUT_SECTION_TITLE)
+  const transactionCurrencyCode =
+    currencyCodeById.get(billOpenItem?.transactionCurrencyId ?? bill.currencyId ?? '') ?? null
+  const localCurrencyCode = currencyCodeById.get(billOpenItem?.localCurrencyId ?? '') ?? null
+  const functionalCurrencyCode = currencyCodeById.get(billOpenItem?.functionalCurrencyId ?? '') ?? null
+  const groupCurrencyCode = currencyCodeById.get(billOpenItem?.groupCurrencyId ?? '') ?? null
 
   return (
     <RecordDetailPageShell
-      backHref="/bills"
-      backLabel="<- Back to Bills"
+      backHref={isCustomizing ? detailHref : '/bills'}
+      backLabel={isCustomizing ? '<- Back to Bill Detail' : '<- Back to Bills'}
       meta={billLabel}
-      title={`Bill for ${bill.vendor.name}`}
+      title={billDescription}
       widthClassName="w-full max-w-none"
       actions={
         <TransactionActionStack
-          mode={isEditing ? 'edit' : 'detail'}
+          mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
           cancelHref={detailHref}
           formId={`inline-record-form-${bill.id}`}
           recordId={bill.id}
@@ -627,16 +831,21 @@ export default async function BillDetailPage({
         }
         header={
           isCustomizing ? (
-            <BillDetailCustomizeMode
-              detailHref={detailHref}
-              initialLayout={customization}
-              fields={customizeFields}
-              referenceSourceDefinitions={referenceSourceDefinitions}
-              sectionDescriptions={sectionDescriptions}
-              statPreviewCards={statPreviewCards}
-            />
+                <BillDetailCustomizeMode
+                  detailHref={detailHref}
+                  initialLayout={customization}
+                  fields={customizeFieldsWithCurrency}
+                  referenceSourceDefinitions={referenceSourceDefinitions}
+                  sectionDescriptions={sectionDescriptions}
+                  statPreviewCards={statPreviewCards}
+                />
           ) : (
             <div className="space-y-6">
+              <TransactionFourCurrencySection
+                section={configuredCurrencySection}
+                layout={customization}
+                description="Read the transaction, local, functional, and group amounts from the posted bill context."
+              />
               {referenceSections.length > 0 ? (
                 <RecordHeaderDetails
                   editing={false}
@@ -667,12 +876,12 @@ export default async function BillDetailPage({
         }
         lineItems={
           isCustomizing ? null : (
-          <TransactionLineItemsSection
+            <TransactionLineItemsSection
             rows={lineRows}
             editing={isEditing}
             purchaseOrderId={bill.id}
-            userId={bill.userId ?? 'system'}
-            itemOptions={items.map((item) => ({
+              userId={bill.userId ?? 'system'}
+              itemOptions={items.map((item) => ({
               id: item.id,
               itemId: item.itemId ?? 'Pending',
               name: item.name,
@@ -681,8 +890,10 @@ export default async function BillDetailPage({
                 description: item.name,
                 unitPrice: String(Number(item.listPrice ?? 0)),
               },
-            }))}
-            lineColumns={getOrderedVisibleTransactionLineColumns(BILL_LINE_COLUMNS, customization)}
+              }))}
+              accountOptions={expenseAccounts}
+              currencyCode={transactionCurrencyCode}
+              lineColumns={getOrderedVisibleTransactionLineColumns(BILL_LINE_COLUMNS, customization)}
             lineSettings={customization.lineSettings}
             lineColumnCustomization={customization.lineColumns}
             sectionTitle="Bill Line Items"
@@ -692,16 +903,22 @@ export default async function BillDetailPage({
           />
           )
         }
-        relatedRecords={isCustomizing ? null : (
+        relatedMasterData={isCustomizing ? null : (
+          <RelatedRecordsSection embedded tabs={relatedMasterDataTabs} showDisplayControl={false} />
+        )}
+        relatedMasterDataCount={relatedMasterDataTabs.reduce((sum, tab) => sum + tab.count, 0)}
+        relatedTransactionDocuments={isCustomizing ? null : (
           <BillRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={transactionCurrencyCode}
             purchaseRequisitions={linkedPurchaseOrder?.requisition ? [{
               id: linkedPurchaseOrder.requisition.id,
               number: linkedPurchaseOrder.requisition.number,
               status: linkedPurchaseOrder.requisition.status,
               total: Number(linkedPurchaseOrder.requisition.total),
               createdAt: linkedPurchaseOrder.requisition.createdAt,
+              currencyCode: transactionCurrencyCode,
             }] : []}
             purchaseOrders={bill.purchaseOrder ? [{
               id: bill.purchaseOrder.id,
@@ -709,6 +926,7 @@ export default async function BillDetailPage({
               status: bill.purchaseOrder.status,
               total: Number(bill.purchaseOrder.total),
               createdAt: bill.purchaseOrder.createdAt,
+              currencyCode: transactionCurrencyCode,
             }] : []}
             receipts={(linkedPurchaseOrder?.receipts ?? []).map((receipt) => ({
               id: receipt.id,
@@ -725,28 +943,29 @@ export default async function BillDetailPage({
               status: payment.status,
               amount: Number(payment.amount),
               reference: payment.reference,
+              currencyCode: transactionCurrencyCode,
             }))}
             moneySettings={moneySettings}
           />
         )}
-        relatedRecordsCount={
+        relatedTransactionDocumentsCount={
           (linkedPurchaseOrder?.requisition ? 1 : 0) +
           (bill.purchaseOrder ? 1 : 0) +
           (linkedPurchaseOrder?.receipts.length ?? 0) +
           bill.billPayments.length
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this bill yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         supplementarySections={
           isCustomizing ? null : (
             <BillGlImpactSection
               rows={glImpactRows}
               settings={customization.glImpactSettings}
               columnCustomization={customization.glImpactColumns}
+              currencyCodes={{
+                transaction: transactionCurrencyCode,
+                local: localCurrencyCode,
+                functional: functionalCurrencyCode,
+                group: groupCurrencyCode,
+              }}
             />
           )
         }
@@ -763,7 +982,7 @@ export default async function BillDetailPage({
               counterpartyName: bill.vendor.name,
               counterpartyEmail: bill.vendor.email,
               status: bill.status,
-              total: fmtCurrency(bill.total, undefined, moneySettings),
+              total: fmtCurrency(bill.total, bill.currency?.code ?? bill.currency?.currencyId ?? undefined, moneySettings),
               lineItems: bill.lineItems.map((line, index) => ({
                 line: index + 1,
                 itemId: line.item?.itemId ?? '-',

@@ -18,6 +18,10 @@ type PurchaseOrderOption = {
   id: string
   number: string
   userId?: string | null
+  subsidiaryId?: string | null
+  subsidiaryLabel?: string | null
+  currencyId?: string | null
+  currencyLabel?: string | null
   lineOptions: Array<{
     id: string
     lineNumber: number
@@ -125,6 +129,8 @@ export default function ReceiptCreatePageClient({
   const [error, setError] = useState('')
   const [headerValues, setHeaderValues] = useState<Record<string, string>>({
     purchaseOrderId: initialHeaderValues?.purchaseOrderId ?? purchaseOrders[0]?.id ?? '',
+    subsidiaryId: initialHeaderValues?.subsidiaryId ?? '',
+    currencyId: initialHeaderValues?.currencyId ?? '',
     quantity: initialHeaderValues?.quantity ?? '0',
     date: initialHeaderValues?.date ?? new Date().toISOString().slice(0, 10),
     status: initialHeaderValues?.status ?? statusOptions[0]?.value ?? '',
@@ -176,9 +182,19 @@ export default function ReceiptCreatePageClient({
     if (selectedId !== purchaseOrderIdRef.current) {
       purchaseOrderIdRef.current = selectedId
       setLineItems([])
+      setHeaderValues((current) => ({
+        ...current,
+        subsidiaryId: selectedPurchaseOrder?.subsidiaryId ?? '',
+        currencyId: selectedPurchaseOrder?.currencyId ?? '',
+      }))
       return
     }
 
+    setHeaderValues((current) => ({
+      ...current,
+      subsidiaryId: selectedPurchaseOrder?.subsidiaryId ?? current.subsidiaryId ?? '',
+      currencyId: selectedPurchaseOrder?.currencyId ?? current.currencyId ?? '',
+    }))
     setLineItems((current) => syncReceiptDraftRows(current, selectedPurchaseOrder))
   }, [selectedPurchaseOrder])
 
@@ -217,6 +233,30 @@ export default function ReceiptCreatePageClient({
       type: 'select',
       options: purchaseOrderOptions,
       helpText: 'Purchase order that this receipt belongs to.',
+      fieldType: 'list',
+      sourceText: 'Purchase order transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Receipt numbering and source purchase-order context for this receipt.',
+    },
+    subsidiaryId: {
+      key: 'subsidiaryId',
+      label: 'Subsidiary',
+      value: headerValues.subsidiaryId ?? '',
+      displayValue: selectedPurchaseOrder?.subsidiaryLabel ?? '-',
+      editable: false,
+      helpText: 'Subsidiary inherited from the linked purchase order posting context.',
+      fieldType: 'list',
+      sourceText: 'Purchase order transaction',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Receipt numbering and source purchase-order context for this receipt.',
+    },
+    currencyId: {
+      key: 'currencyId',
+      label: 'Currency',
+      value: headerValues.currencyId ?? '',
+      displayValue: selectedPurchaseOrder?.currencyLabel ?? '-',
+      editable: false,
+      helpText: 'Transaction currency inherited from the linked purchase order posting context.',
       fieldType: 'list',
       sourceText: 'Purchase order transaction',
       subsectionTitle: 'Document Identity',
@@ -312,6 +352,8 @@ export default function ReceiptCreatePageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           purchaseOrderId: values.purchaseOrderId,
+          subsidiaryId: values.subsidiaryId || null,
+          currencyId: values.currencyId || null,
           quantity: values.quantity,
           date: values.date,
           status: values.status,

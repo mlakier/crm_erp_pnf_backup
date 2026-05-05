@@ -3,14 +3,13 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
 import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
+import ListSearchActions from '@/components/ListSearchActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
 import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
 import { createRecordLabelMapFromValues, formatRecordLabel } from '@/lib/record-status-label'
@@ -166,12 +165,12 @@ export default async function InvoicesPage({
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
-            <ExportButton
+            <ListSearchActions
               tableId="invoices-list"
-              fileName="invoices"
+              exportFileName="invoices"
               exportAllUrl={buildMasterDataExportUrl('invoices', params.q)}
+              columns={INVOICE_COLUMNS}
             />
-            <ColumnSelector tableId="invoices-list" columns={INVOICE_COLUMNS} />
           </div>
         </form>
 
@@ -238,7 +237,11 @@ export default async function InvoicesPage({
                       {formatRecordLabel(invoice.status, statusLabelMap)}
                     </td>
                     <td data-column="total" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {fmtCurrency(invoice.total, undefined, moneySettings)}
+                      {fmtCurrency(
+                        invoice.total,
+                        invoice.currency?.code ?? invoice.currency?.currencyId ?? undefined,
+                        moneySettings,
+                      )}
                     </td>
                     <td data-column="due-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {invoice.dueDate ? fmtDocumentDate(invoice.dueDate, moneySettings) : '—'}
@@ -274,16 +277,11 @@ export default async function InvoicesPage({
                       {fmtDocumentDate(invoice.updatedAt, moneySettings)}
                     </td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/invoices/${invoice.id}?edit=1`}
-                          className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
-                          style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-                        >
-                          Edit
-                        </Link>
-                        <DeleteButton resource="invoices" id={invoice.id} />
-                      </div>
+                      <ListRowActions
+                        viewHref={`/invoices/${invoice.id}`}
+                        editHref={`/invoices/${invoice.id}?edit=1`}
+                        deleteButton={{ resource: 'invoices', id: invoice.id }}
+                      />
                     </td>
                   </tr>
                 ))

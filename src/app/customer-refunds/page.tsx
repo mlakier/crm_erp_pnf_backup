@@ -8,10 +8,9 @@ import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
 import { createRecordLabelMapFromValues, formatRecordLabel } from '@/lib/record-status-label'
 import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
+import ListRowActions from '@/components/ListRowActions'
+import ListSearchActions from '@/components/ListSearchActions'
 import PaginationFooter from '@/components/PaginationFooter'
-import DeleteButton from '@/components/DeleteButton'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import { getPagination } from '@/lib/pagination'
 
@@ -71,7 +70,8 @@ export default async function CustomerRefundsPage({
     where,
     include: {
       customer: true,
-      cashReceipt: true,
+      cashReceipt: { include: { invoice: { include: { currency: true } } } },
+      currency: true,
     },
     orderBy: [{ createdAt: 'desc' }],
     skip: pagination.skip,
@@ -126,8 +126,12 @@ export default async function CustomerRefundsPage({
           <input type="hidden" name="status" value={statusFilter} />
           <div className="flex items-center gap-3 flex-nowrap">
             <input type="text" name="q" defaultValue={params.q ?? ''} placeholder="Search customer refund id, customer, status, reference" className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
-            <ExportButton tableId="customer-refunds-list" fileName="customer-refunds" exportAllUrl={exportAllUrl} />
-            <ColumnSelector tableId="customer-refunds-list" columns={COLUMNS} />
+            <ListSearchActions
+              tableId="customer-refunds-list"
+              exportFileName="customer-refunds"
+              exportAllUrl={exportAllUrl}
+              columns={COLUMNS}
+            />
           </div>
         </form>
 
@@ -150,17 +154,30 @@ export default async function CustomerRefundsPage({
                   <td data-column="number" className="px-4 py-2 text-sm"><Link href={`/customer-refunds/${row.id}`} className="font-medium hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{row.number}</Link></td>
                   <td data-column="customer" className="px-4 py-2 text-sm">{row.customer ? <Link href={`/customers/${row.customerId}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>{row.customer.name}</Link> : '-'}</td>
                   <td data-column="source" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.cashReceipt?.number ?? '-'}</td>
-                  <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(row.amount, undefined, moneySettings)}</td>
+                  <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {fmtCurrency(
+                      row.amount,
+                      row.currency?.code
+                        ?? row.currency?.currencyId
+                        ?? row.cashReceipt?.invoice?.currency?.code
+                        ?? row.cashReceipt?.invoice?.currency?.currencyId
+                        ?? undefined,
+                      moneySettings,
+                    )}
+                  </td>
                   <td data-column="date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.date, moneySettings)}</td>
                   <td data-column="method" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.method}</td>
                   <td data-column="status" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{formatRecordLabel(row.status, statusLabelMap)}</td>
                   <td data-column="reference" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{row.reference ?? '-'}</td>
                   <td data-column="created" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.createdAt, moneySettings)}</td>
                   <td data-column="last-modified" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtDocumentDate(row.updatedAt, moneySettings)}</td>
-                  <td data-column="actions" className="px-4 py-2 text-sm"><span className="flex items-center gap-2">
-                    <Link href={`/customer-refunds/${row.id}?edit=1`} className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm" style={{ backgroundColor: 'var(--accent-primary-strong)' }}>Edit</Link>
-                    <DeleteButton id={row.id} endpoint="/api/customer-refunds" label={row.number} />
-                  </span></td>
+                  <td data-column="actions" className="px-4 py-2 text-sm">
+                    <ListRowActions
+                      viewHref={`/customer-refunds/${row.id}`}
+                      editHref={`/customer-refunds/${row.id}?edit=1`}
+                      deleteButton={{ id: row.id, endpoint: '/api/customer-refunds', label: row.number }}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

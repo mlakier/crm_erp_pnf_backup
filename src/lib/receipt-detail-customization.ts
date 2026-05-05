@@ -19,6 +19,8 @@ export type ReceiptDetailFieldKey =
   | 'id'
   | 'number'
   | 'purchaseOrderId'
+  | 'subsidiaryId'
+  | 'currencyId'
   | 'quantity'
   | 'date'
   | 'status'
@@ -65,6 +67,8 @@ export const RECEIPT_DETAIL_FIELDS: ReceiptDetailFieldMeta[] = [
   { id: 'id', label: 'DB Id', fieldType: 'text', description: 'Internal database identifier for this receipt.' },
   { id: 'number', label: 'Receipt Id', fieldType: 'text', description: 'Display identifier for this receipt.' },
   { id: 'purchaseOrderId', label: 'Purchase Order', fieldType: 'text', source: 'Purchase order transaction', description: 'Linked purchase order for this receipt.' },
+  { id: 'subsidiaryId', label: 'Subsidiary', fieldType: 'list', source: 'Purchase order transaction', description: 'Subsidiary derived from the linked purchase order posting context.' },
+  { id: 'currencyId', label: 'Currency', fieldType: 'list', source: 'Purchase order transaction', description: 'Transaction currency derived from the linked purchase order posting context.' },
   { id: 'quantity', label: 'Quantity', fieldType: 'number', description: 'Total quantity received on this receipt.' },
   { id: 'date', label: 'Date', fieldType: 'date', description: 'Date the receipt was recorded.' },
   { id: 'status', label: 'Status', fieldType: 'list', source: 'Receipt status list', description: 'Status of this receipt.' },
@@ -91,7 +95,7 @@ export function defaultReceiptDetailCustomization(): ReceiptDetailCustomizationC
     formColumns: 3,
     sections: ['Document Identity', 'Receipt Terms', 'Record Keys', 'System Dates'],
     sectionRows: {
-      'Document Identity': 1,
+      'Document Identity': 2,
       'Receipt Terms': 2,
       'Record Keys': 1,
       'System Dates': 1,
@@ -100,6 +104,8 @@ export function defaultReceiptDetailCustomization(): ReceiptDetailCustomizationC
       id: { visible: true, section: 'Record Keys', order: 0, column: 1 },
       number: { visible: true, section: 'Document Identity', order: 0, column: 1 },
       purchaseOrderId: { visible: true, section: 'Document Identity', order: 0, column: 2 },
+      subsidiaryId: { visible: true, section: 'Document Identity', order: 1, column: 1 },
+      currencyId: { visible: true, section: 'Document Identity', order: 1, column: 2 },
       quantity: { visible: true, section: 'Receipt Terms', order: 0, column: 1 },
       date: { visible: true, section: 'Receipt Terms', order: 0, column: 2 },
       status: { visible: true, section: 'Receipt Terms', order: 0, column: 3 },

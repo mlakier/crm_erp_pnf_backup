@@ -3,6 +3,7 @@ import type { TransactionPageConfig } from '@/lib/transaction-page-config'
 
 export type PurchaseRequisitionPageConfigRecord = {
   total: number
+  currencyCode?: string | null
   neededByDate: Date | null
   lineCount: number
   statusLabel: string
@@ -23,7 +24,7 @@ export const purchaseRequisitionPageConfig: TransactionPageConfig<PurchaseRequis
       id: 'total',
       label: 'Requisition Total',
       accent: true,
-      getValue: (record) => fmtCurrency(record.total, undefined, record.moneySettings),
+      getValue: (record) => fmtCurrency(record.total, record.currencyCode ?? undefined, record.moneySettings),
     },
     {
       id: 'neededByDate',

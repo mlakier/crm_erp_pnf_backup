@@ -70,16 +70,18 @@ export default function SavedSearchViewSelector({
   }
 
   return (
-    <div className="w-52 shrink-0">
-      <SearchableSelect
-        selectedValue={selectedViewId}
-        options={options}
-        placeholder="Select saved search"
-        searchPlaceholder="Search saved view"
-        dropdownWidthMode="trigger"
-        clearSelectionOnQueryChange={false}
-        onSelect={handleSelect}
-      />
+    <div className="flex items-center shrink-0">
+      <div className="w-52 shrink-0">
+        <SearchableSelect
+          selectedValue={selectedViewId}
+          options={options}
+          placeholder="Select saved search"
+          searchPlaceholder="Search saved view"
+          dropdownWidthMode="trigger"
+          clearSelectionOnQueryChange={false}
+          onSelect={handleSelect}
+        />
+      </div>
     </div>
   )
 }

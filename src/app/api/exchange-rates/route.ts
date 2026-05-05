@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import {
+  getExchangeRateTypeLabel,
+  isCanonicalExchangeRateType,
+  normalizeExchangeRateType,
+} from '@/lib/exchange-rate-types'
 
 type ExchangeRatePayload = {
   baseCurrencyId?: unknown
@@ -20,7 +25,8 @@ function normalizePayload(body: ExchangeRatePayload) {
   const baseCurrencyId = String(body?.baseCurrencyId ?? '').trim()
   const quoteCurrencyId = String(body?.quoteCurrencyId ?? '').trim()
   const effectiveDateRaw = String(body?.effectiveDate ?? '').trim()
-  const rateType = String(body?.rateType ?? 'spot').trim() || 'spot'
+  const rawRateType = String(body?.rateType ?? 'spot').trim()
+  const rateType = normalizeExchangeRateType(rawRateType)
   const source = String(body?.source ?? '').trim() || null
   const notes = String(body?.notes ?? '').trim() || null
   const rate = Number(body?.rate)
@@ -30,6 +36,7 @@ function normalizePayload(body: ExchangeRatePayload) {
     baseCurrencyId,
     quoteCurrencyId,
     effectiveDateRaw,
+    rawRateType,
     rateType,
     source,
     notes,
@@ -78,13 +85,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Rate must be greater than 0.' }, { status: 400 })
     }
 
+    if (!isCanonicalExchangeRateType(payload.rawRateType)) {
+      return NextResponse.json({
+        error: 'Rate type must be one of Spot, Average, Closing, or Historical.',
+      }, { status: 400 })
+    }
+
     const created = await prisma.exchangeRate.create({
       data: {
         baseCurrencyId: payload.baseCurrencyId,
         quoteCurrencyId: payload.quoteCurrencyId,
         effectiveDate: new Date(payload.effectiveDateRaw),
         rate: payload.rate,
-        rateType: payload.rateType,
+        rateType: getExchangeRateTypeLabel(payload.rateType),
         source: payload.source,
         notes: payload.notes,
         active: payload.active,
@@ -118,6 +131,12 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Rate must be greater than 0.' }, { status: 400 })
     }
 
+    if (body?.rateType !== undefined && !isCanonicalExchangeRateType(payload.rawRateType)) {
+      return NextResponse.json({
+        error: 'Rate type must be one of Spot, Average, Closing, or Historical.',
+      }, { status: 400 })
+    }
+
     const updated = await prisma.exchangeRate.update({
       where: { id },
       data: Object.fromEntries(
@@ -126,7 +145,7 @@ export async function PUT(request: Request) {
           quoteCurrencyId: body?.quoteCurrencyId !== undefined ? payload.quoteCurrencyId : undefined,
           effectiveDate: body?.effectiveDate !== undefined ? new Date(payload.effectiveDateRaw) : undefined,
           rate: body?.rate !== undefined ? payload.rate : undefined,
-          rateType: body?.rateType !== undefined ? payload.rateType : undefined,
+          rateType: body?.rateType !== undefined ? getExchangeRateTypeLabel(payload.rateType) : undefined,
           source: body?.source !== undefined ? payload.source : undefined,
           notes: body?.notes !== undefined ? payload.notes : undefined,
           active: body?.active !== undefined ? payload.active : undefined,

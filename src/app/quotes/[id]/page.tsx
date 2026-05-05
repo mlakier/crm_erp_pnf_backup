@@ -10,6 +10,7 @@ import RecordHeaderDetails, { type RecordHeaderField } from '@/components/Record
 import TransactionLineItemsSection from '@/components/TransactionLineItemsSection'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import SystemNotesSection from '@/components/SystemNotesSection'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import TransactionDetailFrame from '@/components/TransactionDetailFrame'
 import TransactionStatsRow from '@/components/TransactionStatsRow'
 import CommunicationsSection from '@/components/CommunicationsSection'
@@ -138,6 +139,7 @@ export default async function QuoteDetailPage({
                 number: true,
                 status: true,
                 total: true,
+                currencyId: true,
                 dueDate: true,
                 createdAt: true,
                 cashReceipts: {
@@ -194,6 +196,8 @@ export default async function QuoteDetailPage({
   ])
 
   if (!quote) notFound()
+  const quoteCurrencyCode = quote.currency?.code ?? quote.currency?.currencyId ?? undefined
+  const currencyCodeById = new Map(currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]))
 
   const detailHref = `/quotes/${quote.id}`
   const activityUserIds = Array.from(new Set(activities.map((activity) => activity.userId).filter(Boolean))) as string[]
@@ -445,6 +449,7 @@ export default async function QuoteDetailPage({
       key: 'subsidiaryId',
       label: 'Subsidiary',
       value: quote.subsidiaryId ?? '',
+      href: quote.subsidiary ? `/subsidiaries/${quote.subsidiary.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...subsidiaryOptions],
@@ -458,6 +463,7 @@ export default async function QuoteDetailPage({
       key: 'currencyId',
       label: 'Currency',
       value: quote.currencyId ?? '',
+      href: quote.currency ? `/currencies/${quote.currency.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...currencyOptions],
@@ -496,7 +502,7 @@ export default async function QuoteDetailPage({
       key: 'total',
       label: 'Total',
       value: String(toNumericValue(quote.total, 0)),
-      displayValue: fmtCurrency(quote.total, undefined, moneySettings),
+      displayValue: fmtCurrency(quote.total, quoteCurrencyCode, moneySettings),
       helpText: 'Document total based on all quote line amounts.',
       fieldType: 'currency',
       subsectionTitle: 'Commercial Terms',
@@ -587,7 +593,7 @@ export default async function QuoteDetailPage({
       createdBy: createdByLabel,
       createdFrom: quote.opportunity?.opportunityNumber ?? '',
       validUntil: quote.validUntil ? fmtDocumentDate(quote.validUntil, moneySettings) : '-',
-      total: fmtCurrency(quote.total, undefined, moneySettings),
+      total: fmtCurrency(quote.total, quoteCurrencyCode, moneySettings),
       subsidiaryId: quote.subsidiary ? `${quote.subsidiary.subsidiaryId} - ${quote.subsidiary.name}` : '',
       currencyId: quote.currency ? `${quote.currency.code ?? quote.currency.currencyId} - ${quote.currency.name}` : '',
       customerPrimarySubsidiary: quote.customer.subsidiary ? `${quote.customer.subsidiary.subsidiaryId} - ${quote.customer.subsidiary.name}` : '',
@@ -604,6 +610,7 @@ export default async function QuoteDetailPage({
     opportunityId: quote.opportunity?.opportunityNumber ?? null,
     opportunityHref: quote.opportunity ? `/opportunities/${quote.opportunity.id}` : null,
     total: toNumericValue(quote.total, 0),
+    currencyCode: quoteCurrencyCode ?? null,
     validUntil: quote.validUntil,
     lineCount: lineRows.length,
     statusLabel: formatQuoteStatus(quote.status),
@@ -687,9 +694,8 @@ export default async function QuoteDetailPage({
       }
       widthClassName="w-full max-w-none"
       actions={
-        isCustomizing ? null : (
           <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
+            mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
             cancelHref={detailHref}
             formId={`inline-record-form-${quote.id}`}
             recordId={quote.id}
@@ -737,7 +743,6 @@ export default async function QuoteDetailPage({
               )
             }
           />
-        )
       }
       headerCenter={
         !isCustomizing && !isEditing ? (
@@ -854,9 +859,35 @@ export default async function QuoteDetailPage({
           )
         }
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'customer',
+                label: 'Customer',
+                count: 1,
+                emptyMessage: 'No related customer is linked to this quote.',
+                rows: [
+                  {
+                    id: quote.customer.id,
+                    type: 'Customer',
+                    reference: quote.customer.customerId ?? quote.customer.id,
+                    name: quote.customer.name,
+                    details: [quote.customer.email, quote.customer.phone].filter(Boolean).join(' | ') || '-',
+                    href: `/customers/${quote.customer.id}`,
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={1}
+        relatedDocuments={isCustomizing ? null : (
           <QuoteRelatedDocuments
             embedded
             showDisplayControl={false}
+            defaultCurrencyCode={quoteCurrencyCode ?? null}
             opportunities={
               quote.opportunity
                 ? [
@@ -866,6 +897,7 @@ export default async function QuoteDetailPage({
                       name: quote.opportunity.name,
                       status: quote.opportunity.stage,
                       total: toNumericValue(quote.opportunity.amount, 0),
+                      currencyCode: currencyCodeById.get(quote.opportunity.currencyId ?? '') ?? null,
                     },
                   ]
                 : []
@@ -878,6 +910,7 @@ export default async function QuoteDetailPage({
                       number: quote.salesOrder.number,
                       status: quote.salesOrder.status,
                       total: toNumericValue(quote.salesOrder.total, 0),
+                      currencyCode: currencyCodeById.get(quote.salesOrder.currencyId ?? '') ?? null,
                     },
                   ]
                 : []
@@ -894,6 +927,7 @@ export default async function QuoteDetailPage({
               number: invoice.number,
               status: invoice.status,
               total: toNumericValue(invoice.total, 0),
+              currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
               dueDate: invoice.dueDate ? invoice.dueDate.toISOString() : null,
               createdAt: invoice.createdAt.toISOString(),
             }))}
@@ -902,6 +936,7 @@ export default async function QuoteDetailPage({
                 id: receipt.id,
                 number: receipt.number ?? 'Pending',
                 amount: toNumericValue(receipt.amount, 0),
+                currencyCode: currencyCodeById.get(invoice.currencyId ?? '') ?? null,
                 date: receipt.date.toISOString(),
                 method: receipt.method,
                 reference: receipt.reference,
@@ -909,13 +944,7 @@ export default async function QuoteDetailPage({
             )}
           />
         )}
-        relatedRecordsCount={relatedDocumentsCount}
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this quote yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
+        relatedDocumentsCount={relatedDocumentsCount}
         supplementarySections={null}
         communications={isCustomizing ? null : (
           <CommunicationsSection
@@ -931,7 +960,7 @@ export default async function QuoteDetailPage({
               counterpartyEmail: quote.customer.email ?? null,
               fromEmail: quote.user?.email ?? null,
               status: formatQuoteStatus(quote.status),
-              total: fmtCurrency(quote.total, undefined, moneySettings),
+                total: fmtCurrency(quote.total, quoteCurrencyCode, moneySettings),
               lineItems: lineRows.map((row, index) => ({
                 line: index + 1,
                 itemId: row.itemId ?? '-',

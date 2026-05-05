@@ -18,6 +18,26 @@ function cloneDefaults(): CustomerRefundDetailCustomizationConfig {
   return JSON.parse(JSON.stringify(defaultCustomerRefundDetailCustomization())) as CustomerRefundDetailCustomizationConfig
 }
 
+function mergeSections(
+  savedSections: unknown,
+  defaultSections: string[],
+) {
+  const normalizedSaved = Array.isArray(savedSections)
+    ? savedSections.filter((section): section is string => typeof section === 'string' && section.trim().length > 0)
+    : []
+
+  const seen = new Set<string>()
+  const merged: string[] = []
+
+  for (const section of [...defaultSections, ...normalizedSaved]) {
+    if (seen.has(section)) continue
+    seen.add(section)
+    merged.push(section)
+  }
+
+  return merged
+}
+
 function normalizeGlImpactColumns(
   input: unknown,
   fallback: CustomerRefundDetailCustomizationConfig['glImpactColumns'],
@@ -80,6 +100,7 @@ export async function loadCustomerRefundDetailCustomization(): Promise<CustomerR
     return {
       ...defaults,
       ...parsed,
+      sections: mergeSections(parsed.sections, defaults.sections),
       fields: {
         ...defaults.fields,
         ...(parsed.fields ?? {}),
@@ -116,6 +137,15 @@ export async function saveCustomerRefundDetailCustomization(
   const normalized = {
     ...defaults,
     ...nextConfig,
+    sections: mergeSections(nextConfig.sections, defaults.sections),
+    fields: {
+      ...defaults.fields,
+      ...(nextConfig.fields ?? {}),
+    },
+    sectionRows: {
+      ...defaults.sectionRows,
+      ...(nextConfig.sectionRows ?? {}),
+    },
     referenceLayouts: mergeTransactionReferenceLayouts(
       nextConfig.referenceLayouts,
       defaults.referenceLayouts,

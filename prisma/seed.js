@@ -34,7 +34,38 @@ function deriveCashFlowCategory(accountId, accountType) {
   return 'Operating'
 }
 
+function deriveRollforwardCategory(account) {
+  const accountId = String(account.accountId ?? account.accountNumber ?? '').trim().toLowerCase()
+  const name = String(account.name ?? '').trim().toLowerCase()
+  const accountType = String(account.accountType ?? '').trim().toLowerCase()
+  const category = String(account.category ?? '').trim().toLowerCase()
+
+  if (name.includes('intercompany')) return 'Intercompany'
+  if (name.includes('fx revaluation') || name.includes('foreign exchange revaluation') || name.includes('unrealized fx')) return 'FX Revaluation'
+  if (
+    ['1000', '1010'].includes(accountId)
+    || name.includes('cash')
+    || name.includes('bank')
+    || name.includes('checking')
+    || name.includes('deposit')
+  ) return 'Cash and Cash Equivalents'
+  if (name.includes('accounts receivable') || name.includes('a/r') || accountId === '1100') return 'Accounts Receivable'
+  if (name.includes('inventory')) return 'Inventory'
+  if (name.includes('prepaid') || name.includes('deferred cost')) return 'Prepaids and Other Current Assets'
+  if (name.includes('fixed asset') || name.includes('property') || name.includes('equipment') || category.includes('fixed asset')) return 'Fixed Assets'
+  if (name.includes('accumulated depreciation') || name.includes('accumulated amortization') || category.includes('contra asset') || accountId === '1310') return 'Accumulated Depreciation and Amortization'
+  if (name.includes('accounts payable') || name.includes('a/p') || accountId === '2000') return 'Accounts Payable'
+  if (name.includes('accrued') || accountId === '2100') return 'Accrued Expenses'
+  if (name.includes('deferred revenue') || name.includes('customer deposit') || ['2200', '2210'].includes(accountId)) return 'Deferred Revenue'
+  if (name.includes('debt') || name.includes('loan') || name.includes('note payable') || accountId === '2500') return 'Debt'
+  if (accountType === 'equity') return 'Equity'
+  if (accountType === 'asset') return category.includes('other asset') ? 'Other Assets' : 'Not Applicable'
+  if (accountType === 'liability') return category.includes('other liability') || category.includes('long term liability') ? 'Other Liabilities' : 'Not Applicable'
+  return 'Not Applicable'
+}
+
 async function main() {
+  const seedMasterData = process.env.SEED_MASTER_DATA === 'true'
   const passwordHash = await bcrypt.hash('Admin123!', 10)
 
   // Ensure admin role exists
@@ -108,12 +139,12 @@ async function main() {
       category: 'close',
       defaultRollForwardGroup: 'closing_balance',
     },
-    {
-      code: 'operational_movement',
-      name: 'Operational Movement',
-      category: 'operational',
-      defaultRollForwardGroup: 'operational_movement',
-    },
+      {
+        code: 'operational_movement',
+        name: 'Operational Movement',
+        category: 'operational',
+        defaultRollForwardGroup: 'other_activity',
+      },
     {
       code: 'settlement_application',
       name: 'Settlement Application',
@@ -145,37 +176,37 @@ async function main() {
       defaultRollForwardGroup: 'reopen',
       isOpenItemRelevant: true,
     },
-    {
-      code: 'accrual',
-      name: 'Accrual',
-      category: 'accrual_deferral',
-      defaultRollForwardGroup: 'accrual',
-    },
-    {
-      code: 'reversal',
-      name: 'Reversal',
-      category: 'accrual_deferral',
-      defaultRollForwardGroup: 'reversal',
-      isOpenItemRelevant: true,
-    },
-    {
-      code: 'deferral',
-      name: 'Deferral',
-      category: 'accrual_deferral',
-      defaultRollForwardGroup: 'deferral',
-    },
-    {
-      code: 'revenue_recognition',
-      name: 'Revenue Recognition',
-      category: 'schedule_based',
-      defaultRollForwardGroup: 'revenue_recognition',
-    },
-    {
-      code: 'amortization',
-      name: 'Amortization',
-      category: 'schedule_based',
-      defaultRollForwardGroup: 'amortization',
-    },
+      {
+        code: 'accrual',
+        name: 'Accrual',
+        category: 'accrual_deferral',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'reversal',
+        name: 'Reversal',
+        category: 'accrual_deferral',
+        defaultRollForwardGroup: 'reversals',
+        isOpenItemRelevant: true,
+      },
+      {
+        code: 'deferral',
+        name: 'Deferral',
+        category: 'accrual_deferral',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'revenue_recognition',
+        name: 'Revenue Recognition',
+        category: 'schedule_based',
+        defaultRollForwardGroup: 'releases',
+      },
+      {
+        code: 'amortization',
+        name: 'Amortization',
+        category: 'schedule_based',
+        defaultRollForwardGroup: 'releases',
+      },
     {
       code: 'realized_fx',
       name: 'Realized FX',
@@ -214,45 +245,178 @@ async function main() {
       isOpenItemRelevant: true,
       isClearingRelevant: true,
     },
-    {
-      code: 'intercompany_reclass',
-      name: 'Intercompany Reclass',
-      category: 'intercompany',
-      defaultRollForwardGroup: 'intercompany_reclass',
-      isIntercompanyRelevant: true,
-    },
-    {
-      code: 'elimination',
-      name: 'Elimination',
-      category: 'intercompany',
-      defaultRollForwardGroup: 'elimination',
-      isIntercompanyRelevant: true,
-    },
-    {
-      code: 'manual_adjustment',
-      name: 'Manual Adjustment',
-      category: 'adjustment',
-      defaultRollForwardGroup: 'manual_adjustment',
-    },
-    {
-      code: 'reclassification',
-      name: 'Reclassification',
-      category: 'adjustment',
-      defaultRollForwardGroup: 'reclassification',
-    },
-    {
-      code: 'allocation',
-      name: 'Allocation',
-      category: 'adjustment',
-      defaultRollForwardGroup: 'allocation',
-    },
-    {
-      code: 'fmv_allocation',
-      name: 'FMV Allocation',
-      category: 'adjustment',
-      defaultRollForwardGroup: 'fmv_allocation',
-    },
-  ]
+      {
+        code: 'intercompany_reclass',
+        name: 'Intercompany Reclass',
+        category: 'intercompany',
+        defaultRollForwardGroup: 'reclassifications',
+        isIntercompanyRelevant: true,
+      },
+      {
+        code: 'elimination',
+        name: 'Elimination',
+        category: 'intercompany',
+        defaultRollForwardGroup: 'reclassifications',
+        isIntercompanyRelevant: true,
+      },
+      {
+        code: 'manual_adjustment',
+        name: 'Manual Adjustment',
+        category: 'adjustment',
+        defaultRollForwardGroup: 'other_activity',
+      },
+      {
+        code: 'reclassification',
+        name: 'Reclassification',
+        category: 'adjustment',
+        defaultRollForwardGroup: 'reclassifications',
+      },
+      {
+        code: 'allocation',
+        name: 'Allocation',
+        category: 'adjustment',
+        defaultRollForwardGroup: 'reclassifications',
+      },
+      {
+        code: 'fmv_allocation',
+        name: 'FMV Allocation',
+        category: 'adjustment',
+        defaultRollForwardGroup: 'reclassifications',
+      },
+      {
+        code: 'ar_addition',
+        name: 'AR Addition',
+        category: 'operational',
+        defaultRollForwardGroup: 'additions',
+        isOpenItemRelevant: true,
+      },
+      {
+        code: 'ar_settlement',
+        name: 'AR Settlement',
+        category: 'settlement',
+        defaultRollForwardGroup: 'settlements',
+        isOpenItemRelevant: true,
+        isClearingRelevant: true,
+      },
+      {
+        code: 'ap_addition',
+        name: 'AP Addition',
+        category: 'operational',
+        defaultRollForwardGroup: 'additions',
+        isOpenItemRelevant: true,
+      },
+      {
+        code: 'ap_settlement',
+        name: 'AP Settlement',
+        category: 'settlement',
+        defaultRollForwardGroup: 'settlements',
+        isOpenItemRelevant: true,
+        isClearingRelevant: true,
+      },
+      {
+        code: 'cash_receipt',
+        name: 'Cash Receipt',
+        category: 'settlement',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'cash_disbursement',
+        name: 'Cash Disbursement',
+        category: 'settlement',
+        defaultRollForwardGroup: 'releases',
+      },
+      {
+        code: 'deferred_revenue_addition',
+        name: 'Deferred Revenue Addition',
+        category: 'accrual_deferral',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'expense_recognition',
+        name: 'Expense Recognition',
+        category: 'operational',
+        defaultRollForwardGroup: 'releases',
+      },
+      {
+        code: 'prepaid_addition',
+        name: 'Prepaid Addition',
+        category: 'accrual_deferral',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'fx_realized_gain',
+        name: 'FX Realized Gain',
+        category: 'fx',
+        defaultRollForwardGroup: 'realized_fx',
+        isFxRelevant: true,
+        isClearingRelevant: true,
+      },
+      {
+        code: 'fx_realized_loss',
+        name: 'FX Realized Loss',
+        category: 'fx',
+        defaultRollForwardGroup: 'realized_fx',
+        isFxRelevant: true,
+        isClearingRelevant: true,
+      },
+      {
+        code: 'fx_unrealized_revaluation',
+        name: 'FX Unrealized Revaluation',
+        category: 'fx',
+        defaultRollForwardGroup: 'unrealized_fx',
+        isFxRelevant: true,
+      },
+      {
+        code: 'accrual_build',
+        name: 'Accrual Build',
+        category: 'accrual_deferral',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'accrual_release',
+        name: 'Accrual Release',
+        category: 'accrual_deferral',
+        defaultRollForwardGroup: 'releases',
+      },
+      {
+        code: 'reclass',
+        name: 'Reclass',
+        category: 'adjustment',
+        defaultRollForwardGroup: 'reclassifications',
+      },
+      {
+        code: 'amortization_release',
+        name: 'Amortization Release',
+        category: 'schedule_based',
+        defaultRollForwardGroup: 'releases',
+      },
+      {
+        code: 'depreciation_expense',
+        name: 'Depreciation Expense',
+        category: 'schedule_based',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'reserve_build',
+        name: 'Reserve Build',
+        category: 'adjustment',
+        defaultRollForwardGroup: 'additions',
+      },
+      {
+        code: 'reserve_release',
+        name: 'Reserve Release',
+        category: 'adjustment',
+        defaultRollForwardGroup: 'releases',
+      },
+      {
+        code: 'open_item_clearing',
+        name: 'Open Item Clearing',
+        category: 'settlement',
+        defaultRollForwardGroup: 'settlements',
+        isOpenItemRelevant: true,
+        isClearingRelevant: true,
+      },
+    ]
 
   for (const activityType of activityTypeSeeds) {
     await prisma.activityTypeDefinition.upsert({
@@ -284,52 +448,50 @@ async function main() {
     })
   }
 
+  if (!seedMasterData) {
+    console.log('Seed completed: system bootstrap only (admin user, currencies, and activity types). Master data seeding is disabled by default.')
+    return
+  }
+
   const subsidiarySeeds = [
     {
       subsidiaryId: 'SUB-001',
       name: 'Main Subsidiary',
       legalName: 'Main Subsidiary LLC',
       entityType: 'Corporation',
-      defaultCurrencyCode: 'USD',
+      localCurrencyCode: 'USD',
+      groupCurrencyCode: 'USD',
     },
     {
       subsidiaryId: 'SUB-002',
       name: 'Europe Subsidiary',
       legalName: 'Europe Subsidiary GmbH',
       entityType: 'Corporation',
-      defaultCurrencyCode: 'EUR',
+      localCurrencyCode: 'EUR',
+      groupCurrencyCode: 'USD',
     },
     {
       subsidiaryId: 'SUB-003',
       name: 'UK Subsidiary',
       legalName: 'UK Subsidiary Ltd',
       entityType: 'Corporation',
-      defaultCurrencyCode: 'GBP',
+      localCurrencyCode: 'GBP',
+      groupCurrencyCode: 'USD',
     },
   ]
 
   for (const subsidiary of subsidiarySeeds) {
     await prisma.subsidiary.upsert({
       where: { subsidiaryId: subsidiary.subsidiaryId },
-      update: {
-        name: subsidiary.name,
-        legalName: subsidiary.legalName,
-        entityType: subsidiary.entityType,
-        defaultCurrencyId: currencyByCode.get(subsidiary.defaultCurrencyCode)?.id ?? null,
-        functionalCurrencyId: currencyByCode.get(subsidiary.defaultCurrencyCode)?.id ?? null,
-        reportingCurrencyId: currencyByCode.get('USD')?.id ?? null,
-        consolidationMethod: 'full',
-        retainedEarningsAccountId: null,
-        active: true,
-      },
+      update: {},
       create: {
         subsidiaryId: subsidiary.subsidiaryId,
         name: subsidiary.name,
         legalName: subsidiary.legalName,
         entityType: subsidiary.entityType,
-        defaultCurrencyId: currencyByCode.get(subsidiary.defaultCurrencyCode)?.id ?? null,
-        functionalCurrencyId: currencyByCode.get(subsidiary.defaultCurrencyCode)?.id ?? null,
-        reportingCurrencyId: currencyByCode.get('USD')?.id ?? null,
+        localCurrencyId: currencyByCode.get(subsidiary.localCurrencyCode)?.id ?? null,
+        functionalCurrencyId: currencyByCode.get(subsidiary.localCurrencyCode)?.id ?? null,
+        groupCurrencyId: currencyByCode.get(subsidiary.groupCurrencyCode)?.id ?? null,
         consolidationMethod: 'full',
         retainedEarningsAccountId: null,
         active: true,
@@ -396,6 +558,7 @@ async function main() {
         normalBalance: deriveNormalBalance(account.accountType, account.category),
         financialStatementSection: deriveFinancialStatementSection(account.accountType),
         financialStatementGroup: account.category ?? null,
+        rollforwardCategory: deriveRollforwardCategory(account),
         isPosting: !Boolean(account.summary),
         isControlAccount: ['1100', '2000', '1200', '1210', '2200'].includes(account.accountId),
         allowsManualPosting: !['1100', '2000', '1200', '1210', '2200'].includes(account.accountId),
@@ -420,6 +583,7 @@ async function main() {
         normalBalance: deriveNormalBalance(account.accountType, account.category),
         financialStatementSection: deriveFinancialStatementSection(account.accountType),
         financialStatementGroup: account.category ?? null,
+        rollforwardCategory: deriveRollforwardCategory(account),
         isPosting: !Boolean(account.summary),
         isControlAccount: ['1100', '2000', '1200', '1210', '2200'].includes(account.accountId),
         allowsManualPosting: !['1100', '2000', '1200', '1210', '2200'].includes(account.accountId),
@@ -1032,7 +1196,7 @@ async function main() {
     })
   }
 
-  console.log('Seed completed: admin user plus currencies, subsidiaries, chart of accounts, rev rec templates, departments, employees, customers, contacts, vendors, and items')
+  console.log('Seed completed: system bootstrap plus opt-in master data seeds.')
 }
 
 main()

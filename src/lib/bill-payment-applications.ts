@@ -7,7 +7,10 @@ export type BillApplicationCandidate = {
   total: number
   date: Date | string
   subsidiaryId: string | null
+  subsidiaryLabel?: string | null
   currencyId: string | null
+  currencyCode?: string | null
+  currencyLabel?: string | null
   userId: string | null
   openAmount: number
 }

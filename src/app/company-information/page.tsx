@@ -9,16 +9,6 @@ type CabinetFile = {
   originalName: string
 }
 
-type AccountOption = {
-  id: string
-  accountId: string
-  accountNumber: string
-  name: string
-  accountType: string
-  isPosting: boolean
-  active: boolean
-}
-
 type Settings = {
   companyName: string
   legalName: string
@@ -47,7 +37,6 @@ type Settings = {
 
 export default function CompanyInformationPage() {
   const [cabinetFiles, setCabinetFiles] = useState<CabinetFile[]>([])
-  const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [loadingCabinet, setLoadingCabinet] = useState(true)
   const [settings, setSettings] = useState<Settings>({
     companyName: '',
@@ -87,9 +76,6 @@ export default function CompanyInformationPage() {
 
         const settingsResponse = await fetch('/api/company-information/settings', { cache: 'no-store' })
         const settingsBody = (await settingsResponse.json()) as Partial<Settings>
-        const accountsResponse = await fetch('/api/chart-of-accounts', { cache: 'no-store' })
-        const accountsBody = accountsResponse.ok ? ((await accountsResponse.json()) as AccountOption[]) : []
-
         const files = body.files ?? []
         const hasForms = typeof settingsBody.companyLogoFormsFileId === 'string' && settingsBody.companyLogoFormsFileId.length > 0
         const hasPages = typeof settingsBody.companyLogoPagesFileId === 'string' && settingsBody.companyLogoPagesFileId.length > 0
@@ -123,7 +109,6 @@ export default function CompanyInformationPage() {
 
         if (mounted) {
           setCabinetFiles(files)
-          setAccounts(accountsBody)
           setSettings(nextSettings)
         }
 
@@ -161,13 +146,6 @@ export default function CompanyInformationPage() {
     }
   }
 
-  const postingAccounts = accounts.filter((account) => account.active !== false && account.isPosting !== false)
-  const apAccounts = postingAccounts.filter((account) =>
-    account.accountType.toLowerCase().includes('liability'),
-  )
-  const arAccounts = postingAccounts.filter((account) =>
-    account.accountType.toLowerCase().includes('asset'),
-  )
   const cabinetFileOptions = useMemo(
     () =>
       cabinetFiles.map((file) => ({
@@ -177,25 +155,6 @@ export default function CompanyInformationPage() {
       })),
     [cabinetFiles],
   )
-  const apAccountOptions = useMemo(
-    () =>
-      apAccounts.map((account) => ({
-        value: account.id,
-        label: `${account.accountId} - ${account.accountNumber} - ${account.name}`,
-        searchText: `${account.accountId} ${account.accountNumber} ${account.name}`,
-      })),
-    [apAccounts],
-  )
-  const arAccountOptions = useMemo(
-    () =>
-      arAccounts.map((account) => ({
-        value: account.id,
-        label: `${account.accountId} - ${account.accountNumber} - ${account.name}`,
-        searchText: `${account.accountId} ${account.accountNumber} ${account.name}`,
-      })),
-    [arAccounts],
-  )
-
   return (
     <div className="min-h-full px-8 py-8">
       <div className="max-w-6xl rounded-2xl border p-8" style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border-muted)' }}>
@@ -206,9 +165,14 @@ export default function CompanyInformationPage() {
               Review and maintain company-level profile, identity, and compliance details.
             </p>
           </div>
-          <Link href="/company-information/file-cabinet" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
-            Open File Cabinet
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/company-setup" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+              Open Company Setup
+            </Link>
+            <Link href="/company-information/file-cabinet" className="rounded-md border px-3 py-2 text-sm font-medium" style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}>
+              Open File Cabinet
+            </Link>
+          </div>
         </div>
 
         <form className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -314,32 +278,6 @@ export default function CompanyInformationPage() {
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Account ID</span>
               <input value={settings.accountId} onChange={(e) => updateSetting('accountId', e.target.value)} className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white" style={{ borderColor: 'var(--border-muted)' }} />
-            </label>
-
-            <div className="pt-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Accounting Defaults</h2>
-            </div>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Default AP Account</span>
-              <SearchableSelect
-                selectedValue={settings.defaultApAccountId}
-                onSelect={(value) => updateSetting('defaultApAccountId', value)}
-                options={apAccountOptions}
-                placeholder="Select AP account"
-                searchPlaceholder="Search AP account"
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Default AR Account</span>
-              <SearchableSelect
-                selectedValue={settings.defaultArAccountId}
-                onSelect={(value) => updateSetting('defaultArAccountId', value)}
-                options={arAccountOptions}
-                placeholder="Select AR account"
-                searchPlaceholder="Search AR account"
-              />
             </label>
 
             <label className="block">

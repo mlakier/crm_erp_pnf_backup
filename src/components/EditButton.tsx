@@ -18,17 +18,21 @@ export interface EditField {
   placeholder?: string
 }
 
+export interface EditButtonProps {
+  resource?: string
+  endpoint?: string
+  id: string
+  fields: EditField[]
+  forceModal?: boolean
+}
+
 export default function EditButton({
   resource,
   endpoint,
   id,
   fields,
-}: {
-  resource?: string
-  endpoint?: string
-  id: string
-  fields: EditField[]
-}) {
+  forceModal = false,
+}: EditButtonProps) {
   const [open, setOpen] = useState(false)
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((f) => [f.name, f.value]))
@@ -57,7 +61,7 @@ export default function EditButton({
   }
 
   const detailBasePath = resource ? masterDataDetailRoutes[resource] : undefined
-  const useFullPageDetail = Boolean(detailBasePath && pathname === detailBasePath)
+  const useFullPageDetail = Boolean(detailBasePath && pathname === detailBasePath && !forceModal)
 
   useEffect(() => { setMounted(true) }, [])
 

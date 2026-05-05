@@ -110,7 +110,7 @@ export default function InvoiceReceiptDetailEditor({
     [invoices],
   )
 
-  const headerFieldDefinitions: Record<InvoiceReceiptDetailFieldKey, InvoiceReceiptHeaderField> = {
+  const headerFieldDefinitions: Record<string, InvoiceReceiptHeaderField> = {
     customerName: {
       key: 'customerName',
       label: 'Customer Name',

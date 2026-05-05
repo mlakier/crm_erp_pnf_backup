@@ -4,6 +4,7 @@ import type { TransactionPageConfig, TransactionVisualTone } from '@/lib/transac
 export type SalesOrderPageConfigRecord = {
   id: string
   total: number
+  currencyCode?: string | null
   createdFrom: string | null
   lineCount: number
   statusLabel: string
@@ -35,7 +36,7 @@ export const salesOrderPageConfig: TransactionPageConfig<SalesOrderPageConfigRec
       id: 'total',
       label: 'Sales Order Total',
       accent: true,
-      getValue: (record) => fmtCurrency(record.total, undefined, record.moneySettings),
+      getValue: (record) => fmtCurrency(record.total, record.currencyCode ?? undefined, record.moneySettings),
     },
     {
       id: 'createdFrom',

@@ -40,7 +40,7 @@ export default async function ContactDetailPage({
   const isCustomizing = customize === '1'
   const fieldMetaById = buildFieldMetaById(CONTACT_FORM_FIELDS)
 
-  const [contact, fieldOptions, formCustomization, formRequirements] = await Promise.all([
+  const [contact, fieldOptions, formCustomization, formRequirements, currencies] = await Promise.all([
     prisma.contact.findUnique({
       where: { id },
       include: {
@@ -66,11 +66,16 @@ export default async function ContactDetailPage({
     loadFieldOptionsMap(fieldMetaById, ['customerId', 'vendorId', 'inactive']),
     loadContactFormCustomization(),
     loadFormRequirements(),
+    prisma.currency.findMany({
+      orderBy: { code: 'asc' },
+      select: { id: true, currencyId: true, code: true, name: true },
+    }),
   ])
 
   if (!contact) notFound()
 
   const detailHref = `/contacts/${contact.id}`
+  const currencyCodeById = new Map(currencies.map((currency) => [currency.id, currency.code ?? currency.currencyId ?? null]))
   const sectionDescriptions: Record<string, string> = {
     Core: 'Primary identity fields for the contact record.',
     Contact: 'Communication channels and mailing information.',
@@ -289,14 +294,14 @@ export default async function ContactDetailPage({
                 </Link>,
                 opportunity.name,
                 <RelatedDocumentsStatusBadge key="status" status={opportunity.stage} />,
-                fmtCurrency(opportunity.amount, undefined, moneySettings),
+                fmtCurrency(opportunity.amount, currencyCodeById.get(opportunity.currencyId ?? '') ?? undefined, moneySettings),
                 opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate, moneySettings) : '-',
               ],
               filterValues: [
                 opportunity.opportunityNumber ?? 'Pending',
                 opportunity.name,
                 opportunity.stage,
-                fmtCurrency(opportunity.amount, undefined, moneySettings),
+                fmtCurrency(opportunity.amount, currencyCodeById.get(opportunity.currencyId ?? '') ?? undefined, moneySettings),
                 opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate, moneySettings) : '-',
               ],
             })),
@@ -319,13 +324,13 @@ export default async function ContactDetailPage({
                   {purchaseOrder.number}
                 </Link>,
                 <RelatedDocumentsStatusBadge key="status" status={purchaseOrder.status} />,
-                fmtCurrency(purchaseOrder.total, undefined, moneySettings),
+                fmtCurrency(purchaseOrder.total, currencyCodeById.get(purchaseOrder.currencyId ?? '') ?? undefined, moneySettings),
                 fmtDocumentDate(purchaseOrder.createdAt, moneySettings),
               ],
               filterValues: [
                 purchaseOrder.number,
                 purchaseOrder.status,
-                fmtCurrency(purchaseOrder.total, undefined, moneySettings),
+                fmtCurrency(purchaseOrder.total, currencyCodeById.get(purchaseOrder.currencyId ?? '') ?? undefined, moneySettings),
                 fmtDocumentDate(purchaseOrder.createdAt, moneySettings),
               ],
             })),

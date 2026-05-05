@@ -4,8 +4,7 @@ import CreatePageLinkButton from '@/components/CreatePageLinkButton'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
-import EditButton from '@/components/EditButton'
-import DeleteButton from '@/components/DeleteButton'
+import ListRowActions from '@/components/ListRowActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import { getPagination } from '@/lib/pagination'
 import { MASTER_DATA_TABLE_DIVIDER_STYLE, getMasterDataRowStyle } from '@/lib/master-data-table'
@@ -328,10 +327,11 @@ export default async function DepartmentsPage({
 
                     return (
                       <MasterDataBodyCell key={`${department.id}-${columnId}`} columnId="actions">
-                        <div className="flex items-center gap-2">
-                          <EditButton resource="departments" id={department.id} fields={editFields} />
-                          <DeleteButton resource="departments" id={department.id} />
-                        </div>
+                        <ListRowActions
+                          viewHref={`/departments/${department.id}`}
+                          editButton={{ resource: 'departments', id: department.id, fields: editFields }}
+                          deleteButton={{ resource: 'departments', id: department.id }}
+                        />
                       </MasterDataBodyCell>
                     )
                   })}

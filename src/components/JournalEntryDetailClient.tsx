@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
@@ -19,7 +20,7 @@ import {
   RecordDetailHeaderCell,
   RecordDetailSection,
 } from '@/components/RecordDetailPanels'
-import { fmtCurrency, parseMoneyInput } from '@/lib/format'
+import { fmtCurrency, fmtDocumentDate, parseMoneyInput } from '@/lib/format'
 import { applyRequirementsToEditableFields, useFormRequirementsState } from '@/lib/form-requirements-client'
 import { moneyEquals, sumMoney } from '@/lib/money'
 import type { MoneySettings } from '@/lib/company-preferences-definitions'
@@ -36,6 +37,7 @@ import {
   type JournalLineDisplayMode,
   type JournalLineDropdownSortMode,
 } from '@/lib/journal-detail-customization'
+import { deriveManualJournalActivityType } from '@/lib/accounting-activity-types'
 import {
   buildConfiguredTransactionSections,
   buildTransactionCustomizePreviewFields,
@@ -44,6 +46,7 @@ import {
 import { buildTransactionCommunicationComposePayload } from '@/lib/transaction-communications'
 import { journalPageConfig } from '@/lib/transaction-page-configs/journal'
 import { findAccountingPeriodIdForDate } from '@/lib/accounting-periods'
+import type { DocumentRelationshipSummary } from '@/lib/document-relationships'
 
 type EntityOption = { id: string; subsidiaryId: string; name: string }
 type AccountOption = { id: string; accountId: string; accountNumber: string; name: string }
@@ -64,15 +67,35 @@ type PeriodOption = {
   status?: string | null
 }
 type EmployeeOption = { id: string; employeeId: string | null; eid: string | null; firstName: string; lastName: string }
+type JournalReferenceOption = { id: string; number: string; description: string | null; journalType: string; status: string }
+type OpenItemOption = {
+  id: string
+  openItemNumber: string
+  sourceNumber: string | null
+  openItemType: string
+  counterpartyType: string | null
+  counterpartyId: string | null
+  sourceTransactionType: string | null
+  sourceTransactionId: string | null
+  originalTransactionAmount: string
+  status: string
+}
 type SelectOption = { value: string; label: string }
 
 type JournalLineDraft = {
   key: string
   displayOrder: number
   accountId: string
+  activityTypeCode: string
   description: string
   debit: string
   credit: string
+  localDebit?: string
+  localCredit?: string
+  functionalDebit?: string
+  functionalCredit?: string
+  groupDebit?: string
+  groupCredit?: string
   memo: string
   subsidiaryId: string
   departmentId: string
@@ -82,6 +105,7 @@ type JournalLineDraft = {
   vendorId: string
   itemId: string
   employeeId: string
+  settlesOpenItemId: string
 }
 
 type JournalEntryDetailClientProps = {
@@ -106,8 +130,12 @@ type JournalEntryDetailClientProps = {
   currencies: CurrencyOption[]
   accountingPeriods: PeriodOption[]
   employees: EmployeeOption[]
+  journalEntries: JournalReferenceOption[]
+  openItems: OpenItemOption[]
   statusOptions: SelectOption[]
   sourceTypeOptions: SelectOption[]
+  activityTypeOptions: SelectOption[]
+  linkedDocuments?: DocumentRelationshipSummary[]
   createdByUserLabel?: string
   moneySettings: MoneySettings
   systemNotes?: SystemNoteRow[]
@@ -135,8 +163,12 @@ export default function JournalEntryDetailClient({
   currencies,
   accountingPeriods,
   employees,
+  journalEntries,
+  openItems,
   statusOptions,
   sourceTypeOptions,
+  activityTypeOptions,
+  linkedDocuments = [],
   createdByUserLabel = '-',
   moneySettings,
   systemNotes = [],
@@ -186,6 +218,12 @@ export default function JournalEntryDetailClient({
         employee: renderEmployeeLabel(employees, line.employeeId),
         debit: Number(line.debit || 0),
         credit: Number(line.credit || 0),
+        localDebit: Number(line.localDebit || 0),
+        localCredit: Number(line.localCredit || 0),
+        functionalDebit: Number(line.functionalDebit || 0),
+        functionalCredit: Number(line.functionalCredit || 0),
+        groupDebit: Number(line.groupDebit || 0),
+        groupCredit: Number(line.groupCredit || 0),
       })),
     [accounts, customers, departments, employees, entities, headerValues.subsidiaryId, isIntercompany, items, lineItems, locations, projects, vendors],
   )
@@ -243,6 +281,7 @@ export default function JournalEntryDetailClient({
           { label: 'Date', value: headerValues.date, type: 'date' },
           { label: 'Description', value: headerValues.description || '-' },
           { label: 'Status', value: statusOptions.find((option) => option.value === headerValues.status)?.label ?? headerValues.status },
+          { label: 'Open Item Relevant', value: headerValues.isOpenItemRelevant === 'true' ? 'Yes' : 'No' },
           { label: 'Subsidiary', value: renderEntityLabel(entities, headerValues.subsidiaryId, 'subsidiaryId') },
           { label: 'Currency', value: currencies.find((currency) => currency.id === headerValues.currencyId)?.code ?? '-' },
           { label: 'Accounting Period', value: accountingPeriods.find((period) => period.id === headerValues.accountingPeriodId)?.name ?? '-' },
@@ -252,15 +291,17 @@ export default function JournalEntryDetailClient({
           { label: 'Balance', value: fmtCurrency(balance, effectiveCurrencyCode, moneySettings) },
           { label: 'Source Type', value: (sourceTypeOptions.find((option) => option.value === headerValues.sourceType)?.label ?? headerValues.sourceType) || '-' },
           { label: 'Source Id', value: headerValues.sourceId || '-' },
+          { label: 'Reverses Journal', value: (journalEntries.find((journal) => journal.id === headerValues.reversesJournalEntryId)?.number ?? headerValues.reversesJournalEntryId) || '-' },
+          { label: 'Reversal Reason', value: headerValues.reversalReasonCode || '-' },
           { label: 'Created By', value: createdByUserLabel },
           { label: 'Prepared By', value: employees.find((employee) => employee.id === headerValues.postedByEmployeeId) ? `${employees.find((employee) => employee.id === headerValues.postedByEmployeeId)?.firstName} ${employees.find((employee) => employee.id === headerValues.postedByEmployeeId)?.lastName}` : '-' },
           { label: 'Approved By', value: employees.find((employee) => employee.id === headerValues.approvedByEmployeeId) ? `${employees.find((employee) => employee.id === headerValues.approvedByEmployeeId)?.firstName} ${employees.find((employee) => employee.id === headerValues.approvedByEmployeeId)?.lastName}` : '-' },
         ],
       },
     ],
-    [accountingPeriods, balance, createdByUserLabel, currencies, effectiveCurrencyCode, employees, entities, headerValues.accountingPeriodId, headerValues.approvedByEmployeeId, headerValues.currencyId, headerValues.date, headerValues.description, headerValues.number, headerValues.postedByEmployeeId, headerValues.sourceId, headerValues.sourceType, headerValues.status, headerValues.subsidiaryId, moneySettings, persistedTotalDisplay, sourceTypeOptions, statusOptions, totalCredits, totalDebits],
+    [accountingPeriods, balance, createdByUserLabel, currencies, effectiveCurrencyCode, employees, entities, headerValues.accountingPeriodId, headerValues.approvedByEmployeeId, headerValues.currencyId, headerValues.date, headerValues.description, headerValues.isOpenItemRelevant, headerValues.number, headerValues.postedByEmployeeId, headerValues.reversalReasonCode, headerValues.reversesJournalEntryId, headerValues.sourceId, headerValues.sourceType, headerValues.status, headerValues.subsidiaryId, journalEntries, moneySettings, persistedTotalDisplay, sourceTypeOptions, statusOptions, totalCredits, totalDebits],
   )
-  const relatedDocumentsCount = headerValues.sourceId ? 1 : 0
+  const relatedDocumentsCount = (headerValues.sourceId ? 1 : 0) + linkedDocuments.length
   const communicationRows = useMemo<CommunicationRow[]>(() => [], [])
   const composePayload =
     entryId && !customizing
@@ -315,6 +356,7 @@ export default function JournalEntryDetailClient({
     date: { key: 'date', label: 'Date', value: headerValues.date, editable: editing || isNew, type: 'date', fieldType: 'date', helpText: 'Posting date for the journal entry.' },
     description: { key: 'description', label: 'Description', value: headerValues.description, editable: editing || isNew, type: 'text', fieldType: 'text', helpText: 'Header description for the journal entry.' },
     status: { key: 'status', label: 'Status', value: headerValues.status, editable: editing || isNew, type: 'select', options: statusOptions, fieldType: 'list', helpText: 'Current lifecycle stage of the journal.', sourceText: 'Journal status list' },
+    isOpenItemRelevant: { key: 'isOpenItemRelevant', label: 'Open Item Relevant', value: headerValues.isOpenItemRelevant, editable: editing || isNew, type: 'checkbox', fieldType: 'checkbox', helpText: 'Determines whether this posted journal should participate in open item management.' },
     subsidiaryId: { key: 'subsidiaryId', label: 'Subsidiary', value: headerValues.subsidiaryId, editable: editing || isNew, type: 'select', options: entities.map((entity) => ({ value: entity.id, label: `${entity.subsidiaryId} - ${entity.name}` })), fieldType: 'list', helpText: 'Default subsidiary context for the journal.', sourceText: 'Subsidiaries master data' },
     currencyId: { key: 'currencyId', label: 'Currency', value: headerValues.currencyId, editable: editing || isNew, type: 'select', options: currencies.map((currency) => ({ value: currency.id, label: `${currency.code ?? currency.currencyId} - ${currency.name}` })), fieldType: 'list', helpText: 'Currency used for the journal header total display.', sourceText: 'Currencies master data' },
     accountingPeriodId: { key: 'accountingPeriodId', label: 'Accounting Period', value: headerValues.accountingPeriodId, editable: editing || isNew, disabled: true, type: 'select', options: accountingPeriods.map((period) => ({ value: period.id, label: period.name })), fieldType: 'list', helpText: 'Auto-derived from the posting date and matching accounting period.', sourceText: 'Accounting periods' },
@@ -322,6 +364,8 @@ export default function JournalEntryDetailClient({
     total: { key: 'total', label: 'Total', value: headerValues.total, displayValue: detailTotalDisplay, editable: false, fieldType: 'currency', helpText: 'Persisted journal total stored on the journal header.' },
     sourceType: { key: 'sourceType', label: 'Source Type', value: headerValues.sourceType, editable: editing || isNew, type: 'select', options: sourceTypeOptions, fieldType: 'list', helpText: 'Origin or purpose classification for the journal.', sourceText: 'Journal source type list' },
     sourceId: { key: 'sourceId', label: 'Source Id', value: headerValues.sourceId, editable: editing || isNew, type: 'text', fieldType: 'text', helpText: 'Identifier from the originating source record.' },
+    reversesJournalEntryId: { key: 'reversesJournalEntryId', label: 'Reverses Journal', value: headerValues.reversesJournalEntryId, editable: editing || isNew, type: 'select', options: journalEntries.filter((journal) => journal.id !== entryId).map((journal) => ({ value: journal.id, label: `${journal.number}${journal.description ? ` - ${journal.description}` : ''}` })), fieldType: 'list', helpText: 'Original journal entry that this journal is intended to reverse.', sourceText: 'Journal entries' },
+    reversalReasonCode: { key: 'reversalReasonCode', label: 'Reversal Reason', value: headerValues.reversalReasonCode, editable: editing || isNew, type: 'text', fieldType: 'text', helpText: 'Reason or explanation for the reversal relationship.' },
     userId: { key: 'userId', label: 'Created By', value: headerValues.userId, displayValue: createdByUserLabel, editable: false, fieldType: 'list', helpText: 'User account that created the journal entry.', sourceText: 'Users' },
     postedByEmployeeId: { key: 'postedByEmployeeId', label: 'Prepared By', value: headerValues.postedByEmployeeId, editable: editing || isNew, type: 'select', options: employees.map((employee) => ({ value: employee.id, label: `${employee.employeeId ?? 'EMP'} - ${employee.firstName} ${employee.lastName}` })), fieldType: 'list', helpText: 'Employee that prepared the journal.', sourceText: 'Employees master data' },
     approvedByEmployeeId: { key: 'approvedByEmployeeId', label: 'Approved By', value: headerValues.approvedByEmployeeId, editable: editing || isNew, type: 'select', options: employees.map((employee) => ({ value: employee.id, label: `${employee.employeeId ?? 'EMP'} - ${employee.firstName} ${employee.lastName}` })), fieldType: 'list', helpText: 'Employee that approved the journal.', sourceText: 'Employees master data' },
@@ -351,6 +395,7 @@ export default function JournalEntryDetailClient({
         fieldDefinitions,
         previewOverrides: {
           status: statusOptions.find((option) => option.value === headerValues.status)?.label ?? headerValues.status,
+          isOpenItemRelevant: headerValues.isOpenItemRelevant === 'true' ? 'Yes' : 'No',
           subsidiaryId: entities.find((entity) => entity.id === headerValues.subsidiaryId)
             ? `${entities.find((entity) => entity.id === headerValues.subsidiaryId)?.subsidiaryId} - ${entities.find((entity) => entity.id === headerValues.subsidiaryId)?.name}`
             : '',
@@ -359,6 +404,10 @@ export default function JournalEntryDetailClient({
             : '',
           accountingPeriodId: accountingPeriods.find((period) => period.id === headerValues.accountingPeriodId)?.name ?? '',
           sourceType: sourceTypeOptions.find((option) => option.value === headerValues.sourceType)?.label ?? headerValues.sourceType,
+          reversesJournalEntryId: journalEntries.find((journal) => journal.id === headerValues.reversesJournalEntryId)
+            ? `${journalEntries.find((journal) => journal.id === headerValues.reversesJournalEntryId)?.number}${journalEntries.find((journal) => journal.id === headerValues.reversesJournalEntryId)?.description ? ` - ${journalEntries.find((journal) => journal.id === headerValues.reversesJournalEntryId)?.description}` : ''}`
+            : '',
+          reversalReasonCode: headerValues.reversalReasonCode,
           postedByEmployeeId: employees.find((employee) => employee.id === headerValues.postedByEmployeeId)
             ? `${employees.find((employee) => employee.id === headerValues.postedByEmployeeId)?.employeeId ?? 'EMP'} - ${employees.find((employee) => employee.id === headerValues.postedByEmployeeId)?.firstName} ${employees.find((employee) => employee.id === headerValues.postedByEmployeeId)?.lastName}`
             : '',
@@ -377,12 +426,17 @@ export default function JournalEntryDetailClient({
     : headerValues.description || headerValues.number
 
   function addLine() {
+    const defaultActivityType = deriveManualJournalActivityType({
+      journalType: headerValues.journalType,
+      sourceType: headerValues.sourceType,
+    })
     setLineItems((current) => [
       ...current,
       {
         key: `${Date.now()}-${current.length}`,
         displayOrder: current.length,
         accountId: '',
+        activityTypeCode: defaultActivityType,
         description: '',
         debit: '',
         credit: '',
@@ -395,6 +449,7 @@ export default function JournalEntryDetailClient({
         vendorId: '',
         itemId: '',
         employeeId: '',
+        settlesOpenItemId: '',
       },
     ])
   }
@@ -405,6 +460,8 @@ export default function JournalEntryDetailClient({
         if (line.key !== key) return line
         if (field === 'debit') return { ...line, debit: value, credit: value ? '' : line.credit }
         if (field === 'credit') return { ...line, credit: value, debit: value ? '' : line.debit }
+        if (field === 'customerId') return { ...line, customerId: value, settlesOpenItemId: '' }
+        if (field === 'vendorId') return { ...line, vendorId: value, settlesOpenItemId: '' }
         return { ...line, [field]: value }
       }),
     )
@@ -448,6 +505,12 @@ export default function JournalEntryDetailClient({
     const filteredLines = lineItems
       .map((line) => ({
         accountId: line.accountId || null,
+        activityTypeCode:
+          line.activityTypeCode
+          || deriveManualJournalActivityType({
+            journalType: headerValues.journalType,
+            sourceType: headerValues.sourceType,
+          }),
         description: line.description || null,
         debit: line.debit || '0',
         credit: line.credit || '0',
@@ -460,6 +523,7 @@ export default function JournalEntryDetailClient({
         vendorId: line.vendorId || null,
         itemId: line.itemId || null,
         employeeId: line.employeeId || null,
+        settlesOpenItemId: line.settlesOpenItemId || null,
       }))
       .filter((line) => line.accountId && (Number(line.debit) > 0 || Number(line.credit) > 0))
 
@@ -471,11 +535,14 @@ export default function JournalEntryDetailClient({
         description: headerValues.description || null,
         journalType: headerValues.journalType || 'standard',
         status: headerValues.status,
+        isOpenItemRelevant: headerValues.isOpenItemRelevant === 'true',
         subsidiaryId: headerValues.subsidiaryId || null,
         currencyId: headerValues.currencyId || null,
         accountingPeriodId: headerValues.accountingPeriodId || null,
         sourceType: headerValues.sourceType || null,
         sourceId: headerValues.sourceId || null,
+        reversesJournalEntryId: headerValues.reversesJournalEntryId || null,
+        reversalReasonCode: headerValues.reversalReasonCode || null,
         postedByEmployeeId: headerValues.postedByEmployeeId || null,
         approvedByEmployeeId: headerValues.approvedByEmployeeId || null,
         lineItems: filteredLines,
@@ -509,13 +576,22 @@ export default function JournalEntryDetailClient({
 
   return (
     <RecordDetailPageShell
-      backHref={isIntercompany ? '/intercompany-journals' : '/journals'}
-      backLabel={isIntercompany ? '<- Back to Intercompany Journals' : '<- Back to Journal Entries'}
+      backHref={customizing ? detailHref : isIntercompany ? '/intercompany-journals' : '/journals'}
+      backLabel={
+        customizing
+          ? isIntercompany
+            ? '<- Back to Intercompany Journal Detail'
+            : '<- Back to Journal Detail'
+          : isIntercompany
+            ? '<- Back to Intercompany Journals'
+            : '<- Back to Journal Entries'
+      }
       meta={headerValues.number || initialNumber}
       title={title}
       badge={badge}
       widthClassName="w-full max-w-none"
       actions={
+        customizing ? null : (
         <RecordDetailActionBar
           mode={editing || isNew ? (isNew ? 'create' : 'edit') : 'detail'}
           detailHref={detailHref}
@@ -532,6 +608,7 @@ export default function JournalEntryDetailClient({
           onDelete={!isNew ? handleDelete : undefined}
           showDeleteInEdit={!isNew}
         />
+        )
       }
     >
       <div className="mb-8">
@@ -612,7 +689,14 @@ export default function JournalEntryDetailClient({
                 {visibleLineColumns.map((column) => (
                   <RecordDetailHeaderCell
                     key={column.id}
-                    className={column.id === 'debit' || column.id === 'credit' ? 'text-right' : undefined}
+                    className={
+                      column.id === 'debit' || column.id === 'credit'
+                      || column.id === 'localDebit' || column.id === 'localCredit'
+                      || column.id === 'functionalDebit' || column.id === 'functionalCredit'
+                      || column.id === 'groupDebit' || column.id === 'groupCredit'
+                        ? 'text-right'
+                        : undefined
+                    }
                   >
                     {column.label}
                   </RecordDetailHeaderCell>
@@ -654,6 +738,30 @@ export default function JournalEntryDetailClient({
                               <input value={line.description} onChange={(event) => updateLine(line.key, 'description', event.target.value)} className={lineInputClass} style={inputStyle} />
                             </EditableCell>
                           )
+                        case 'activityTypeCode':
+                          return (
+                            <EditableCell
+                              key={column.id}
+                              editing={editing || isNew}
+                              value={activityTypeOptions.find((option) => option.value === line.activityTypeCode)?.label ?? line.activityTypeCode ?? '-'}
+                              textClassName={lineReadOnlyTextClass}
+                              className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id])}
+                            >
+                              <SearchableSelectInput
+                                selectedValue={line.activityTypeCode}
+                                options={activityTypeOptions.map((option) => ({
+                                  value: option.value,
+                                  label: option.label,
+                                  searchText: `${option.label} ${option.value}`,
+                                }))}
+                                placeholder="Select activity type"
+                                searchPlaceholder="Search activity type"
+                                dropdownSort="label"
+                                textClassName={lineFontSize === 'sm' ? 'text-sm' : 'text-xs'}
+                                onSelect={(value) => updateLine(line.key, 'activityTypeCode', value)}
+                              />
+                            </EditableCell>
+                          )
                         case 'debit':
                           return (
                             <EditableCell key={column.id} editing={editing || isNew} value={formatLineAmount(line.debit, moneySettings)} textClassName={lineReadOnlyTextClass} className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id], 'text-right')}>
@@ -676,6 +784,78 @@ export default function JournalEntryDetailClient({
                                 className={`${lineInputClass} text-right`}
                                 style={inputStyle}
                               />
+                            </EditableCell>
+                          )
+                        case 'localDebit':
+                          return (
+                            <EditableCell
+                              key={column.id}
+                              editing={false}
+                              value={formatLineAmount(line.localDebit, moneySettings)}
+                              textClassName={lineReadOnlyTextClass}
+                              className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id], 'text-right')}
+                            >
+                              {null}
+                            </EditableCell>
+                          )
+                        case 'localCredit':
+                          return (
+                            <EditableCell
+                              key={column.id}
+                              editing={false}
+                              value={formatLineAmount(line.localCredit, moneySettings)}
+                              textClassName={lineReadOnlyTextClass}
+                              className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id], 'text-right')}
+                            >
+                              {null}
+                            </EditableCell>
+                          )
+                        case 'functionalDebit':
+                          return (
+                            <EditableCell
+                              key={column.id}
+                              editing={false}
+                              value={formatLineAmount(line.functionalDebit, moneySettings)}
+                              textClassName={lineReadOnlyTextClass}
+                              className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id], 'text-right')}
+                            >
+                              {null}
+                            </EditableCell>
+                          )
+                        case 'functionalCredit':
+                          return (
+                            <EditableCell
+                              key={column.id}
+                              editing={false}
+                              value={formatLineAmount(line.functionalCredit, moneySettings)}
+                              textClassName={lineReadOnlyTextClass}
+                              className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id], 'text-right')}
+                            >
+                              {null}
+                            </EditableCell>
+                          )
+                        case 'groupDebit':
+                          return (
+                            <EditableCell
+                              key={column.id}
+                              editing={false}
+                              value={formatLineAmount(line.groupDebit, moneySettings)}
+                              textClassName={lineReadOnlyTextClass}
+                              className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id], 'text-right')}
+                            >
+                              {null}
+                            </EditableCell>
+                          )
+                        case 'groupCredit':
+                          return (
+                            <EditableCell
+                              key={column.id}
+                              editing={false}
+                              value={formatLineAmount(line.groupCredit, moneySettings)}
+                              textClassName={lineReadOnlyTextClass}
+                              className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id], 'text-right')}
+                            >
+                              {null}
                             </EditableCell>
                           )
                         case 'subsidiaryId':
@@ -875,6 +1055,45 @@ export default function JournalEntryDetailClient({
                               />
                             </EditableCell>
                           )
+                        case 'settlesOpenItemId': {
+                          const settlementOptions = openItems
+                            .filter((openItem) => {
+                              if (!line.customerId && !line.vendorId) return false
+                              const targetType = line.customerId ? 'customer' : 'vendor'
+                              const targetId = line.customerId || line.vendorId
+                              return openItem.counterpartyType === targetType && openItem.counterpartyId === targetId
+                            })
+                            .map((openItem) => ({
+                              value: openItem.id,
+                              label: renderOpenItemLabel(openItem, 'idAndLabel', moneySettings),
+                              displayLabel: renderOpenItemLabel(
+                                openItem,
+                                getLineColumnDisplayMode(activeCustomization?.lineColumns?.[column.id], 'edit'),
+                                moneySettings,
+                              ),
+                              menuLabel: renderOpenItemLabel(
+                                openItem,
+                                getLineColumnDropdownDisplayMode(activeCustomization?.lineColumns?.[column.id]),
+                                moneySettings,
+                              ),
+                              searchText: `${openItem.openItemNumber} ${openItem.sourceNumber ?? ''} ${openItem.counterpartyId ?? ''} ${openItem.sourceTransactionId ?? ''} ${openItem.openItemType}`,
+                              sortIdText: openItem.openItemNumber,
+                              sortLabelText: `${openItem.sourceNumber ?? ''} ${openItem.sourceTransactionId ?? ''}`,
+                            }))
+                          return (
+                            <EditableCell key={column.id} editing={editing || isNew} value={renderOpenItemValue(openItems, line.settlesOpenItemId, getLineColumnDisplayMode(activeCustomization?.lineColumns?.[column.id], 'view'), moneySettings)} title={renderOpenItemLabelById(openItems, line.settlesOpenItemId, moneySettings)} textClassName={lineReadOnlyTextClass} className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id])}>
+                              <SearchableSelectInput
+                                selectedValue={line.settlesOpenItemId}
+                                options={settlementOptions}
+                                placeholder={line.customerId || line.vendorId ? 'None' : 'Pick customer or vendor first'}
+                                searchPlaceholder="Search open item"
+                                dropdownSort={getLineColumnDropdownSortMode(activeCustomization?.lineColumns?.[column.id])}
+                                textClassName={lineFontSize === 'sm' ? 'text-sm' : 'text-xs'}
+                                onSelect={(value) => updateLine(line.key, 'settlesOpenItemId', value)}
+                              />
+                            </EditableCell>
+                          )
+                        }
                         case 'memo':
                           return (
                             <EditableCell key={column.id} editing={editing || isNew} value={line.memo || '-'} textClassName={lineReadOnlyTextClass} className={getJournalLineColumnClass(column.id, activeCustomization?.lineColumns?.[column.id])}>
@@ -915,6 +1134,9 @@ export default function JournalEntryDetailClient({
           getRowKey={(row) => row.key}
           getHeaderClassName={(columnId) =>
             columnId === 'debit' || columnId === 'credit'
+              || columnId === 'localDebit' || columnId === 'localCredit'
+              || columnId === 'functionalDebit' || columnId === 'functionalCredit'
+              || columnId === 'groupDebit' || columnId === 'groupCredit'
               ? 'text-right'
               : undefined
           }
@@ -927,7 +1149,13 @@ export default function JournalEntryDetailClient({
                     activeCustomization?.glImpactColumns?.[columnId as JournalGlImpactColumnKey],
                   )
             const alignment = columnId === 'debit' || columnId === 'credit' ? 'text-right' : ''
-            return [widthClass, alignment, glImpactTextClass].filter(Boolean).join(' ')
+            const translatedAlignment =
+              columnId === 'localDebit' || columnId === 'localCredit'
+              || columnId === 'functionalDebit' || columnId === 'functionalCredit'
+              || columnId === 'groupDebit' || columnId === 'groupCredit'
+                ? 'text-right'
+                : ''
+            return [widthClass, alignment, translatedAlignment, glImpactTextClass].filter(Boolean).join(' ')
           }}
           renderCell={(line, columnId) => {
             switch (columnId as JournalGlImpactColumnKey) {
@@ -990,9 +1218,21 @@ export default function JournalEntryDetailClient({
                   getGlImpactColumnDisplayMode(activeCustomization?.glImpactColumns?.[columnId]),
                 )
               case 'debit':
-                return line.debit ? fmtCurrency(Number(line.debit), effectiveCurrencyCode, moneySettings) : '-'
+                return formatLineAmount(line.debit, moneySettings)
               case 'credit':
-                return line.credit ? fmtCurrency(Number(line.credit), effectiveCurrencyCode, moneySettings) : '-'
+                return formatLineAmount(line.credit, moneySettings)
+              case 'localDebit':
+                return formatLineAmount(line.localDebit, moneySettings)
+              case 'localCredit':
+                return formatLineAmount(line.localCredit, moneySettings)
+              case 'functionalDebit':
+                return formatLineAmount(line.functionalDebit, moneySettings)
+              case 'functionalCredit':
+                return formatLineAmount(line.functionalCredit, moneySettings)
+              case 'groupDebit':
+                return formatLineAmount(line.groupDebit, moneySettings)
+              case 'groupCredit':
+                return formatLineAmount(line.groupCredit, moneySettings)
               default:
                 return '-'
             }
@@ -1015,6 +1255,8 @@ export default function JournalEntryDetailClient({
                   sourceType={(sourceTypeOptions.find((option) => option.value === headerValues.sourceType)?.label ?? headerValues.sourceType) || '-'}
                   sourceId={headerValues.sourceId}
                   description={headerValues.description || '-'}
+                  linkedDocuments={linkedDocuments}
+                  moneySettings={moneySettings}
                 />
               ),
             },
@@ -1096,6 +1338,9 @@ function getJournalLineColumnClass(
     columnId === 'line'
       ? 'min-w-[48px]'
       : columnId === 'debit' || columnId === 'credit'
+        || columnId === 'localDebit' || columnId === 'localCredit'
+        || columnId === 'functionalDebit' || columnId === 'functionalCredit'
+        || columnId === 'groupDebit' || columnId === 'groupCredit'
         ? 'min-w-[110px]'
         : widthClassByMode[widthMode]
 
@@ -1125,6 +1370,9 @@ function getGlImpactColumnClass(
     columnId === 'line'
       ? 'min-w-[48px]'
       : columnId === 'debit' || columnId === 'credit'
+        || columnId === 'localDebit' || columnId === 'localCredit'
+        || columnId === 'functionalDebit' || columnId === 'functionalCredit'
+        || columnId === 'groupDebit' || columnId === 'groupCredit'
         ? 'min-w-[110px]'
         : widthClassByMode[widthMode]
 
@@ -1388,6 +1636,37 @@ function renderEmployeeValue(
   return renderCodeAndName(value.eid ?? value.employeeId ?? 'EMP', `${value.firstName} ${value.lastName}`.trim(), mode)
 }
 
+function renderOpenItemLabel(
+  openItem: OpenItemOption,
+  mode: JournalLineDisplayMode,
+  moneySettings: MoneySettings,
+) {
+  const idText = openItem.openItemNumber
+  const labelText = `${openItem.sourceNumber ?? openItem.sourceTransactionId ?? openItem.openItemType} (${fmtCurrency(openItem.originalTransactionAmount, undefined, moneySettings)})`
+  return renderCodeAndName(idText, labelText, mode)
+}
+
+function renderOpenItemLabelById(
+  values: OpenItemOption[],
+  selectedId: string,
+  moneySettings: MoneySettings,
+) {
+  const value = values.find((entry) => entry.id === selectedId)
+  if (!value) return ''
+  return renderOpenItemLabel(value, 'idAndLabel', moneySettings)
+}
+
+function renderOpenItemValue(
+  values: OpenItemOption[],
+  selectedId: string,
+  mode: JournalLineDisplayMode,
+  moneySettings: MoneySettings,
+) {
+  const value = values.find((entry) => entry.id === selectedId)
+  if (!value) return '-'
+  return renderOpenItemLabel(value, mode, moneySettings)
+}
+
 const inputStyle = { borderColor: 'var(--border-muted)' }
 
 function AccountLookupInput({
@@ -1605,28 +1884,69 @@ function JournalRelatedDocumentsSection({
   sourceType,
   sourceId,
   description,
+  linkedDocuments = [],
+  moneySettings,
 }: {
   embedded?: boolean
   count: number
   sourceType: string
   sourceId: string
   description: string
+  linkedDocuments?: DocumentRelationshipSummary[]
+  moneySettings: MoneySettings
 }) {
-  const content = sourceId ? (
+  const hasRows = Boolean(sourceId) || linkedDocuments.length > 0
+
+  const content = hasRows ? (
     <table className="min-w-full">
       <thead>
         <tr>
-          <RecordDetailHeaderCell>Source Type</RecordDetailHeaderCell>
-          <RecordDetailHeaderCell>Source Id</RecordDetailHeaderCell>
+          <RecordDetailHeaderCell>Relationship</RecordDetailHeaderCell>
+          <RecordDetailHeaderCell>Type</RecordDetailHeaderCell>
+          <RecordDetailHeaderCell>Txn Id</RecordDetailHeaderCell>
+          <RecordDetailHeaderCell>Status</RecordDetailHeaderCell>
+          <RecordDetailHeaderCell>Amount</RecordDetailHeaderCell>
+          <RecordDetailHeaderCell>Date</RecordDetailHeaderCell>
           <RecordDetailHeaderCell>Description</RecordDetailHeaderCell>
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <RecordDetailCell>{sourceType}</RecordDetailCell>
-          <RecordDetailCell>{sourceId}</RecordDetailCell>
-          <RecordDetailCell>{description}</RecordDetailCell>
-        </tr>
+        {sourceId ? (
+          <tr>
+            <RecordDetailCell>Source</RecordDetailCell>
+            <RecordDetailCell>{sourceType}</RecordDetailCell>
+            <RecordDetailCell>{sourceId}</RecordDetailCell>
+            <RecordDetailCell>-</RecordDetailCell>
+            <RecordDetailCell>-</RecordDetailCell>
+            <RecordDetailCell>-</RecordDetailCell>
+            <RecordDetailCell>{description}</RecordDetailCell>
+          </tr>
+        ) : null}
+        {linkedDocuments.map((document) => (
+          <tr key={document.id}>
+            <RecordDetailCell>{document.relationshipLabel}</RecordDetailCell>
+            <RecordDetailCell>{document.relatedRecordLabel}</RecordDetailCell>
+            <RecordDetailCell>
+              {document.href ? (
+                <Link
+                  href={document.href}
+                  className="hover:underline"
+                  style={{ color: 'var(--accent-primary-strong)' }}
+                >
+                  {document.relatedNumber}
+                </Link>
+              ) : (
+                document.relatedNumber
+              )}
+            </RecordDetailCell>
+            <RecordDetailCell>{document.relatedStatus ?? '-'}</RecordDetailCell>
+            <RecordDetailCell>
+              {document.relatedAmount != null ? fmtCurrency(document.relatedAmount, undefined, moneySettings) : '-'}
+            </RecordDetailCell>
+            <RecordDetailCell>{document.relatedDate ? fmtDocumentDate(document.relatedDate, moneySettings) : '-'}</RecordDetailCell>
+            <RecordDetailCell>{document.relatedDescription ?? '-'}</RecordDetailCell>
+          </tr>
+        ))}
       </tbody>
     </table>
   ) : (

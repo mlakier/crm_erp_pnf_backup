@@ -4,15 +4,14 @@ import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { DetailTableDisplayControl, DetailTablePaginationFooter } from '@/components/DetailTablePaging'
-import { fmtDocumentDate } from '@/lib/format'
 import {
   RecordDetailCell,
   RecordDetailEmptyState,
   RecordDetailHeaderCell,
   RecordDetailSection,
 } from '@/components/RecordDetailPanels'
-import { downloadPurchaseOrderPdf } from '@/lib/purchase-order-pdf'
 import type { TransactionCommunicationComposePayload } from '@/lib/transaction-communications'
+import { saveCommunicationDraft } from '@/lib/communication-draft-store'
 
 export type CommunicationRow = {
   id: string
@@ -42,7 +41,6 @@ export default function CommunicationsSection({
   extraToolbarActions?: ReactNode
   showDisplayControl?: boolean
 }) {
-  const [localRows, setLocalRows] = useState(rows)
   const [filters, setFilters] = useState<Record<FilterKey, string>>({
     date: '',
     direction: '',
@@ -52,31 +50,22 @@ export default function CommunicationsSection({
     to: '',
     status: '',
   })
-  const [showComposer, setShowComposer] = useState(false)
-  const [sending, setSending] = useState(false)
-  const [composeError, setComposeError] = useState('')
-  const [composeSuccess, setComposeSuccess] = useState('')
-  const [preparedMailto, setPreparedMailto] = useState('')
-  const [to, setTo] = useState(compose?.counterpartyEmail ?? '')
-  const [subject, setSubject] = useState(compose ? `${compose.documentLabel} ${compose.number}` : '')
-  const [message, setMessage] = useState(
-    compose ? `Please find ${compose.documentLabel} ${compose.number} for ${compose.counterpartyName}.` : ''
-  )
-  const [attachPdf, setAttachPdf] = useState(true)
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
-  const externalToolbarTarget =
-    toolbarTargetId && typeof document !== 'undefined' ? document.getElementById(toolbarTargetId) : null
+  const externalToolbarTarget = useMemo(() => {
+    if (typeof document === 'undefined' || !toolbarTargetId) return null
+    return document.getElementById(toolbarTargetId)
+  }, [toolbarTargetId])
 
   const filteredRows = useMemo(
     () =>
-      localRows.filter((row) =>
+      rows.filter((row) =>
         (Object.entries(filters) as Array<[FilterKey, string]>).every(([key, filterValue]) => {
           if (!filterValue.trim()) return true
           return row[key].toLowerCase().includes(filterValue.trim().toLowerCase())
         })
       ),
-    [filters, localRows]
+    [filters, rows]
   )
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -85,85 +74,13 @@ export default function CommunicationsSection({
     [currentPage, filteredRows, pageSize]
   )
 
-  async function handleSendEmail() {
-    if (!compose) return
-    if (!to.trim() || !subject.trim()) {
-      setComposeError('To and Subject are required.')
-      return
-    }
-
-    setSending(true)
-    setComposeError('')
-    setComposeSuccess('')
-
-    try {
-      const response = await fetch(compose.sendEmailEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          [compose.recordIdFieldName]: compose.recordId,
-          userId: compose.userId ?? null,
-          to,
-          from: compose.fromEmail ?? '',
-          subject,
-          preview: message,
-          attachPdf,
-        }),
-      })
-
-      const body = await response.json()
-      if (!response.ok) {
-        setComposeError(body?.error || 'Unable to prepare email.')
-        return
-      }
-
-      const optimisticRow: CommunicationRow = {
-        id: `local-${Date.now()}`,
-        date: fmtDocumentDate(new Date()),
-        direction: 'Outbound',
-        channel: 'Email',
-        subject: subject.trim(),
-        from: compose.fromEmail || '-',
-        to: to.trim(),
-        status: attachPdf ? 'Prepared (PDF)' : 'Prepared',
-      }
-
-      setLocalRows((prev) => [optimisticRow, ...prev])
-      setShowComposer(false)
-      setFilters({
-        date: '',
-        direction: '',
-        channel: '',
-        subject: '',
-        from: '',
-        to: '',
-        status: '',
-      })
-      setPage(1)
-      setPreparedMailto(
-        `mailto:${encodeURIComponent(to.trim())}?subject=${encodeURIComponent(subject.trim())}&body=${encodeURIComponent(message)}`
-      )
-      setComposeSuccess('Communication logged. Open your mail app if you want to continue sending manually.')
-
-      if (attachPdf) {
-        try {
-          downloadPurchaseOrderPdf({
-            number: compose.number,
-            vendorName: compose.counterpartyName,
-            vendorEmail: compose.counterpartyEmail,
-            status: compose.status,
-            total: compose.total,
-            lines: compose.lineItems,
-          })
-        } catch {
-          // PDF generation should never block communication logging.
-        }
-      }
-    } catch {
-      setComposeError('Unable to prepare email.')
-    } finally {
-      setSending(false)
-    }
+  function handleOpenComposer() {
+    if (!compose || typeof window === 'undefined') return
+    const draftKey = saveCommunicationDraft({
+      ...compose,
+      returnHref: `${window.location.pathname}${window.location.search}`,
+    })
+    window.location.assign(`/communications/compose?draft=${encodeURIComponent(draftKey)}`)
   }
 
   const actions = (
@@ -181,11 +98,7 @@ export default function CommunicationsSection({
       {compose ? (
         <button
           type="button"
-          onClick={() => {
-            setComposeError('')
-            setComposeSuccess('')
-            setShowComposer((prev) => !prev)
-          }}
+          onClick={handleOpenComposer}
           className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
           style={{ backgroundColor: 'var(--accent-primary-strong)' }}
         >
@@ -197,101 +110,7 @@ export default function CommunicationsSection({
 
   const content = (
     <>
-      {showComposer ? (
-        <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-muted)' }}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                To
-              </span>
-              <input
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
-                style={{ borderColor: 'var(--border-muted)' }}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                Subject
-              </span>
-              <input
-                value={subject}
-                onChange={(event) => setSubject(event.target.value)}
-                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
-                style={{ borderColor: 'var(--border-muted)' }}
-              />
-            </label>
-            <label className="block md:col-span-2">
-              <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                Message
-              </span>
-              <textarea
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                rows={5}
-                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm text-white"
-                style={{ borderColor: 'var(--border-muted)' }}
-              />
-            </label>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <label className="inline-flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              <input
-                type="checkbox"
-                checked={attachPdf}
-                onChange={(event) => setAttachPdf(event.target.checked)}
-              />
-              Attach PDF
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowComposer(false)}
-                className="rounded-md border px-3 py-1.5 text-sm"
-                style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSendEmail}
-                disabled={sending}
-                className="rounded-md px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
-                style={{ backgroundColor: 'var(--accent-primary-strong)' }}
-              >
-                {sending ? 'Preparing...' : 'Send Email'}
-              </button>
-            </div>
-          </div>
-          {composeError ? (
-            <p className="mt-2 text-sm" style={{ color: 'var(--danger)' }}>
-              {composeError}
-            </p>
-          ) : composeSuccess ? (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm" style={{ color: '#86efac' }}>
-                {composeSuccess}
-              </p>
-              {preparedMailto ? (
-                <a
-                  href={preparedMailto}
-                  className="rounded-md border px-3 py-1.5 text-xs font-medium"
-                  style={{ borderColor: 'var(--border-muted)', color: 'var(--text-secondary)' }}
-                >
-                  Open Mail App
-                </a>
-              ) : null}
-            </div>
-          ) : attachPdf ? (
-            <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-              PDF will be downloaded so you can attach it in your mail client.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {localRows.length === 0 ? (
+      {rows.length === 0 ? (
         <RecordDetailEmptyState message={`No communications tracked for this ${compose?.documentLabel?.toLowerCase() ?? 'record'} yet.`} />
       ) : (
         <>
@@ -402,7 +221,7 @@ export default function CommunicationsSection({
     <RecordDetailSection
       title="Communications"
       count={filteredRows.length}
-      summary={localRows.length ? `${localRows.length} total` : undefined}
+      summary={rows.length ? `${rows.length} total` : undefined}
       collapsible
       actions={actions}
     >

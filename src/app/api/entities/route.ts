@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { generateNextSubsidiaryCode } from '@/lib/subsidiary-code'
 
 export async function GET() {
-  const data = await prisma.subsidiary.findMany({ include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true }, orderBy: { subsidiaryId: 'asc' } })
+  const data = await prisma.subsidiary.findMany({ include: { localCurrency: true, functionalCurrency: true, groupCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true }, orderBy: { subsidiaryId: 'asc' } })
   return NextResponse.json(data)
 }
 
@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     const address = String(body?.address ?? '').trim() || null
     const taxId = String(body?.taxId ?? '').trim() || null
     const registrationNumber = String(body?.registrationNumber ?? '').trim() || null
-    const defaultCurrencyId = String(body?.defaultCurrencyId ?? '').trim() || null
+    const localCurrencyId = String(body?.localCurrencyId ?? body?.defaultCurrencyId ?? '').trim() || null
     const functionalCurrencyId = String(body?.functionalCurrencyId ?? '').trim() || null
-    const reportingCurrencyId = String(body?.reportingCurrencyId ?? '').trim() || null
+    const groupCurrencyId = String(body?.groupCurrencyId ?? body?.reportingCurrencyId ?? '').trim() || null
     const parentSubsidiaryId = String(body?.parentSubsidiaryId ?? '').trim() || null
     const consolidationMethod = String(body?.consolidationMethod ?? '').trim() || null
     const ownershipPercentRaw = String(body?.ownershipPercent ?? '').trim()
@@ -46,9 +46,9 @@ export async function POST(request: Request) {
         address,
         taxId,
         registrationNumber,
-        defaultCurrencyId,
+        localCurrencyId,
         functionalCurrencyId,
-        reportingCurrencyId,
+        groupCurrencyId,
         parentSubsidiaryId,
         consolidationMethod,
         ownershipPercent,
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         dueFromAccountId,
         active: !inactive,
       },
-      include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
+      include: { localCurrency: true, functionalCurrency: true, groupCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
     })
 
     return NextResponse.json(created, { status: 201 })
@@ -81,9 +81,17 @@ export async function PUT(request: Request) {
     const entityType = body?.entityType !== undefined ? (String(body.entityType).trim() || null) : undefined
     const country = body?.country !== undefined ? (String(body.country).trim() || null) : undefined
     const address = body?.address !== undefined ? (String(body.address).trim() || null) : undefined
-    const defaultCurrencyId = body?.defaultCurrencyId !== undefined ? (String(body.defaultCurrencyId).trim() || null) : undefined
+    const localCurrencyId = body?.localCurrencyId !== undefined
+      ? (String(body.localCurrencyId).trim() || null)
+      : body?.defaultCurrencyId !== undefined
+      ? (String(body.defaultCurrencyId).trim() || null)
+      : undefined
     const functionalCurrencyId = body?.functionalCurrencyId !== undefined ? (String(body.functionalCurrencyId).trim() || null) : undefined
-    const reportingCurrencyId = body?.reportingCurrencyId !== undefined ? (String(body.reportingCurrencyId).trim() || null) : undefined
+    const groupCurrencyId = body?.groupCurrencyId !== undefined
+      ? (String(body.groupCurrencyId).trim() || null)
+      : body?.reportingCurrencyId !== undefined
+      ? (String(body.reportingCurrencyId).trim() || null)
+      : undefined
     const parentSubsidiaryId = body?.parentSubsidiaryId !== undefined ? (String(body.parentSubsidiaryId).trim() || null) : undefined
     const taxId = body?.taxId !== undefined ? (String(body.taxId).trim() || null) : undefined
     const registrationNumber = body?.registrationNumber !== undefined ? (String(body.registrationNumber).trim() || null) : undefined
@@ -110,9 +118,9 @@ export async function PUT(request: Request) {
     const updated = await prisma.subsidiary.update({
       where: { id },
       data: Object.fromEntries(
-        Object.entries({ subsidiaryId: code, name, legalName, entityType, country, address, defaultCurrencyId, functionalCurrencyId, reportingCurrencyId, parentSubsidiaryId, taxId, registrationNumber, consolidationMethod, ownershipPercent, retainedEarningsAccountId, ctaAccountId, intercompanyClearingAccountId, dueToAccountId, dueFromAccountId, active }).filter(([, v]) => v !== undefined)
+        Object.entries({ subsidiaryId: code, name, legalName, entityType, country, address, localCurrencyId, functionalCurrencyId, groupCurrencyId, parentSubsidiaryId, taxId, registrationNumber, consolidationMethod, ownershipPercent, retainedEarningsAccountId, ctaAccountId, intercompanyClearingAccountId, dueToAccountId, dueFromAccountId, active }).filter(([, v]) => v !== undefined)
       ),
-      include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
+      include: { localCurrency: true, functionalCurrency: true, groupCurrency: true, parentSubsidiary: true, retainedEarningsAccount: true, ctaAccount: true, intercompanyClearingAccount: true, dueToAccount: true, dueFromAccount: true },
     })
     return NextResponse.json(updated)
   } catch (error) {

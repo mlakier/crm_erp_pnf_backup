@@ -23,7 +23,7 @@ The goal is to make FX and intercompany first-class accounting engines rather th
 
 ## Design Goals
 
-1. Support transaction, local, and functional currency contexts consistently.
+1. Support transaction, local, functional, and group currency contexts consistently.
 2. Preserve rate lineage used at source, settlement, remeasurement, and consolidation time.
 3. Attribute realized FX to the clearing event that caused it.
 4. Support unrealized FX and month-end remeasurement runs with full auditability.
@@ -338,12 +338,28 @@ Accounting-relevant records should preserve, where applicable:
 - transaction currency
 - local currency
 - functional currency
+- group currency
 
 and amounts in those contexts as required by the business object or posting layer.
 
 ### Rule
 
-Do not assume local and functional currency are always the same.
+Do not assume:
+
+- local and functional currency are always the same
+- functional and group currency are always the same
+- every entity shares the same functional currency
+
+### Currency-role interpretation
+
+- `transaction currency`
+  currency the transaction is entered or settled in
+- `local currency`
+  statutory / company-code / legal-book currency
+- `functional currency`
+  primary economic-environment currency of the entity
+- `group currency`
+  consolidated reporting currency used for enterprise reporting and CTA
 
 ## Realized FX Principle
 

@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { loadListValues } from '@/lib/load-list-values'
 import BillPaymentCreatePageClient from '@/components/BillPaymentCreatePageClient'
 import { loadBillPaymentDetailCustomization } from '@/lib/bill-payment-detail-customization-store'
+import { formatGlAccountLabel } from '@/lib/gl-account-label'
+import { loadCashBankPostingAccounts } from '@/lib/posting-account-options'
 import {
   normalizeBillPaymentApplications,
   roundMoney,
@@ -24,6 +26,12 @@ export default async function NewBillPaymentPage({
     prisma.bill.findMany({
       include: {
         vendor: true,
+        subsidiary: {
+          select: { subsidiaryId: true, name: true },
+        },
+        currency: {
+          select: { currencyId: true, code: true, name: true },
+        },
         paymentApplications: {
           include: {
             billPayment: {
@@ -46,19 +54,7 @@ export default async function NewBillPaymentPage({
     loadListValues('PAYMENT-METHOD'),
     loadListValues('BILL-PAYMENT-STATUS'),
     loadBillPaymentDetailCustomization(),
-    prisma.chartOfAccounts.findMany({
-      where: {
-        active: true,
-        isPosting: true,
-        accountType: 'Asset',
-        OR: [
-          { name: { contains: 'Cash', mode: 'insensitive' } },
-          { name: { contains: 'Bank', mode: 'insensitive' } },
-          { accountId: { in: ['1000', '1010'] } },
-        ],
-      },
-      orderBy: [{ accountId: 'asc' }],
-    }),
+    loadCashBankPostingAccounts(),
     duplicateFrom
       ? prisma.billPayment.findUnique({
           where: { id: duplicateFrom },
@@ -98,7 +94,10 @@ export default async function NewBillPaymentPage({
           total: Number(bill.total),
           date: bill.date,
           subsidiaryId: bill.subsidiaryId ?? null,
+          subsidiaryLabel: bill.subsidiary ? `${bill.subsidiary.subsidiaryId} - ${bill.subsidiary.name}` : null,
           currencyId: bill.currencyId ?? null,
+          currencyCode: bill.currency?.code ?? bill.currency?.currencyId ?? null,
+          currencyLabel: bill.currency ? `${bill.currency.code ?? bill.currency.currencyId} - ${bill.currency.name}` : null,
           userId: bill.userId ?? null,
           openAmount: roundMoney(Number(bill.total) - appliedViaApplications - appliedViaLegacyPayments),
         }
@@ -107,7 +106,7 @@ export default async function NewBillPaymentPage({
       statusOptions={statusValues.map((value) => ({ value: value.toLowerCase(), label: value }))}
       bankAccountOptions={cashAccounts.map((account) => ({
         value: account.id,
-        label: `${account.accountId} - ${account.name}`,
+        label: formatGlAccountLabel(account),
       }))}
       customization={customization}
       initialHeaderValues={

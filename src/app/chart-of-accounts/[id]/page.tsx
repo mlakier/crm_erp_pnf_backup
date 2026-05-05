@@ -82,7 +82,7 @@ export default async function ChartOfAccountDetailPage({
         },
       },
     }),
-    loadFieldOptionsMap(fieldMetaById, ['accountType', 'normalBalance', 'financialStatementCategory']),
+    loadFieldOptionsMap(fieldMetaById, ['accountType', 'normalBalance', 'financialStatementCategory', 'accountRole', 'rollforwardCategory']),
     loadChartOfAccountsFormCustomization(),
     loadFormRequirements(),
   ])
@@ -168,6 +168,24 @@ export default async function ChartOfAccountDetailPage({
       options: fieldOptions.financialStatementCategory ?? [],
       helpText: 'Detailed reporting category such as Cash, AR, Inventory, AP, or FX.',
       sourceText: getFieldSourceText(fieldMetaById, 'financialStatementCategory'),
+    },
+    accountRole: {
+      name: 'accountRole',
+      label: 'Account Role',
+      value: account.accountRole ?? '',
+      type: 'select',
+      options: fieldOptions.accountRole ?? [],
+      helpText: 'Operational role used for shared dropdown filters, defaults, and system account selection.',
+      sourceText: getFieldSourceText(fieldMetaById, 'accountRole'),
+    },
+    rollforwardCategory: {
+      name: 'rollforwardCategory',
+      label: 'Rollforward Category',
+      value: account.rollforwardCategory ?? '',
+      type: 'select',
+      options: fieldOptions.rollforwardCategory ?? [],
+      helpText: 'Controlled rollforward grouping used for downstream balance movement reporting.',
+      sourceText: getFieldSourceText(fieldMetaById, 'rollforwardCategory'),
     },
     subsidiaryIds: {
       name: 'subsidiaryIds',

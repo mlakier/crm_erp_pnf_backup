@@ -244,7 +244,7 @@ const DEFAULT_QUOTE_LINE_WIDTHS: Record<QuoteLineColumnKey, QuoteLineWidthMode> 
 
 const DEFAULT_QUOTE_LINE_EDIT_DISPLAY: Record<QuoteLineColumnKey, QuoteLineDisplayMode> = {
   line: 'label',
-  'item-id': 'idAndLabel',
+  'item-id': 'id',
   description: 'label',
   quantity: 'label',
   'unit-price': 'label',
@@ -257,6 +257,7 @@ const DEFAULT_QUOTE_LINE_VIEW_DISPLAY: Record<QuoteLineColumnKey, QuoteLineDispl
 
 const DEFAULT_QUOTE_LINE_DROPDOWN_DISPLAY: Record<QuoteLineColumnKey, QuoteLineDisplayMode> = {
   ...DEFAULT_QUOTE_LINE_EDIT_DISPLAY,
+  'item-id': 'idAndLabel',
 }
 
 const DEFAULT_QUOTE_LINE_DROPDOWN_SORT: Record<QuoteLineColumnKey, QuoteLineDropdownSortMode> = {

@@ -2,10 +2,8 @@ import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
 import { loadCompanyDisplaySettings } from '@/lib/company-display-settings'
-import DeleteButton from '@/components/DeleteButton'
-import EditButton from '@/components/EditButton'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
+import ListRowActions from '@/components/ListRowActions'
+import ListSearchActions from '@/components/ListSearchActions'
 import PaginationFooter from '@/components/PaginationFooter'
 import { RecordListHeaderLabel } from '@/components/RecordListHeaderLabel'
 import { getPagination } from '@/lib/pagination'
@@ -14,48 +12,36 @@ import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import { loadListValues } from '@/lib/load-list-values'
 import { createRecordLabelMapFromValues, formatRecordLabel } from '@/lib/record-status-label'
 import { buildMasterDataExportUrl } from '@/lib/master-data-export-url'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
+import { sanitizeSavedSearchDefinitionState, type SavedSearchCriterion } from '@/lib/saved-search-metadata'
+import { loadEffectiveSavedSearchDefinition } from '@/lib/load-effective-saved-search-definition'
+import { BILL_SAVED_SEARCH_FILTERS, buildBillListColumns, buildBillSavedSearchFields } from '@/lib/bills-saved-search-metadata'
 
-const BILL_COLUMNS = [
-  { id: 'bill-number', label: 'Bill Id' },
-  { id: 'vendor', label: 'Vendor' },
-  { id: 'status', label: 'Status' },
-  { id: 'total', label: 'Total' },
-  { id: 'bill-date', label: 'Bill Date' },
-  { id: 'due-date', label: 'Due Date' },
-  { id: 'db-id', label: 'DB Id' },
-  { id: 'created', label: 'Created' },
-  { id: 'last-modified', label: 'Last Modified' },
-  { id: 'actions', label: 'Actions', locked: true },
-]
+const BILL_COLUMNS = buildBillListColumns()
 
 export default async function BillsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>
+  searchParams: Promise<{ q?: string; status?: string; page?: string; view?: string }>
 }) {
   const params = await searchParams
+  const session = await getServerSession(authOptions)
+  const selectedViewId = (params.view ?? '').trim()
+  const defaultViewUserId = session?.user?.id ?? null
+  const savedDefinition = sanitizeSavedSearchDefinitionState(
+    await loadEffectiveSavedSearchDefinition({
+      tableId: 'bills-list',
+      userId: defaultViewUserId,
+      selectedViewId,
+    }),
+  )
   const { moneySettings } = await loadCompanyDisplaySettings()
-  const query = (params.q ?? '').trim()
-  const statusFilter = params.status ?? 'all'
+  const query = (params.q ?? savedDefinition.filterValues.keyword ?? '').trim()
+  const statusFilter = params.status ?? savedDefinition.filterValues.status ?? 'all'
 
-  const where = {
-    ...(query
-      ? {
-          OR: [
-            { number: { contains: query } },
-            { status: { contains: query } },
-            { vendor: { name: { contains: query } } },
-            { notes: { contains: query } },
-          ],
-        }
-      : {}),
-    ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-  }
-
-  const [totalBills, vendors, totalAmountAgg, companySettings, cabinetFiles, statusValues] = await Promise.all([
-    prisma.bill.count({ where }),
+  const [vendors, companySettings, cabinetFiles, statusValues] = await Promise.all([
     prisma.vendor.findMany({ orderBy: { name: 'asc' }, where: { inactive: false } }),
-    prisma.bill.aggregate({ where, _sum: { total: true } }),
     loadCompanyInformationSettings(),
     loadCompanyCabinetFiles(),
     loadListValues('BILL-STATUS'),
@@ -63,15 +49,179 @@ export default async function BillsPage({
 
   const statusOptions = ['all', ...statusValues.map((value) => value.toLowerCase())]
   const statusLabelMap = createRecordLabelMapFromValues(statusValues)
+  const billSavedSearchFields = buildBillSavedSearchFields({
+    vendors,
+    statusOptions: statusValues.map((value) => ({ value: value.toLowerCase(), label: value })),
+  })
+  const buildStringFilter = (operator: string, value: string) => {
+    const trimmed = value.trim()
+    switch (operator) {
+      case 'startsWith':
+        return trimmed ? { startsWith: trimmed, mode: 'insensitive' as const } : null
+      case 'is':
+        return trimmed ? { equals: trimmed, mode: 'insensitive' as const } : null
+      case 'isNot':
+        return trimmed ? { not: { equals: trimmed, mode: 'insensitive' as const } } : null
+      case 'isEmpty':
+        return ''
+      case 'isNotEmpty':
+        return { not: '' }
+      case 'contains':
+      default:
+        return trimmed ? { contains: trimmed, mode: 'insensitive' as const } : null
+    }
+  }
+
+  const buildBillCriterionCondition = (criterion: SavedSearchCriterion) => {
+    const value = criterion.value.trim()
+    const stringFilter = buildStringFilter(criterion.operator, value)
+
+    switch (criterion.fieldId) {
+      case 'bill-number':
+        return stringFilter === '' ? { OR: [{ number: null }, { number: '' }] } : stringFilter ? { number: stringFilter } : null
+      case 'vendor-bill-number':
+        return stringFilter === '' ? { OR: [{ vendorBillNumber: null }, { vendorBillNumber: '' }] } : stringFilter ? { vendorBillNumber: stringFilter } : null
+      case 'vendor-bill-date': {
+        if (criterion.operator === 'isEmpty') return { vendorBillDate: null }
+        if (criterion.operator === 'isNotEmpty') return { NOT: { vendorBillDate: null } }
+        if (!value) return null
+        const parsed = new Date(value)
+        if (Number.isNaN(parsed.getTime())) return null
+        const start = new Date(parsed)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(start)
+        end.setDate(end.getDate() + 1)
+        return criterion.operator === 'isNot'
+          ? { NOT: { vendorBillDate: { gte: start, lt: end } } }
+          : { vendorBillDate: { gte: start, lt: end } }
+      }
+      case 'vendor':
+        if (criterion.operator === 'isEmpty') return { vendorId: null }
+        if (criterion.operator === 'isNotEmpty') return { NOT: { vendorId: null } }
+        if (!value) return null
+        return criterion.operator === 'isNot' ? { NOT: { vendorId: value } } : { vendorId: value }
+      case 'status':
+        if (criterion.operator === 'isEmpty') return { OR: [{ status: null }, { status: '' }] }
+        if (criterion.operator === 'isNotEmpty') return { NOT: { OR: [{ status: null }, { status: '' }] } }
+        if (!value) return null
+        return criterion.operator === 'isNot' ? { NOT: { status: value } } : { status: value }
+      case 'notes':
+        return stringFilter === '' ? { OR: [{ notes: null }, { notes: '' }] } : stringFilter ? { notes: stringFilter } : null
+      case 'vendor.name':
+        return stringFilter ? { vendor: { is: { name: stringFilter } } } : criterion.operator === 'isEmpty' ? { vendor: { is: null } } : null
+      case 'vendor.vendorNumber':
+        return stringFilter ? { vendor: { is: { vendorNumber: stringFilter } } } : criterion.operator === 'isEmpty' ? { vendor: { is: null } } : null
+      default:
+        return null
+    }
+  }
+
+  const buildCriteriaWhere = (criteria: SavedSearchCriterion[]) => {
+    const validRows = criteria
+      .map((criterion) => ({
+        criterion,
+        condition: buildBillCriterionCondition(criterion),
+      }))
+      .filter((entry): entry is { criterion: SavedSearchCriterion; condition: NonNullable<ReturnType<typeof buildBillCriterionCondition>> } => Boolean(entry.condition))
+
+    if (validRows.length === 0) return null
+
+    const infix: Array<'(' | ')' | 'and' | 'or' | Record<string, unknown>> = []
+
+    validRows.forEach(({ criterion, condition }, index) => {
+      if (index > 0) infix.push(criterion.joiner)
+      for (let count = 0; count < criterion.openParens; count += 1) infix.push('(')
+      infix.push(condition)
+      for (let count = 0; count < criterion.closeParens; count += 1) infix.push(')')
+    })
+
+    const output: Array<'and' | 'or' | Record<string, unknown>> = []
+    const operators: Array<'(' | 'and' | 'or'> = []
+    const precedence = { or: 1, and: 2 }
+
+    for (const token of infix) {
+      if (token === '(') {
+        operators.push(token)
+        continue
+      }
+      if (token === ')') {
+        while (operators.length > 0 && operators[operators.length - 1] !== '(') {
+          output.push(operators.pop() as 'and' | 'or')
+        }
+        if (operators[operators.length - 1] === '(') operators.pop()
+        continue
+      }
+      if (token === 'and' || token === 'or') {
+        while (
+          operators.length > 0
+          && operators[operators.length - 1] !== '('
+          && precedence[operators[operators.length - 1] as 'and' | 'or'] >= precedence[token]
+        ) {
+          output.push(operators.pop() as 'and' | 'or')
+        }
+        operators.push(token)
+        continue
+      }
+      output.push(token)
+    }
+
+    while (operators.length > 0) {
+      const operator = operators.pop()
+      if (operator && operator !== '(') output.push(operator)
+    }
+
+    const stack: Record<string, unknown>[] = []
+    for (const token of output) {
+      if (token === 'and' || token === 'or') {
+        const right = stack.pop()
+        const left = stack.pop()
+        if (!left || !right) continue
+        stack.push(token === 'and' ? { AND: [left, right] } : { OR: [left, right] })
+        continue
+      }
+      stack.push(token)
+    }
+
+    return stack[0] ?? null
+  }
+
+  const criteriaWhere = buildCriteriaWhere(savedDefinition.criteria)
+  const keywordWhere = query
+    ? {
+        OR: [
+          { number: { contains: query } },
+          { vendorBillNumber: { contains: query } },
+          { status: { contains: query } },
+          { vendor: { name: { contains: query } } },
+          { vendor: { vendorNumber: { contains: query } } },
+          { notes: { contains: query } },
+        ],
+      }
+    : null
+  const statusWhere = statusFilter !== 'all' ? { status: statusFilter } : null
+  const whereParts = [keywordWhere, statusWhere, criteriaWhere].filter(Boolean)
+  const where = whereParts.length > 1 ? { AND: whereParts } : whereParts[0] ?? {}
+
   const exportAllUrl = buildMasterDataExportUrl('bills', query, undefined, {
     status: statusFilter !== 'all' ? statusFilter : undefined,
+    view: selectedViewId || undefined,
   })
+
+  const totalBills = await prisma.bill.count({ where })
 
   const pagination = getPagination(totalBills, params.page)
 
   const bills = await prisma.bill.findMany({
     where,
-    include: { vendor: true },
+    include: {
+      vendor: true,
+      currency: {
+        select: {
+          code: true,
+          currencyId: true,
+        },
+      },
+    },
     orderBy: [{ createdAt: 'desc' as const }],
     skip: pagination.skip,
     take: pagination.pageSize,
@@ -79,8 +229,9 @@ export default async function BillsPage({
 
   const buildPageHref = (nextPage: number) => {
     const search = new URLSearchParams()
-    if (params.q) search.set('q', params.q)
+    if (query) search.set('q', query)
     if (statusFilter !== 'all') search.set('status', statusFilter)
+    if (selectedViewId) search.set('view', selectedViewId)
     search.set('page', String(nextPage))
     return `/bills?${search.toString()}`
   }
@@ -100,7 +251,7 @@ export default async function BillsPage({
         <div>
           <h1 className="text-xl font-semibold text-white">Bills</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {totalBills} total, {fmtCurrency(totalAmountAgg._sum.total ?? 0, undefined, moneySettings)} total payable
+            {totalBills} total
           </p>
         </div>
         <Link
@@ -117,8 +268,9 @@ export default async function BillsPage({
         {statusOptions.map((status) => {
           const active = statusFilter === status
           const href = `/bills?${new URLSearchParams({
-            ...(params.q ? { q: params.q } : {}),
+            ...(query ? { q: query } : {}),
             status,
+            ...(selectedViewId ? { view: selectedViewId } : {}),
             page: '1',
           }).toString()}`
           return (
@@ -149,17 +301,36 @@ export default async function BillsPage({
         <form className="border-b px-6 py-4" method="get" style={{ borderColor: 'var(--border-muted)' }}>
           <input type="hidden" name="page" value="1" />
           <input type="hidden" name="status" value={statusFilter} />
+          {selectedViewId ? <input type="hidden" name="view" value={selectedViewId} /> : null}
           <div className="flex gap-3 items-center flex-nowrap">
             <input
               type="text"
               name="q"
-              defaultValue={params.q ?? ''}
-              placeholder="Search bill id, vendor, status, notes"
+              defaultValue={query}
+              placeholder="Search business id, vendor bill no, vendor, status, notes"
               className="flex-1 min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm text-white"
               style={{ borderColor: 'var(--border-muted)' }}
             />
-            <ExportButton tableId="bills-list" fileName="bills" exportAllUrl={exportAllUrl} />
-            <ColumnSelector tableId="bills-list" columns={BILL_COLUMNS} />
+            <ListSearchActions
+              tableId="bills-list"
+              exportFileName="bills"
+              exportAllUrl={exportAllUrl}
+              columns={BILL_COLUMNS}
+              title="Bills"
+              basePath="/bills"
+              filterDefinitions={[
+                BILL_SAVED_SEARCH_FILTERS[0],
+                {
+                  ...BILL_SAVED_SEARCH_FILTERS[1],
+                  options: statusOptions.map((status) => ({
+                    value: status,
+                    label: status === 'all' ? 'All' : formatRecordLabel(status, statusLabelMap),
+                  })),
+                },
+              ]}
+              criteriaFields={billSavedSearchFields}
+              resultFields={billSavedSearchFields}
+            />
           </div>
         </form>
 
@@ -182,7 +353,7 @@ export default async function BillsPage({
             <tbody>
               {bills.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={BILL_COLUMNS.length} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                     No bills found
                   </td>
                 </tr>
@@ -194,16 +365,25 @@ export default async function BillsPage({
                         {bill.number}
                       </Link>
                     </td>
+                    <td data-column="vendor-bill-number" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {bill.vendorBillNumber?.trim() || '-'}
+                    </td>
+                    <td data-column="vendor-bill-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {bill.vendorBillDate ? fmtDocumentDate(bill.vendorBillDate, moneySettings) : '-'}
+                    </td>
                     <td data-column="vendor" className="px-4 py-2 text-sm">
                       <Link href={`/vendors/${bill.vendorId}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
-                        {bill.vendor.name}
+                        {`${bill.vendor.vendorNumber?.trim() || 'Vendor'} - ${bill.vendor.name}`}
                       </Link>
                     </td>
                     <td data-column="status" className="px-4 py-2 text-sm">
                       <BillStatusBadge status={bill.status} label={formatRecordLabel(bill.status, statusLabelMap)} />
                     </td>
+                    <td data-column="notes" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {bill.notes?.trim() || '-'}
+                    </td>
                     <td data-column="total" className="px-4 py-2 text-sm text-white">
-                      {fmtCurrency(bill.total, undefined, moneySettings)}
+                      {fmtCurrency(bill.total, bill.currency?.code ?? bill.currency?.currencyId ?? undefined, moneySettings)}
                     </td>
                     <td data-column="bill-date" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
                       {fmtDocumentDate(bill.date, moneySettings)}
@@ -221,17 +401,28 @@ export default async function BillsPage({
                       {fmtDocumentDate(bill.updatedAt, moneySettings)}
                     </td>
                     <td data-column="actions" className="px-4 py-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <EditButton
-                          resource="bills"
-                          id={bill.id}
-                          fields={[
+                      <ListRowActions
+                        viewHref={`/bills/${bill.id}`}
+                        editButton={{
+                          resource: 'bills',
+                          id: bill.id,
+                          fields: [
                             {
                               name: 'vendorId',
                               label: 'Vendor',
                               value: bill.vendorId,
                               type: 'select',
-                              options: vendors.map((vendor) => ({ value: vendor.id, label: vendor.name })),
+                              options: vendors.map((vendor) => ({
+                                value: vendor.id,
+                                label: `${vendor.vendorNumber?.trim() || 'Vendor'} - ${vendor.name}`,
+                              })),
+                            },
+                            { name: 'vendorBillNumber', label: 'Vendor Bill Number', value: bill.vendorBillNumber ?? '', type: 'text' },
+                            {
+                              name: 'vendorBillDate',
+                              label: 'Vendor Bill Date',
+                              value: bill.vendorBillDate ? new Date(bill.vendorBillDate).toISOString().split('T')[0] : '',
+                              type: 'date',
                             },
                             { name: 'total', label: 'Total', value: String(bill.total), type: 'number' },
                             { name: 'date', label: 'Bill Date', value: new Date(bill.date).toISOString().split('T')[0], type: 'date' },
@@ -255,10 +446,10 @@ export default async function BillsPage({
                               ],
                             },
                             { name: 'notes', label: 'Notes', value: bill.notes ?? '' },
-                          ]}
-                        />
-                        <DeleteButton resource="bills" id={bill.id} />
-                      </div>
+                          ],
+                        }}
+                        deleteButton={{ resource: 'bills', id: bill.id }}
+                      />
                     </td>
                   </tr>
                 ))

@@ -1,8 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { loadListValues } from '@/lib/load-list-values'
+import { getAccountingActivityTypeOptions } from '@/lib/accounting-activity-types'
 
 export async function loadJournalEntryFormOptions() {
-  const [entities, accounts, departments, locations, projects, customers, vendors, items, currencies, accountingPeriods, employees, statusValues, sourceTypeValues] = await Promise.all([
+  const [entities, accounts, departments, locations, projects, customers, vendors, items, currencies, accountingPeriods, employees, journalEntries, openItems, statusValues, sourceTypeValues] = await Promise.all([
     prisma.subsidiary.findMany({ orderBy: { subsidiaryId: 'asc' }, select: { id: true, subsidiaryId: true, name: true } }),
     prisma.chartOfAccounts.findMany({
       where: { active: true, isPosting: true },
@@ -40,6 +41,28 @@ export async function loadJournalEntryFormOptions() {
       orderBy: [{ eid: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
       select: { id: true, employeeId: true, eid: true, firstName: true, lastName: true },
     }),
+    prisma.journalEntry.findMany({
+      orderBy: [{ date: 'desc' }, { number: 'desc' }],
+      take: 500,
+      select: { id: true, number: true, description: true, journalType: true, status: true },
+    }),
+    prisma.openItem.findMany({
+      where: { isOpen: true },
+      orderBy: [{ postingDate: 'desc' }, { createdAt: 'desc' }],
+      take: 1000,
+      select: {
+        id: true,
+        openItemNumber: true,
+        sourceNumber: true,
+        openItemType: true,
+        counterpartyType: true,
+        counterpartyId: true,
+        sourceTransactionType: true,
+        sourceTransactionId: true,
+        originalTransactionAmount: true,
+        status: true,
+      },
+    }),
     loadListValues('JOURNAL-STATUS'),
     loadListValues('JOURNAL-SOURCE-TYPE'),
   ])
@@ -60,8 +83,28 @@ export async function loadJournalEntryFormOptions() {
       endDate: period.endDate.toISOString(),
     })),
     employees,
+    journalEntries: journalEntries.map((journal) => ({
+      id: journal.id,
+      number: journal.number,
+      description: journal.description,
+      journalType: journal.journalType,
+      status: journal.status,
+    })),
+    openItems: openItems.map((openItem) => ({
+      id: openItem.id,
+      openItemNumber: openItem.openItemNumber,
+      sourceNumber: openItem.sourceNumber,
+      openItemType: openItem.openItemType,
+      counterpartyType: openItem.counterpartyType,
+      counterpartyId: openItem.counterpartyId,
+      sourceTransactionType: openItem.sourceTransactionType,
+      sourceTransactionId: openItem.sourceTransactionId,
+      originalTransactionAmount: openItem.originalTransactionAmount.toString(),
+      status: openItem.status,
+    })),
     statusOptions: statusValues.map((value) => ({ value: value.toLowerCase(), label: value })),
     statusFilterValues: ['all', ...statusValues.map((value) => value.toLowerCase())],
     sourceTypeOptions: sourceTypeValues.map((value) => ({ value, label: value })),
+    activityTypeOptions: getAccountingActivityTypeOptions(),
   }
 }

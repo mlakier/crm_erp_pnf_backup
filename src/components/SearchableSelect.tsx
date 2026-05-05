@@ -38,10 +38,12 @@ export default function SearchableSelect({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [showAllOnOpen, setShowAllOnOpen] = useState(false)
   const [blurRequest, setBlurRequest] = useState(0)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const selectedOptionRef = useRef<HTMLButtonElement | null>(null)
   const [dropdownStyle, setDropdownStyle] = useState<{ bottom: number; left: number; minWidth: number; maxWidth: number } | null>(null)
 
   const selectedOption = options.find((option) => option.value === selectedValue) ?? null
@@ -54,6 +56,7 @@ export default function SearchableSelect({
       if (!containerRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
         setOpen(false)
         setQuery(selectedLabel)
+        setShowAllOnOpen(false)
       }
     }
 
@@ -90,6 +93,11 @@ export default function SearchableSelect({
     inputRef.current?.blur()
   }, [blurRequest])
 
+  useEffect(() => {
+    if (!open) return
+    selectedOptionRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [open, selectedValue, query])
+
   const filteredOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
     const sortedOptions = [...options].sort((left, right) =>
@@ -102,26 +110,41 @@ export default function SearchableSelect({
         },
       ),
     )
+    if (showAllOnOpen && !normalizedQuery) return sortedOptions
     if (!normalizedQuery) return sortedOptions
     return sortedOptions.filter((option) => (option.searchText ?? option.label).toLowerCase().includes(normalizedQuery))
-  }, [options, query, sortMode])
+  }, [options, query, showAllOnOpen, sortMode])
 
   return (
     <div ref={containerRef} className="relative z-50">
       <div className="relative">
         <input
           ref={inputRef}
-          value={open ? query : selectedDisplayLabel}
+          value={open ? (showAllOnOpen && !query ? selectedDisplayLabel : query) : selectedDisplayLabel}
           onFocus={() => {
             if (disabled) return
             setOpen(true)
             setQuery('')
+            setShowAllOnOpen(true)
+          }}
+          onMouseDown={() => {
+            if (disabled || open) return
+            setOpen(true)
+            setQuery('')
+            setShowAllOnOpen(true)
+          }}
+          onClick={() => {
+            if (disabled || open) return
+            setOpen(true)
+            setQuery('')
+            setShowAllOnOpen(true)
           }}
           onChange={(event) => {
             if (disabled) return
             const nextQuery = event.target.value
             setQuery(nextQuery)
             setOpen(true)
+            setShowAllOnOpen(false)
             if (clearSelectionOnQueryChange && selectedValue && nextQuery !== selectedLabel) {
               onSelect('')
             }
@@ -149,7 +172,10 @@ export default function SearchableSelect({
             setOpen(nextOpen)
             if (nextOpen) {
               setQuery('')
+              setShowAllOnOpen(true)
               inputRef.current?.focus()
+            } else {
+              setShowAllOnOpen(false)
             }
           }}
           className="absolute inset-y-0 right-0 flex w-8 items-center justify-center rounded-r-md disabled:cursor-not-allowed"
@@ -193,6 +219,7 @@ export default function SearchableSelect({
                   onSelect('')
                   setQuery('')
                   setOpen(false)
+                  setShowAllOnOpen(false)
                   setBlurRequest((current) => current + 1)
                 }}
                 className={`block w-full whitespace-nowrap px-3 py-2 text-left hover:bg-white/5 ${textClassName}`}
@@ -203,16 +230,21 @@ export default function SearchableSelect({
               {filteredOptions.map((option) => (
                 <button
                   key={option.value}
+                  ref={option.value === selectedValue ? selectedOptionRef : null}
                   type="button"
                   onMouseDown={(event) => {
                     event.preventDefault()
                     onSelect(option.value)
                     setQuery(option.label)
                     setOpen(false)
+                    setShowAllOnOpen(false)
                     setBlurRequest((current) => current + 1)
                   }}
                   className={`block w-full whitespace-nowrap px-3 py-2 text-left hover:bg-white/5 ${textClassName}`}
-                  style={{ color: 'var(--text-secondary)' }}
+                  style={{
+                    color: option.value === selectedValue ? 'white' : 'var(--text-secondary)',
+                    backgroundColor: option.value === selectedValue ? 'rgba(59,130,246,0.18)' : 'transparent',
+                  }}
                 >
                   {option.menuLabel ?? option.label}
                 </button>

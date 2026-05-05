@@ -26,6 +26,8 @@ The goal is to make the first implementation wave deliberate, dependency-aware, 
 3. Keep backend and frontend moving together.
 4. Preserve current runtime behavior while introducing canonical structures behind the scenes.
 5. Prefer additive migration steps over destructive rewrites.
+6. Treat navigable document ids and linked record ids as shared accent-colored links, not plain text.
+7. Treat shared line-item readability as a cross-app contract; lookup-heavy columns must auto-fit or use shared wide defaults so selected values remain readable after selection.
 
 ## Phase 1 Scope
 

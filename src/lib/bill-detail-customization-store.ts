@@ -118,6 +118,12 @@ function mergeWithDefaults(overrides: Partial<BillDetailCustomizationConfig>): B
         override.widthMode === 'wide'
           ? override.widthMode
           : merged.lineColumns[column.id].widthMode,
+      showColumnMode:
+        override.showColumnMode === 'always' ||
+        override.showColumnMode === 'itemOnly' ||
+        override.showColumnMode === 'expenseOnly'
+          ? override.showColumnMode
+          : merged.lineColumns[column.id].showColumnMode,
       editDisplay:
         override.editDisplay === 'label' ||
         override.editDisplay === 'idAndLabel' ||
@@ -157,6 +163,7 @@ function mergeWithDefaults(overrides: Partial<BillDetailCustomizationConfig>): B
           visible: column.visible,
           order: index,
           widthMode: merged.lineColumns[column.id].widthMode,
+          showColumnMode: merged.lineColumns[column.id].showColumnMode,
           editDisplay: merged.lineColumns[column.id].editDisplay,
           viewDisplay: merged.lineColumns[column.id].viewDisplay,
           dropdownDisplay: merged.lineColumns[column.id].dropdownDisplay,

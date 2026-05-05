@@ -1,3 +1,4 @@
+import { connection } from 'next/server'
 import QuoteCreatePageClient from '@/components/QuoteCreatePageClient'
 import { prisma } from '@/lib/prisma'
 import { generateNextQuoteNumber } from '@/lib/quote-number'
@@ -6,6 +7,8 @@ import { loadListValues } from '@/lib/load-list-values'
 import { toNumericValue } from '@/lib/format'
 
 export default async function NewQuotePage() {
+  await connection()
+
   const [opportunities, customers, nextNumber, customization, statusValues] = await Promise.all([
     prisma.opportunity.findMany({
       where: { quote: null },

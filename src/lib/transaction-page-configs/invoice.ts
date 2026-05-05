@@ -3,6 +3,7 @@ import type { TransactionPageConfig, TransactionVisualTone } from '@/lib/transac
 
 export type InvoicePageConfigRecord = {
   total: number
+  currencyCode?: string | null
   statusLabel: string
   statusTone?: TransactionVisualTone
   dueDate: Date | null
@@ -26,7 +27,7 @@ export const invoicePageConfig: TransactionPageConfig<InvoicePageConfigRecord> =
       id: 'total',
       label: 'Invoice Total',
       accent: true,
-      getValue: (record) => fmtCurrency(record.total, undefined, record.moneySettings),
+      getValue: (record) => fmtCurrency(record.total, record.currencyCode ?? undefined, record.moneySettings),
     },
     {
       id: 'status',

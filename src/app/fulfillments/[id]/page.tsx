@@ -11,6 +11,7 @@ import RecordHeaderDetails, { type RecordHeaderField } from '@/components/Record
 import TransactionStatsRow from '@/components/TransactionStatsRow'
 import CommunicationsSection from '@/components/CommunicationsSection'
 import SystemNotesSection from '@/components/SystemNotesSection'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import MasterDataDetailCreateMenu from '@/components/MasterDataDetailCreateMenu'
 import MasterDataDetailExportMenu from '@/components/MasterDataDetailExportMenu'
 import TransactionActionStack from '@/components/TransactionActionStack'
@@ -383,6 +384,7 @@ export default async function FulfillmentDetailPage({
       label: 'Subsidiary',
       value: fulfillment.subsidiaryId ?? '',
       displayValue: fulfillment.subsidiary ? `${fulfillment.subsidiary.subsidiaryId} - ${fulfillment.subsidiary.name}` : '-',
+      href: fulfillment.subsidiary ? `/subsidiaries/${fulfillment.subsidiary.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...subsidiaryOptions],
@@ -397,6 +399,7 @@ export default async function FulfillmentDetailPage({
       label: 'Currency',
       value: fulfillment.currencyId ?? '',
       displayValue: fulfillment.currency ? `${fulfillment.currency.code ?? fulfillment.currency.currencyId} - ${fulfillment.currency.name}` : '-',
+      href: fulfillment.currency ? `/currencies/${fulfillment.currency.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...currencyOptions],
@@ -619,9 +622,8 @@ export default async function FulfillmentDetailPage({
         ) : null
       }
       actions={
-        isCustomizing ? null : (
           <TransactionActionStack
-            mode={isEditing ? 'edit' : 'detail'}
+            mode={isCustomizing ? 'customize' : isEditing ? 'edit' : 'detail'}
             cancelHref={detailHref}
             formId={`inline-record-form-${fulfillment.id}`}
             recordId={fulfillment.id}
@@ -667,7 +669,6 @@ export default async function FulfillmentDetailPage({
               )
             }
           />
-        )
       }
     >
       <TransactionDetailFrame
@@ -743,6 +744,36 @@ export default async function FulfillmentDetailPage({
           )
         }
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'customer',
+                label: 'Customer',
+                count: fulfillment.salesOrder?.customer ? 1 : 0,
+                emptyMessage: 'No related customer is linked to this fulfillment.',
+                rows: fulfillment.salesOrder?.customer
+                  ? [
+                      {
+                        id: fulfillment.salesOrder.customer.id,
+                        type: 'Customer',
+                        reference: fulfillment.salesOrder.customer.customerId ?? fulfillment.salesOrder.customer.id,
+                        name: fulfillment.salesOrder.customer.name,
+                        details:
+                          [fulfillment.salesOrder.customer.email, fulfillment.salesOrder.customer.phone]
+                            .filter(Boolean)
+                            .join(' | ') || '-',
+                        href: `/customers/${fulfillment.salesOrder.customer.id}`,
+                      },
+                    ]
+                  : [],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={fulfillment.salesOrder?.customer ? 1 : 0}
+        relatedDocuments={isCustomizing ? null : (
           <FulfillmentRelatedDocuments
             embedded
             showDisplayControl={false}
@@ -805,19 +836,13 @@ export default async function FulfillmentDetailPage({
             )}
           />
         )}
-        relatedRecordsCount={
+        relatedDocumentsCount={
           (fulfillment.salesOrder?.quote?.opportunity ? 1 : 0) +
           (fulfillment.salesOrder?.quote ? 1 : 0) +
           (fulfillment.salesOrder?.fulfillments.filter((row) => row.id !== fulfillment.id).length ?? 0) +
           (fulfillment.salesOrder?.invoices.length ?? 0) +
           (fulfillment.salesOrder?.invoices.reduce((sum, invoice) => sum + invoice.cashReceipts.length, 0) ?? 0)
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this fulfillment yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         supplementarySections={null}
         communications={isCustomizing ? null : (
           <CommunicationsSection

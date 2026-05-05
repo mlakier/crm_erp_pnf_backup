@@ -54,8 +54,17 @@ type ItemOption = {
   listPrice: number | null
 }
 
+type AccountOption = {
+  id: string
+  accountId: string
+  accountNumber?: string | null
+  name: string
+}
+
 type DraftLinePayload = {
+  lineType: 'item' | 'expense'
   itemId: string | null
+  expenseAccountId?: string | null
   description: string
   notes?: string | null
   quantity: number
@@ -84,6 +93,7 @@ export default function BillCreatePageClient({
   subsidiaries,
   currencies,
   items,
+  expenseAccounts,
   customization,
   initialHeaderValues,
   initialDraftRows,
@@ -95,6 +105,7 @@ export default function BillCreatePageClient({
   subsidiaries: SubsidiaryOption[]
   currencies: CurrencyOption[]
   items: ItemOption[]
+  expenseAccounts: AccountOption[]
   customization: BillDetailCustomizationConfig
   initialHeaderValues?: Partial<Record<string, string>>
   initialDraftRows?: DraftLinePayload[]
@@ -105,6 +116,8 @@ export default function BillCreatePageClient({
   const [error, setError] = useState('')
   const [headerValues, setHeaderValues] = useState<Record<string, string>>({
     number: initialHeaderValues?.number ?? nextNumber,
+    vendorBillNumber: initialHeaderValues?.vendorBillNumber ?? '',
+    vendorBillDate: initialHeaderValues?.vendorBillDate ?? '',
     vendorId: initialHeaderValues?.vendorId ?? '',
     purchaseOrderId: initialHeaderValues?.purchaseOrderId ?? '',
     subsidiaryId: initialHeaderValues?.subsidiaryId ?? '',
@@ -142,7 +155,7 @@ export default function BillCreatePageClient({
     label: `${currency.code ?? currency.currencyId} - ${currency.name}`,
   }))
 
-  const headerFieldDefinitions: Record<BillDetailFieldKey, BillHeaderField> = {
+  const headerFieldDefinitions: Record<string, BillHeaderField> = {
     id: {
       key: 'id',
       label: 'DB Id',
@@ -155,13 +168,37 @@ export default function BillCreatePageClient({
     },
     number: {
       key: 'number',
-      label: 'Bill Id',
+      label: 'Business Id',
       value: headerValues.number,
       displayValue: headerValues.number,
-      helpText: 'Identifier for this bill.',
+      helpText: 'Internal operational identifier for this bill.',
       fieldType: 'text',
       subsectionTitle: 'Bill Details',
       subsectionDescription: 'Core bill fields, linked records, and document totals.',
+    },
+    vendorBillNumber: {
+      key: 'vendorBillNumber',
+      label: 'Vendor Bill Number',
+      value: headerValues.vendorBillNumber,
+      displayValue: headerValues.vendorBillNumber || '-',
+      editable: true,
+      type: 'text',
+      helpText: 'Vendor-provided invoice or bill reference number.',
+      fieldType: 'text',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill identifiers and source-document context.',
+    },
+    vendorBillDate: {
+      key: 'vendorBillDate',
+      label: 'Vendor Bill Date',
+      value: headerValues.vendorBillDate,
+      displayValue: headerValues.vendorBillDate || '-',
+      editable: true,
+      type: 'date',
+      helpText: 'Vendor-provided source-document date for this bill.',
+      fieldType: 'date',
+      subsectionTitle: 'Document Identity',
+      subsectionDescription: 'Core bill identifiers and source-document context.',
     },
     vendorId: {
       key: 'vendorId',
@@ -347,13 +384,15 @@ export default function BillCreatePageClient({
           lineTotal: calcLineTotal(row.quantity || 1, row.unitPrice || 0),
           displayOrder: index,
         }))
-        .filter((row) => row.description.trim() || row.itemId)
+        .filter((row) => row.description.trim() || row.itemId || row.expenseAccountId)
 
       const response = await fetch('/api/bills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vendorId: values.vendorId || null,
+          vendorBillNumber: values.vendorBillNumber || null,
+          vendorBillDate: values.vendorBillDate || null,
           purchaseOrderId: values.purchaseOrderId || null,
           subsidiaryId: values.subsidiaryId || null,
           currencyId: values.currencyId || null,
@@ -433,9 +472,11 @@ export default function BillCreatePageClient({
             unitPrice: String(item.listPrice ?? 0),
           },
         }))}
+        accountOptions={expenseAccounts}
         lineColumns={orderedVisibleLineColumns}
         sectionTitle="Bill Line Items"
         draftMode
+        initialDraftRows={initialDraftRows}
         onDraftRowsChange={setDraftRows}
         lineItemApiBasePath="/api/bill-line-items"
         parentIdFieldName="billId"

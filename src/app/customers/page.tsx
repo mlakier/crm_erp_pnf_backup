@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { prisma } from '@/lib/prisma'
 import { normalizePhone } from '@/lib/format'
-import DeleteButton from '@/components/DeleteButton'
-import EditButton from '@/components/EditButton'
+import ListRowActions from '@/components/ListRowActions'
 import MasterDataPageHeader from '@/components/MasterDataPageHeader'
 import MasterDataListSection from '@/components/MasterDataListSection'
 import { MasterDataBodyCell, MasterDataEmptyStateRow, MasterDataHeaderCell, MasterDataMutedCell } from '@/components/MasterDataTableCells'
@@ -144,11 +143,12 @@ export default async function CRMPage({
                   <MasterDataMutedCell columnId="created">{formatMasterDataDate(customer.createdAt)}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="last-modified">{formatMasterDataDate(customer.updatedAt)}</MasterDataMutedCell>
                   <MasterDataBodyCell columnId="actions">
-                    <div className="flex items-center gap-2">
-                      <EditButton
-                        resource="customers"
-                        id={customer.id}
-                        fields={[
+                    <ListRowActions
+                      viewHref={`/customers/${customer.id}`}
+                      editButton={{
+                        resource: 'customers',
+                        id: customer.id,
+                        fields: [
                           ...(formCustomization.fields.customerId.visible ? [{ name: 'customerId', label: 'Customer ID', value: customer.customerId ?? '' }] : []),
                           ...(formCustomization.fields.name.visible ? [{ name: 'name', label: 'Name', value: customer.name }] : []),
                           ...(formCustomization.fields.email.visible ? [{ name: 'email', label: 'Email', value: customer.email ?? '', type: 'email' as const }] : []),
@@ -190,10 +190,10 @@ export default async function CRMPage({
                                 options: fieldOptions.inactive ?? [],
                               }]
                             : []),
-                        ]}
-                      />
-                      <DeleteButton resource="customers" id={customer.id} />
-                    </div>
+                        ],
+                      }}
+                      deleteButton={{ resource: 'customers', id: customer.id }}
+                    />
                   </MasterDataBodyCell>
                 </tr>
               ))

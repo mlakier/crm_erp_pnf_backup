@@ -5,24 +5,31 @@ import { fmtCurrency } from '@/lib/format'
 import TransactionRelatedDocumentsTabs, {
   RelatedDocumentsStatusBadge,
 } from '@/components/TransactionRelatedDocumentsTabs'
+import type { DocumentRelationshipSummary } from '@/lib/document-relationships'
 
 export default function InvoiceReceiptRelatedDocuments({
   invoice,
   salesOrder,
   quote,
   opportunity,
+  linkedDocuments = [],
   moneySettings,
   embedded = false,
   showDisplayControl = true,
+  defaultCurrencyCode,
 }: {
-  invoice: { id: string; number: string; status: string; total: number } | null
-  salesOrder: { id: string; number: string; status: string; total: number } | null
-  quote: { id: string; number: string; status: string; total: number } | null
-  opportunity: { id: string; number: string; name: string; status: string; total: number } | null
+  invoice: { id: string; number: string; status: string; total: number; currencyCode?: string | null } | null
+  salesOrder: { id: string; number: string; status: string; total: number; currencyCode?: string | null } | null
+  quote: { id: string; number: string; status: string; total: number; currencyCode?: string | null } | null
+  opportunity: { id: string; number: string; name: string; status: string; total: number; currencyCode?: string | null } | null
+  linkedDocuments?: DocumentRelationshipSummary[]
   moneySettings?: Parameters<typeof import('@/lib/format').fmtCurrency>[2]
   embedded?: boolean
   showDisplayControl?: boolean
+  defaultCurrencyCode?: string | null
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined, moneySettings)
   return (
     <TransactionRelatedDocumentsTabs
       embedded={embedded}
@@ -51,13 +58,13 @@ export default function InvoiceReceiptRelatedDocuments({
                     </Link>,
                     opportunity.name,
                     <RelatedDocumentsStatusBadge key="status" status={opportunity.status} />,
-                    fmtCurrency(opportunity.total, undefined, moneySettings),
+                    formatAmount(opportunity.total, opportunity.currencyCode),
                   ],
                   filterValues: [
                     opportunity.number,
                     opportunity.name,
                     opportunity.status,
-                    fmtCurrency(opportunity.total, undefined, moneySettings),
+                    formatAmount(opportunity.total, opportunity.currencyCode),
                   ],
                 },
               ]
@@ -84,12 +91,12 @@ export default function InvoiceReceiptRelatedDocuments({
                       {quote.number}
                     </Link>,
                     <RelatedDocumentsStatusBadge key="status" status={quote.status} />,
-                    fmtCurrency(quote.total, undefined, moneySettings),
+                    formatAmount(quote.total, quote.currencyCode),
                   ],
                   filterValues: [
                     quote.number,
                     quote.status,
-                    fmtCurrency(quote.total, undefined, moneySettings),
+                    formatAmount(quote.total, quote.currencyCode),
                   ],
                 },
               ]
@@ -116,12 +123,12 @@ export default function InvoiceReceiptRelatedDocuments({
                       {salesOrder.number}
                     </Link>,
                     <RelatedDocumentsStatusBadge key="status" status={salesOrder.status} />,
-                    fmtCurrency(salesOrder.total, undefined, moneySettings),
+                    formatAmount(salesOrder.total, salesOrder.currencyCode),
                   ],
                   filterValues: [
                     salesOrder.number,
                     salesOrder.status,
-                    fmtCurrency(salesOrder.total, undefined, moneySettings),
+                    formatAmount(salesOrder.total, salesOrder.currencyCode),
                   ],
                 },
               ]
@@ -148,16 +155,56 @@ export default function InvoiceReceiptRelatedDocuments({
                       {invoice.number}
                     </Link>,
                     <RelatedDocumentsStatusBadge key="status" status={invoice.status} />,
-                    fmtCurrency(invoice.total, undefined, moneySettings),
+                    formatAmount(invoice.total, invoice.currencyCode),
                   ],
                   filterValues: [
                     invoice.number,
                     invoice.status,
-                    fmtCurrency(invoice.total, undefined, moneySettings),
+                    formatAmount(invoice.total, invoice.currencyCode),
                   ],
                 },
               ]
             : [],
+        },
+        {
+          key: 'linked-documents',
+          label: 'Linked Documents',
+          count: linkedDocuments.length,
+          tone: 'downstream',
+          emptyMessage: 'No linked documents are attached to this invoice receipt yet.',
+          headers: ['RELATIONSHIP', 'TYPE', 'TXN ID', 'STATUS', 'AMOUNT'],
+          rows: linkedDocuments.map((document) => ({
+            id: document.id,
+            cells: [
+              document.relationshipLabel,
+              document.relatedRecordLabel,
+              document.href ? (
+                <Link
+                  key="link"
+                  href={document.href}
+                  className="hover:underline"
+                  style={{ color: 'var(--accent-primary-strong)' }}
+                >
+                  {document.relatedNumber}
+                </Link>
+              ) : (
+                document.relatedNumber
+              ),
+              document.relatedStatus ? <RelatedDocumentsStatusBadge key="status" status={document.relatedStatus} /> : '-',
+              document.relatedAmount != null
+                ? fmtCurrency(document.relatedAmount, defaultCurrencyCode ?? undefined, moneySettings)
+                : '-',
+            ],
+            filterValues: [
+              document.relationshipLabel,
+              document.relatedRecordLabel,
+              document.relatedNumber,
+              document.relatedStatus ?? '-',
+              document.relatedAmount != null
+                ? fmtCurrency(document.relatedAmount, defaultCurrencyCode ?? undefined, moneySettings)
+                : '-',
+            ],
+          })),
         },
       ]}
     />

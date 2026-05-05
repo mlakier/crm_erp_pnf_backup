@@ -24,151 +24,47 @@ function removeStyles(element: HTMLElement, properties: string[]) {
   }
 }
 
-function getPinnedStartColumnIds(table: HTMLTableElement): string[] {
-  const headerCells = Array.from(table.tHead?.rows[0]?.cells ?? [])
-  return headerCells
-    .map((cell) => cell.getAttribute('data-column') ?? '')
-    .filter((columnId) => columnId && columnId !== 'actions')
-    .slice(0, 2)
-}
-
-function getPinnedEndColumnIds(table: HTMLTableElement): string[] {
-  const headerCells = Array.from(table.tHead?.rows[0]?.cells ?? [])
-  return headerCells
-    .map((cell) => cell.getAttribute('data-column') ?? '')
-    .filter((columnId) => columnId === 'actions')
-}
-
-function measureColumnWidth(cells: HTMLTableCellElement[]): number {
-  return Math.max(
-    1,
-    ...cells.map((cell) => {
-      const rectWidth = cell.getBoundingClientRect().width
-      const scrollWidth = cell.scrollWidth
-      return Math.ceil(Math.max(rectWidth, scrollWidth)) + 2
-    }),
+function clearStickyHeaderStyles(table: HTMLTableElement) {
+  const headerCells = Array.from(
+    table.querySelectorAll<HTMLElement>('thead th')
   )
+
+  for (const cell of headerCells) {
+    removeStyles(cell, ['position', 'top', 'z-index', 'background-color'])
+  }
 }
 
-function enforcePinnedColumns(table: HTMLTableElement) {
-  if (table.dataset.disablePinnedColumns === 'true') return
+function enforceStickyHeaderRows(table: HTMLTableElement) {
+  const header = table.tHead
+  if (!header || header.rows.length === 0) return
 
-  const pinnedStartColumnIds = getPinnedStartColumnIds(table)
-  const pinnedEndColumnIds = getPinnedEndColumnIds(table)
-  if (pinnedStartColumnIds.length === 0 && pinnedEndColumnIds.length === 0) return
+  clearStickyHeaderStyles(table)
 
-  let leftOffset = 0
+  const headerRow = header.rows[0]
+  const filterRow = header.querySelector<HTMLTableRowElement>('tr[data-filter-row="true"]')
+  const headerHeight = Math.ceil(headerRow.getBoundingClientRect().height || 0)
+  const separatorCompensation = 1
 
-  for (const columnId of pinnedStartColumnIds) {
-    const headerCell = table.tHead?.rows[0]?.querySelector<HTMLTableCellElement>(`th[data-column="${columnId}"]`)
-    if (!headerCell) continue
-
-    const filterCell = table.tHead?.querySelector<HTMLTableCellElement>(`tr[data-filter-row] th[data-column="${columnId}"]`)
-    const dataCells = Array.from(table.querySelectorAll<HTMLTableCellElement>(`td[data-column="${columnId}"]`))
-    const columnCells = [headerCell, ...(filterCell ? [filterCell] : []), ...dataCells]
-
-    for (const cell of columnCells) {
-      removeStyles(cell, ['width', 'min-width', 'max-width', 'overflow', 'text-overflow'])
-    }
-
-    const columnWidth = measureColumnWidth(columnCells)
-    const left = `${leftOffset}px`
-
-    setImportantStyles(headerCell, {
-      display: 'table-cell',
-      visibility: 'visible',
+  Array.from(headerRow.cells).forEach((cell) => {
+    setImportantStyles(cell, {
       position: 'sticky',
-      left,
-      width: `${columnWidth}px`,
-      'min-width': `${columnWidth}px`,
-      'z-index': '20',
+      top: '0px',
+      'z-index': '30',
       'background-color': 'var(--card)',
+      'box-shadow': 'inset 0 -1px 0 0 var(--border-muted)',
     })
+  })
 
-    if (filterCell) {
-      setImportantStyles(filterCell, {
-        display: 'table-cell',
-        visibility: 'visible',
-        position: 'sticky',
-        left,
-        width: `${columnWidth}px`,
-        'min-width': `${columnWidth}px`,
-        'z-index': '20',
-        'background-color': 'var(--card)',
-      })
-    }
-
-    for (const cell of dataCells) {
+  if (filterRow) {
+    Array.from(filterRow.cells).forEach((cell) => {
       setImportantStyles(cell, {
-        display: 'table-cell',
-        visibility: 'visible',
         position: 'sticky',
-        left,
-        width: `${columnWidth}px`,
-        'min-width': `${columnWidth}px`,
-        'z-index': '10',
+        top: `${Math.max(0, headerHeight - separatorCompensation)}px`,
+        'z-index': '25',
         'background-color': 'var(--card)',
+        'box-shadow': 'inset 0 -1px 0 0 var(--border-muted)',
       })
-    }
-
-    leftOffset += columnWidth
-  }
-
-  let rightOffset = 0
-
-  for (const columnId of pinnedEndColumnIds) {
-    const headerCell = table.tHead?.rows[0]?.querySelector<HTMLTableCellElement>(`th[data-column="${columnId}"]`)
-    if (!headerCell) continue
-
-    const filterCell = table.tHead?.querySelector<HTMLTableCellElement>(`tr[data-filter-row] th[data-column="${columnId}"]`)
-    const dataCells = Array.from(table.querySelectorAll<HTMLTableCellElement>(`td[data-column="${columnId}"]`))
-    const columnCells = [headerCell, ...(filterCell ? [filterCell] : []), ...dataCells]
-
-    for (const cell of columnCells) {
-      removeStyles(cell, ['width', 'min-width', 'max-width', 'overflow', 'text-overflow'])
-    }
-
-    const columnWidth = measureColumnWidth(columnCells)
-    const right = `${rightOffset}px`
-
-    setImportantStyles(headerCell, {
-      display: 'table-cell',
-      visibility: 'visible',
-      position: 'sticky',
-      right,
-      width: `${columnWidth}px`,
-      'min-width': `${columnWidth}px`,
-      'z-index': '20',
-      'background-color': 'var(--card)',
     })
-
-    if (filterCell) {
-      setImportantStyles(filterCell, {
-        display: 'table-cell',
-        visibility: 'visible',
-        position: 'sticky',
-        right,
-        width: `${columnWidth}px`,
-        'min-width': `${columnWidth}px`,
-        'z-index': '20',
-        'background-color': 'var(--card)',
-      })
-    }
-
-    for (const cell of dataCells) {
-      setImportantStyles(cell, {
-        display: 'table-cell',
-        visibility: 'visible',
-        position: 'sticky',
-        right,
-        width: `${columnWidth}px`,
-        'min-width': `${columnWidth}px`,
-        'z-index': '10',
-        'background-color': 'var(--card)',
-      })
-    }
-
-    rightOffset += columnWidth
   }
 }
 
@@ -268,21 +164,21 @@ function applyTableState(table: HTMLTableElement) {
   for (const row of visibleRows) {
     tbody.appendChild(row)
   }
-
-  enforcePinnedColumns(table)
 }
 
 function enhanceTable(table: HTMLTableElement) {
   if (table.dataset.filterSortEnhanced === 'true') {
+    table.tHead?.querySelector('tr[data-pin-row="true"]')?.remove()
     const activeElement = document.activeElement
     if (
       activeElement instanceof HTMLInputElement
       && activeElement.closest('tr[data-filter-row]')
       && table.contains(activeElement)
     ) {
+      enforceStickyHeaderRows(table)
       return
     }
-    enforcePinnedColumns(table)
+    enforceStickyHeaderRows(table)
     return
   }
 
@@ -322,6 +218,11 @@ function enhanceTable(table: HTMLTableElement) {
       filterCell.className = 'px-1.5 py-1.5'
       filterCell.style.backgroundColor = 'var(--card)'
       filterCell.style.minWidth = '0'
+      const headerWidth = Math.ceil(headerCell.getBoundingClientRect().width || 0)
+      if (headerWidth > 0) {
+        filterCell.style.width = `${headerWidth}px`
+        filterCell.style.minWidth = `${headerWidth}px`
+      }
       filterCell.setAttribute('aria-hidden', 'true')
       filterRow.appendChild(filterCell)
       return
@@ -367,7 +268,9 @@ function enhanceTable(table: HTMLTableElement) {
   updateHeaderSortIndicators(headerCells, null, 'asc')
   header.appendChild(filterRow)
   table.dataset.filterSortEnhanced = 'true'
-  enforcePinnedColumns(table)
+  table.tHead?.querySelector('tr[data-pin-row="true"]')?.remove()
+  delete table.dataset.pinnedStartColumns
+  enforceStickyHeaderRows(table)
   applyTableState(table)
 }
 
@@ -631,7 +534,10 @@ export default function TableFilterSortEnhancer() {
     scheduleRun()
 
     const observer = new MutationObserver(() => scheduleRun())
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    })
 
     return () => {
       observer.disconnect()

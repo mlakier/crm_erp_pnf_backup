@@ -7,6 +7,10 @@ export type TransactionGlImpactColumnKey =
   | 'description'
   | 'debit'
   | 'credit'
+  | 'txnAmount'
+  | 'localAmount'
+  | 'functionalAmount'
+  | 'groupAmount'
 
 export type TransactionGlImpactFontSize = 'xs' | 'sm'
 export type TransactionGlImpactWidthMode = 'auto' | 'compact' | 'normal' | 'wide'
@@ -37,6 +41,10 @@ export type TransactionGlImpactRow = {
   description: string
   debit: number
   credit: number
+  txnAmount: number
+  localAmount: number
+  functionalAmount: number
+  groupAmount: number
 }
 
 export const TRANSACTION_GL_IMPACT_COLUMNS: TransactionGlImpactColumnMeta[] = [
@@ -48,6 +56,10 @@ export const TRANSACTION_GL_IMPACT_COLUMNS: TransactionGlImpactColumnMeta[] = [
   { id: 'description', label: 'Description', description: 'Posted line description or memo.' },
   { id: 'debit', label: 'Debit', description: 'Debit amount posted by the entry.' },
   { id: 'credit', label: 'Credit', description: 'Credit amount posted by the entry.' },
+  { id: 'txnAmount', label: 'TXN Amount', description: 'Signed transaction-currency amount for the posted line.' },
+  { id: 'localAmount', label: 'Local Amount', description: 'Signed local-currency amount for the posted line.' },
+  { id: 'functionalAmount', label: 'Functional Amount', description: 'Signed functional-currency amount for the posted line.' },
+  { id: 'groupAmount', label: 'Group Amount', description: 'Signed group-currency amount for the posted line.' },
 ]
 
 export const TRANSACTION_GL_IMPACT_SETTING_AVAILABILITY = Object.fromEntries(
@@ -66,6 +78,10 @@ const DEFAULT_TRANSACTION_GL_IMPACT_WIDTHS: Record<
   description: 'wide',
   debit: 'normal',
   credit: 'normal',
+  txnAmount: 'normal',
+  localAmount: 'normal',
+  functionalAmount: 'normal',
+  groupAmount: 'normal',
 }
 
 export function defaultTransactionGlImpactSettings(): TransactionGlImpactSettings {
@@ -80,7 +96,12 @@ export function defaultTransactionGlImpactColumns(): Record<
     TRANSACTION_GL_IMPACT_COLUMNS.map((column, index) => [
       column.id,
       {
-        visible: true,
+        visible:
+          column.id === 'localAmount' ||
+          column.id === 'functionalAmount' ||
+          column.id === 'groupAmount'
+            ? false
+            : true,
         order: index,
         widthMode: DEFAULT_TRANSACTION_GL_IMPACT_WIDTHS[column.id],
       },

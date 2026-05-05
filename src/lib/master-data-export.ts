@@ -47,6 +47,7 @@ export type MasterDataExportResource =
   | 'fulfillments'
   | 'sales-orders'
   | 'journals'
+  | 'clearing-documents'
 
 export type MasterDataExportPayload = {
   headers: string[]
@@ -124,6 +125,7 @@ export async function buildMasterDataExportPayload(
   filters?: {
     status?: string
     viewId?: string
+    clearingType?: string
   },
 ): Promise<MasterDataExportPayload> {
   switch (resource) {
@@ -310,6 +312,7 @@ export async function buildMasterDataExportPayload(
             ? {
                 OR: [
                   { number: { contains: query, mode: INSENSITIVE } },
+                  { vendorBillNumber: { contains: query, mode: INSENSITIVE } },
                   { id: { contains: query, mode: INSENSITIVE } },
                   { status: { contains: query, mode: INSENSITIVE } },
                   { notes: { contains: query, mode: INSENSITIVE } },
@@ -333,7 +336,9 @@ export async function buildMasterDataExportPayload(
 
       return {
         headers: [
-          'Bill Id',
+          'Business Id',
+          'Vendor Bill No',
+          'Vendor Bill Date',
           'Vendor',
           'Status',
           'Total',
@@ -345,6 +350,8 @@ export async function buildMasterDataExportPayload(
         ],
         rows: bills.map((bill) => [
           text(bill.number),
+          text(bill.vendorBillNumber ?? ''),
+          formatMasterDataDate(bill.vendorBillDate),
           bill.vendor ? `${bill.vendor.vendorNumber ?? ''}${bill.vendor.vendorNumber ? ' - ' : ''}${bill.vendor.name}` : '-',
           text(bill.status),
           text(toNumericValue(bill.total).toFixed(2)),
@@ -906,7 +913,7 @@ export async function buildMasterDataExportPayload(
               ],
             }
           : {},
-        include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true },
+        include: { localCurrency: true, functionalCurrency: true, groupCurrency: true, parentSubsidiary: true },
         orderBy:
           sort === 'id'
             ? [{ subsidiaryId: 'asc' }, { createdAt: 'desc' }]
@@ -927,9 +934,9 @@ export async function buildMasterDataExportPayload(
           subsidiary.parentSubsidiary ? `${subsidiary.parentSubsidiary.subsidiaryId} - ${subsidiary.parentSubsidiary.name}` : '-',
           text(subsidiary.legalName),
           text(subsidiary.entityType),
-          text(subsidiary.defaultCurrency?.code),
+          text(subsidiary.localCurrency?.code),
           text(subsidiary.functionalCurrency?.code),
-          text(subsidiary.reportingCurrency?.code),
+          text(subsidiary.groupCurrency?.code),
           text(subsidiary.consolidationMethod),
           text(subsidiary.ownershipPercent),
           subsidiary.active ? 'No' : 'Yes',
@@ -1267,6 +1274,8 @@ export async function buildMasterDataExportPayload(
                 { accountNumber: { contains: query, mode: INSENSITIVE } },
                 { name: { contains: query, mode: INSENSITIVE } },
                 { accountType: { contains: query, mode: INSENSITIVE } },
+                { accountRole: { contains: query, mode: INSENSITIVE } },
+                { rollforwardCategory: { contains: query, mode: INSENSITIVE } },
                 { description: { contains: query, mode: INSENSITIVE } },
               ],
             }
@@ -1300,10 +1309,13 @@ export async function buildMasterDataExportPayload(
           text(account.financialStatementSection),
           text(account.financialStatementGroup),
           text(account.financialStatementCategory),
+          text(account.accountRole),
+          text(account.rollforwardCategory),
           account.parentAccount ? `${account.parentAccount.accountId} - ${account.parentAccount.name}` : '-',
           yesNo(account.isPosting),
           yesNo(account.isControlAccount),
           yesNo(account.inventory),
+          yesNo(account.revalueOpenBalance),
           yesNo(account.summary),
           account.parentSubsidiary
             ? account.parentSubsidiary.subsidiaryId
@@ -1311,7 +1323,10 @@ export async function buildMasterDataExportPayload(
               ? account.subsidiaryAssignments.map((entry) => entry.subsidiary.subsidiaryId).join(', ')
               : '-',
           yesNo(account.includeChildren),
+          yesNo(account.active),
+          text(account.id),
           formatMasterDataDate(account.createdAt),
+          formatMasterDataDate(account.updatedAt),
         ]),
       }
     }
@@ -1616,6 +1631,72 @@ export async function buildMasterDataExportPayload(
           journal.postedByEmployee ? `${journal.postedByEmployee.firstName} ${journal.postedByEmployee.lastName}` : '-',
           formatMasterDataDate(journal.createdAt),
           formatMasterDataDate(journal.updatedAt),
+        ]),
+      }
+    }
+    case 'clearing-documents': {
+      const statusFilter = filters?.status?.trim().toLowerCase() ?? ''
+      const clearingTypeFilter = filters?.clearingType?.trim().toLowerCase() ?? ''
+      const clearingDocuments = await prisma.clearingDocumentHeader.findMany({
+        where: {
+          ...(query
+            ? {
+                OR: [
+                  { clearingNumber: { contains: query, mode: INSENSITIVE } },
+                  { clearingType: { contains: query, mode: INSENSITIVE } },
+                  { status: { contains: query, mode: INSENSITIVE } },
+                  { sourceTransactionId: { contains: query, mode: INSENSITIVE } },
+                  { counterpartyId: { contains: query, mode: INSENSITIVE } },
+                  { memo: { contains: query, mode: INSENSITIVE } },
+                ],
+              }
+            : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(clearingTypeFilter ? { clearingType: clearingTypeFilter } : {}),
+        },
+        include: {
+          accountingPeriod: { select: { name: true } },
+          lines: { select: { id: true } },
+        },
+        orderBy: [{ clearingDate: 'desc' }, { createdAt: 'desc' }],
+      })
+
+      return {
+        headers: [
+          'Clearing Id',
+          'Clearing Date',
+          'Clearing Type',
+          'Status',
+          'Transaction Amount',
+          'Counterparty',
+          'Source Transaction',
+          'Accounting Period',
+          'Auto Generated',
+          'Line Count',
+          'Created',
+          'Last Modified',
+        ],
+        rows: clearingDocuments.map((doc) => [
+          text(doc.clearingNumber),
+          formatMasterDataDate(doc.clearingDate),
+          text(titleCase(doc.clearingType)),
+          text(titleCase(doc.status)),
+          text(toNumericValue(doc.transactionAmount).toFixed(2)),
+          text(
+            doc.counterpartyType && doc.counterpartyId
+              ? `${titleCase(doc.counterpartyType)} - ${doc.counterpartyId}`
+              : doc.counterpartyId ?? doc.counterpartyType ?? '-',
+          ),
+          text(
+            doc.sourceTransactionType && doc.sourceTransactionId
+              ? `${titleCase(doc.sourceTransactionType)} - ${doc.sourceTransactionId}`
+              : doc.sourceTransactionId ?? doc.sourceTransactionType ?? '-',
+          ),
+          text(doc.accountingPeriod?.name),
+          yesNo(doc.autoGenerated),
+          text(doc.lines.length),
+          formatMasterDataDate(doc.createdAt),
+          formatMasterDataDate(doc.updatedAt),
         ]),
       }
     }

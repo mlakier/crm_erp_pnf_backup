@@ -38,8 +38,7 @@ export default function RelatedRecordsSection({
   embedded?: boolean
   showDisplayControl?: boolean
 }) {
-  const firstKey = tabs[0]?.key ?? ''
-  const [activeKey, setActiveKey] = useState(firstKey)
+  const [activeKey, setActiveKey] = useState(tabs[0]?.key ?? '')
   const [filters, setFilters] = useState<Record<FilterKey, string>>({
     type: '',
     reference: '',
@@ -122,7 +121,7 @@ export default function RelatedRecordsSection({
               )
             })}
           </div>
-          {activeTab.rows.length && toolbar ? <div className="flex shrink-0 items-center py-2">{toolbar}</div> : null}
+          {toolbar ? <div className="flex shrink-0 items-center py-2">{toolbar}</div> : null}
         </div>
       </div>
       {activeTab.rows.length === 0 ? (

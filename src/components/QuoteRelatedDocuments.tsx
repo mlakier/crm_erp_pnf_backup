@@ -10,6 +10,7 @@ type OpportunityDoc = {
   name: string
   status: string
   total: number
+  currencyCode?: string | null
 }
 
 type SalesOrderDoc = {
@@ -17,6 +18,7 @@ type SalesOrderDoc = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
 }
 
 type FulfillmentDoc = {
@@ -32,6 +34,7 @@ type InvoiceDoc = {
   number: string
   status: string
   total: number
+  currencyCode?: string | null
   dueDate: string | null
   createdAt: string
 }
@@ -40,6 +43,7 @@ type InvoiceReceiptDoc = {
   id: string
   number: string
   amount: number
+  currencyCode?: string | null
   date: string
   method: string | null
   reference: string | null
@@ -51,6 +55,7 @@ export default function QuoteRelatedDocuments({
   fulfillments,
   invoices,
   invoiceReceipts,
+  defaultCurrencyCode,
   embedded = false,
   showDisplayControl = true,
 }: {
@@ -59,9 +64,12 @@ export default function QuoteRelatedDocuments({
   fulfillments: FulfillmentDoc[]
   invoices: InvoiceDoc[]
   invoiceReceipts: InvoiceReceiptDoc[]
+  defaultCurrencyCode?: string | null
   embedded?: boolean
   showDisplayControl?: boolean
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined)
   return (
     <TransactionRelatedDocumentsTabs
       embedded={embedded}
@@ -83,13 +91,13 @@ export default function QuoteRelatedDocuments({
               </Link>,
               opportunity.name,
               <RelatedDocumentsStatusBadge key="status" status={opportunity.status} />,
-              fmtCurrency(opportunity.total),
+              formatAmount(opportunity.total, opportunity.currencyCode),
             ],
             filterValues: [
               opportunity.number,
               opportunity.name,
               opportunity.status,
-              fmtCurrency(opportunity.total),
+              formatAmount(opportunity.total, opportunity.currencyCode),
             ],
           })),
         },
@@ -107,12 +115,12 @@ export default function QuoteRelatedDocuments({
                 {salesOrder.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={salesOrder.status} />,
-              fmtCurrency(salesOrder.total),
+              formatAmount(salesOrder.total, salesOrder.currencyCode),
             ],
             filterValues: [
               salesOrder.number,
               salesOrder.status,
-              fmtCurrency(salesOrder.total),
+              formatAmount(salesOrder.total, salesOrder.currencyCode),
             ],
           })),
         },
@@ -155,14 +163,14 @@ export default function QuoteRelatedDocuments({
                 {invoice.number}
               </Link>,
               <RelatedDocumentsStatusBadge key="status" status={invoice.status} />,
-              fmtCurrency(invoice.total),
+              formatAmount(invoice.total, invoice.currencyCode),
               fmtDocumentDate(invoice.createdAt),
               invoice.dueDate ? fmtDocumentDate(invoice.dueDate) : '-',
             ],
             filterValues: [
               invoice.number,
               invoice.status,
-              fmtCurrency(invoice.total),
+              formatAmount(invoice.total, invoice.currencyCode),
               fmtDocumentDate(invoice.createdAt),
               invoice.dueDate ? fmtDocumentDate(invoice.dueDate) : '-',
             ],
@@ -181,14 +189,14 @@ export default function QuoteRelatedDocuments({
               <Link key="link" href={`/invoice-receipts/${receipt.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
                 {receipt.number}
               </Link>,
-              fmtCurrency(receipt.amount),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date),
               receipt.method ?? '-',
               receipt.reference ?? '-',
             ],
             filterValues: [
               receipt.number,
-              fmtCurrency(receipt.amount),
+              formatAmount(receipt.amount, receipt.currencyCode),
               fmtDocumentDate(receipt.date),
               receipt.method ?? '-',
               receipt.reference ?? '-',

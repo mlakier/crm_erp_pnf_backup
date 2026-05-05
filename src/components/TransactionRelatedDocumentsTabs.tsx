@@ -239,7 +239,7 @@ export default function TransactionRelatedDocumentsTabs({
         <div className="border-b px-6 py-0" style={{ borderColor: 'var(--border-muted)' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">{tabButtons}</div>
-            {activeTab.rows.length && toolbar ? <div className="flex shrink-0 items-center py-2">{toolbar}</div> : null}
+            {toolbar ? <div className="flex shrink-0 items-center py-2">{toolbar}</div> : null}
           </div>
         </div>
         {body}

@@ -8,6 +8,7 @@ export type InvoiceApplicationCandidate = {
   date: Date | string
   subsidiaryId: string | null
   currencyId: string | null
+  currencyCode?: string | null
   userId: string | null
   openAmount: number
 }

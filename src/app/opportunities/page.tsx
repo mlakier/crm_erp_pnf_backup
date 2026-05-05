@@ -239,7 +239,9 @@ export default async function OpportunitiesPage({
                                   </Link>
                                   <p className="text-sm font-semibold text-white">{opportunity.name}</p>
                                   <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>{opportunity.customer.name}</p>
-                                  <p className="mt-2 text-sm font-medium text-white">{fmtCurrency(opportunity.amount, undefined, moneySettings)}</p>
+                                  <p className="mt-2 text-sm font-medium text-white">
+                                    {fmtCurrency(opportunity.amount, opportunity.currency?.code ?? opportunity.currency?.currencyId ?? undefined, moneySettings)}
+                                  </p>
                                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                                     {opportunity.closeDate ? fmtDocumentDate(opportunity.closeDate, moneySettings) : 'No close date'}
                                   </p>
@@ -323,7 +325,9 @@ export default async function OpportunitiesPage({
                       )}
                     </td>
                     <td data-column="stage" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{formatRecordLabel(opportunity.stage, stageLabelMap)}</td>
-                    <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>{fmtCurrency(opportunity.amount, undefined, moneySettings)}</td>
+                    <td data-column="amount" className="px-4 py-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      {fmtCurrency(opportunity.amount, opportunity.currency?.code ?? opportunity.currency?.currencyId ?? undefined, moneySettings)}
+                    </td>
                     <td data-column="subsidiary" className="px-4 py-2 text-sm">
                       {opportunity.subsidiary ? (
                         <Link

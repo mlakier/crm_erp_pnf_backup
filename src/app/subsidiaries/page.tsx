@@ -18,6 +18,7 @@ import { SUBSIDIARY_FORM_FIELDS } from '@/lib/subsidiary-form-customization'
 import { loadSubsidiaryFormCustomization } from '@/lib/subsidiary-form-customization-store'
 import { subsidiaryListDefinition } from '@/lib/master-data-list-definitions'
 import { DEFAULT_RECORD_LIST_SORT } from '@/lib/record-list-sort'
+import { loadPostingAccounts } from '@/lib/posting-account-options'
 
 type SubsidiaryHierarchyEntity = {
   id: string
@@ -49,7 +50,7 @@ export default async function SubsidiariesPage({
   const [entities, currencies, glAccounts, allEntities, companySettings, cabinetFiles, fieldOptions, formCustomization] = await Promise.all([
     prisma.subsidiary.findMany({
       where,
-      include: { defaultCurrency: true, functionalCurrency: true, reportingCurrency: true, parentSubsidiary: true },
+      include: { localCurrency: true, functionalCurrency: true, groupCurrency: true, parentSubsidiary: true },
       orderBy:
         sort === 'id'
           ? [{ subsidiaryId: 'asc' as const }, { createdAt: 'desc' as const }]
@@ -62,7 +63,7 @@ export default async function SubsidiariesPage({
       take: pagination.pageSize,
     }),
     prisma.currency.findMany({ orderBy: { code: 'asc' } }),
-    prisma.chartOfAccounts.findMany({ where: { active: true }, orderBy: { accountId: 'asc' }, select: { id: true, accountId: true, name: true } }),
+    loadPostingAccounts(),
     prisma.subsidiary.findMany({
       orderBy: { subsidiaryId: 'asc' },
       select: { id: true, subsidiaryId: true, name: true, country: true, entityType: true, taxId: true, parentSubsidiaryId: true },
@@ -125,9 +126,9 @@ export default async function SubsidiariesPage({
               <MasterDataHeaderCell columnId="parent-subsidiary">Parent Subsidiary</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="legal-name">Legal Name</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="type">Type</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="default-currency">Primary Currency</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="default-currency">Local Currency</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="functional-currency">Functional Currency</MasterDataHeaderCell>
-              <MasterDataHeaderCell columnId="reporting-currency">Reporting Currency</MasterDataHeaderCell>
+              <MasterDataHeaderCell columnId="reporting-currency">Group Currency</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="consolidation-method">Consolidation Method</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="ownership-percent">Ownership %</MasterDataHeaderCell>
               <MasterDataHeaderCell columnId="inactive">Inactive</MasterDataHeaderCell>
@@ -155,9 +156,9 @@ export default async function SubsidiariesPage({
                   <MasterDataMutedCell columnId="parent-subsidiary">{Subsidiary.parentSubsidiary ? `${Subsidiary.parentSubsidiary.subsidiaryId} - ${Subsidiary.parentSubsidiary.name}` : '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="legal-name">{Subsidiary.legalName ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="type">{Subsidiary.entityType ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="default-currency">{Subsidiary.defaultCurrency?.code ?? '-'}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="default-currency">{Subsidiary.localCurrency?.code ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="functional-currency">{Subsidiary.functionalCurrency?.code ?? '-'}</MasterDataMutedCell>
-                  <MasterDataMutedCell columnId="reporting-currency">{Subsidiary.reportingCurrency?.code ?? '-'}</MasterDataMutedCell>
+                  <MasterDataMutedCell columnId="reporting-currency">{Subsidiary.groupCurrency?.code ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="consolidation-method">{Subsidiary.consolidationMethod ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="ownership-percent">{Subsidiary.ownershipPercent?.toString() ?? '-'}</MasterDataMutedCell>
                   <MasterDataMutedCell columnId="inactive">{Subsidiary.active ? 'No' : 'Yes'}</MasterDataMutedCell>
@@ -193,10 +194,10 @@ export default async function SubsidiariesPage({
                               placeholder: 'Select parent subsidiary',
                               options: allEntities.filter((candidate) => candidate.id !== Subsidiary.id).map((candidate) => ({ value: candidate.id, label: `${candidate.subsidiaryId} - ${candidate.name}` })),
                             }] : []),
-                          ...(formCustomization.fields.defaultCurrencyId.visible ? [{
-                              name: 'defaultCurrencyId',
-                              label: 'Primary Currency',
-                              value: Subsidiary.defaultCurrencyId ?? '',
+                          ...(formCustomization.fields.localCurrencyId.visible ? [{
+                              name: 'localCurrencyId',
+                              label: 'Local Currency',
+                              value: Subsidiary.localCurrencyId ?? '',
                               type: 'select' as const,
                               placeholder: 'Select currency',
                               options: currencies.map((currency) => ({ value: currency.id, label: `${currency.code} - ${currency.name}` })),
@@ -209,10 +210,10 @@ export default async function SubsidiariesPage({
                               placeholder: 'Select currency',
                               options: currencies.map((currency) => ({ value: currency.id, label: `${currency.code} - ${currency.name}` })),
                             }] : []),
-                          ...(formCustomization.fields.reportingCurrencyId.visible ? [{
-                              name: 'reportingCurrencyId',
-                              label: 'Reporting Currency',
-                              value: Subsidiary.reportingCurrencyId ?? '',
+                          ...(formCustomization.fields.groupCurrencyId.visible ? [{
+                              name: 'groupCurrencyId',
+                              label: 'Group Currency',
+                              value: Subsidiary.groupCurrencyId ?? '',
                               type: 'select' as const,
                               placeholder: 'Select currency',
                               options: currencies.map((currency) => ({ value: currency.id, label: `${currency.code} - ${currency.name}` })),
@@ -225,7 +226,7 @@ export default async function SubsidiariesPage({
                               value: Subsidiary.retainedEarningsAccountId ?? '',
                               type: 'select' as const,
                               placeholder: 'Select account',
-                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` })),
+                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountNumber} - ${account.name}` })),
                             }] : []),
                           ...(formCustomization.fields.ctaAccountId.visible ? [{
                               name: 'ctaAccountId',
@@ -233,7 +234,7 @@ export default async function SubsidiariesPage({
                               value: Subsidiary.ctaAccountId ?? '',
                               type: 'select' as const,
                               placeholder: 'Select account',
-                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` })),
+                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountNumber} - ${account.name}` })),
                             }] : []),
                           ...(formCustomization.fields.intercompanyClearingAccountId.visible ? [{
                               name: 'intercompanyClearingAccountId',
@@ -241,7 +242,7 @@ export default async function SubsidiariesPage({
                               value: Subsidiary.intercompanyClearingAccountId ?? '',
                               type: 'select' as const,
                               placeholder: 'Select account',
-                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` })),
+                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountNumber} - ${account.name}` })),
                             }] : []),
                           ...(formCustomization.fields.dueToAccountId.visible ? [{
                               name: 'dueToAccountId',
@@ -249,7 +250,7 @@ export default async function SubsidiariesPage({
                               value: Subsidiary.dueToAccountId ?? '',
                               type: 'select' as const,
                               placeholder: 'Select account',
-                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` })),
+                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountNumber} - ${account.name}` })),
                             }] : []),
                           ...(formCustomization.fields.dueFromAccountId.visible ? [{
                               name: 'dueFromAccountId',
@@ -257,7 +258,7 @@ export default async function SubsidiariesPage({
                               value: Subsidiary.dueFromAccountId ?? '',
                               type: 'select' as const,
                               placeholder: 'Select account',
-                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountId} - ${account.name}` })),
+                              options: glAccounts.map((account) => ({ value: account.id, label: `${account.accountNumber} - ${account.name}` })),
                             }] : []),
                           ...(formCustomization.fields.inactive.visible ? [{
                               name: 'inactive',

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { TransactionStatCardSize, TransactionVisualTone } from '@/lib/transaction-page-config'
 
 export function RecordDetailStatCard({
@@ -194,14 +194,16 @@ export function RecordDetailEmptyState({ message }: { message: string }) {
 export function RecordDetailHeaderCell({
   children,
   className = '',
+  style,
 }: {
   children?: ReactNode
   className?: string
+  style?: CSSProperties
 }) {
   return (
     <th
       className={`px-4 py-2 text-left text-xs font-medium uppercase tracking-wide ${className}`.trim()}
-      style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-muted)' }}
+      style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-muted)', ...style }}
     >
       {children}
     </th>
@@ -211,14 +213,16 @@ export function RecordDetailHeaderCell({
 export function RecordDetailCell({
   children,
   className = '',
+  style,
 }: {
   children?: ReactNode
   className?: string
+  style?: CSSProperties
 }) {
   return (
     <td
       className={`px-4 py-2 text-sm ${className}`.trim()}
-      style={{ color: 'var(--text-secondary)' }}
+      style={{ color: 'var(--text-secondary)', ...style }}
     >
       {children}
     </td>

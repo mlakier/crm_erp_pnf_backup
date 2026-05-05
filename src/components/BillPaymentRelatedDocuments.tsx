@@ -6,15 +6,18 @@ import TransactionRelatedDocumentsTabs, {
   type TransactionRelatedDocumentsTab,
 } from '@/components/TransactionRelatedDocumentsTabs'
 import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
+import type { DocumentRelationshipSummary } from '@/lib/document-relationships'
 
 export default function BillPaymentRelatedDocuments({
   purchaseRequisitions,
   purchaseOrders,
   receipts,
   bills,
+  linkedDocuments = [],
   moneySettings,
   embedded = false,
   showDisplayControl = true,
+  defaultCurrencyCode,
 }: {
   purchaseRequisitions: Array<{
     id: string
@@ -22,6 +25,7 @@ export default function BillPaymentRelatedDocuments({
     status: string
     total: number
     createdAt: string | Date
+    currencyCode?: string | null
   }>
   purchaseOrders: Array<{
     id: string
@@ -29,6 +33,7 @@ export default function BillPaymentRelatedDocuments({
     status: string
     total: number
     createdAt: string | Date
+    currencyCode?: string | null
   }>
   receipts: Array<{
     id: string
@@ -46,11 +51,16 @@ export default function BillPaymentRelatedDocuments({
     date: string | Date
     dueDate: string | Date | null
     notes: string | null
+    currencyCode?: string | null
   }>
+  linkedDocuments?: DocumentRelationshipSummary[]
   moneySettings?: Parameters<typeof fmtCurrency>[2]
   embedded?: boolean
   showDisplayControl?: boolean
+  defaultCurrencyCode?: string | null
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined, moneySettings)
   const tabs: TransactionRelatedDocumentsTab[] = [
     {
       key: 'purchase-requisitions',
@@ -66,13 +76,13 @@ export default function BillPaymentRelatedDocuments({
             {req.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${req.id}-status`} status={req.status} />,
-          fmtCurrency(req.total, undefined, moneySettings),
+          formatAmount(req.total, req.currencyCode),
           fmtDocumentDate(req.createdAt, moneySettings),
         ],
         filterValues: [
           req.number,
           req.status,
-          fmtCurrency(req.total, undefined, moneySettings),
+          formatAmount(req.total, req.currencyCode),
           fmtDocumentDate(req.createdAt, moneySettings),
         ],
       })),
@@ -91,13 +101,13 @@ export default function BillPaymentRelatedDocuments({
             {po.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${po.id}-status`} status={po.status} />,
-          fmtCurrency(po.total, undefined, moneySettings),
+          formatAmount(po.total, po.currencyCode),
           fmtDocumentDate(po.createdAt, moneySettings),
         ],
         filterValues: [
           po.number,
           po.status,
-          fmtCurrency(po.total, undefined, moneySettings),
+          formatAmount(po.total, po.currencyCode),
           fmtDocumentDate(po.createdAt, moneySettings),
         ],
       })),
@@ -143,7 +153,7 @@ export default function BillPaymentRelatedDocuments({
             {bill.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${bill.id}-status`} status={bill.status} />,
-          fmtCurrency(bill.total, undefined, moneySettings),
+          formatAmount(bill.total, bill.currencyCode),
           fmtDocumentDate(bill.date, moneySettings),
           bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '-',
           bill.notes ?? '-',
@@ -151,10 +161,48 @@ export default function BillPaymentRelatedDocuments({
         filterValues: [
           bill.number,
           bill.status,
-          fmtCurrency(bill.total, undefined, moneySettings),
+          formatAmount(bill.total, bill.currencyCode),
           fmtDocumentDate(bill.date, moneySettings),
           bill.dueDate ? fmtDocumentDate(bill.dueDate, moneySettings) : '-',
           bill.notes ?? '-',
+        ],
+      })),
+    },
+    {
+      key: 'linked-documents',
+      label: 'Linked Documents',
+      count: linkedDocuments.length,
+      tone: 'downstream',
+      emptyMessage: 'No linked documents are attached to this bill payment yet.',
+      headers: ['RELATIONSHIP', 'TYPE', 'TXN ID', 'STATUS', 'AMOUNT', 'DATE'],
+      rows: linkedDocuments.map((document) => ({
+        id: document.id,
+        cells: [
+          document.relationshipLabel,
+          document.relatedRecordLabel,
+          document.href ? (
+            <Link
+              key={`${document.id}-number`}
+              href={document.href}
+              className="hover:underline"
+              style={{ color: 'var(--accent-primary-strong)' }}
+            >
+              {document.relatedNumber}
+            </Link>
+          ) : (
+            document.relatedNumber
+          ),
+          document.relatedStatus ? <RelatedDocumentsStatusBadge key={`${document.id}-status`} status={document.relatedStatus} /> : '-',
+          document.relatedAmount != null ? fmtCurrency(document.relatedAmount, defaultCurrencyCode ?? undefined, moneySettings) : '-',
+          document.relatedDate ? fmtDocumentDate(document.relatedDate, moneySettings) : '-',
+        ],
+        filterValues: [
+          document.relationshipLabel,
+          document.relatedRecordLabel,
+          document.relatedNumber,
+          document.relatedStatus ?? '-',
+          document.relatedAmount != null ? fmtCurrency(document.relatedAmount, defaultCurrencyCode ?? undefined, moneySettings) : '-',
+          document.relatedDate ? fmtDocumentDate(document.relatedDate, moneySettings) : '-',
         ],
       })),
     },

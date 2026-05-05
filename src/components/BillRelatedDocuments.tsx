@@ -8,6 +8,7 @@ import TransactionRelatedDocumentsTabs, {
 import { fmtCurrency, fmtDocumentDate } from '@/lib/format'
 
 export default function BillRelatedDocuments({
+  bills = [],
   purchaseRequisitions,
   purchaseOrders,
   receipts,
@@ -15,13 +16,24 @@ export default function BillRelatedDocuments({
   moneySettings,
   embedded = false,
   showDisplayControl = true,
+  defaultActiveKey = 'purchase-requisitions',
+  defaultCurrencyCode,
 }: {
+  bills?: Array<{
+    id: string
+    number: string
+    status: string
+    total: number
+    date: string | Date
+    currencyCode?: string | null
+  }>
   purchaseRequisitions: Array<{
     id: string
     number: string
     status: string
     total: number
     createdAt: string | Date
+    currencyCode?: string | null
   }>
   purchaseOrders: Array<{
     id: string
@@ -29,6 +41,7 @@ export default function BillRelatedDocuments({
     status: string
     total: number
     createdAt: string | Date
+    currencyCode?: string | null
   }>
   receipts: Array<{
     id: string
@@ -45,12 +58,42 @@ export default function BillRelatedDocuments({
     status: string
     amount: number
     reference: string | null
+    currencyCode?: string | null
   }>
   moneySettings?: Parameters<typeof fmtCurrency>[2]
   embedded?: boolean
   showDisplayControl?: boolean
+  defaultActiveKey?: string
+  defaultCurrencyCode?: string | null
 }) {
+  const formatAmount = (value: number, currencyCode?: string | null) =>
+    fmtCurrency(value, currencyCode ?? defaultCurrencyCode ?? undefined, moneySettings)
   const tabs: TransactionRelatedDocumentsTab[] = [
+    {
+      key: 'bills',
+      label: 'Bills',
+      count: bills.length,
+      tone: 'upstream',
+      emptyMessage: 'No related bills.',
+      headers: ['TXN ID', 'STATUS', 'TOTAL', 'DATE'],
+      rows: bills.map((bill) => ({
+        id: bill.id,
+        cells: [
+          <Link key={`${bill.id}-number`} href={`/bills/${bill.id}`} className="hover:underline" style={{ color: 'var(--accent-primary-strong)' }}>
+            {bill.number}
+          </Link>,
+          <RelatedDocumentsStatusBadge key={`${bill.id}-status`} status={bill.status} />,
+          formatAmount(bill.total, bill.currencyCode),
+          fmtDocumentDate(bill.date, moneySettings),
+        ],
+        filterValues: [
+          bill.number,
+          bill.status,
+          formatAmount(bill.total, bill.currencyCode),
+          fmtDocumentDate(bill.date, moneySettings),
+        ],
+      })),
+    },
     {
       key: 'purchase-requisitions',
       label: 'Purchase Requisitions',
@@ -65,13 +108,13 @@ export default function BillRelatedDocuments({
             {req.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${req.id}-status`} status={req.status} />,
-          fmtCurrency(req.total, undefined, moneySettings),
+          formatAmount(req.total, req.currencyCode),
           fmtDocumentDate(req.createdAt, moneySettings),
         ],
         filterValues: [
           req.number,
           req.status,
-          fmtCurrency(req.total, undefined, moneySettings),
+          formatAmount(req.total, req.currencyCode),
           fmtDocumentDate(req.createdAt, moneySettings),
         ],
       })),
@@ -90,13 +133,13 @@ export default function BillRelatedDocuments({
             {po.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${po.id}-status`} status={po.status} />,
-          fmtCurrency(po.total, undefined, moneySettings),
+          formatAmount(po.total, po.currencyCode),
           fmtDocumentDate(po.createdAt, moneySettings),
         ],
         filterValues: [
           po.number,
           po.status,
-          fmtCurrency(po.total, undefined, moneySettings),
+          formatAmount(po.total, po.currencyCode),
           fmtDocumentDate(po.createdAt, moneySettings),
         ],
       })),
@@ -142,14 +185,14 @@ export default function BillRelatedDocuments({
             {payment.number}
           </Link>,
           <RelatedDocumentsStatusBadge key={`${payment.id}-status`} status={payment.status} />,
-          fmtCurrency(payment.amount, undefined, moneySettings),
+          formatAmount(payment.amount, payment.currencyCode),
           fmtDocumentDate(payment.date, moneySettings),
           payment.reference ?? '-',
         ],
         filterValues: [
           payment.number,
           payment.status,
-          fmtCurrency(payment.amount, undefined, moneySettings),
+          formatAmount(payment.amount, payment.currencyCode),
           fmtDocumentDate(payment.date, moneySettings),
           payment.reference ?? '-',
         ],
@@ -157,5 +200,12 @@ export default function BillRelatedDocuments({
     },
   ]
 
-  return <TransactionRelatedDocumentsTabs tabs={tabs} embedded={embedded} showDisplayControl={showDisplayControl} />
+  return (
+    <TransactionRelatedDocumentsTabs
+      tabs={tabs}
+      embedded={embedded}
+      showDisplayControl={showDisplayControl}
+      defaultActiveKey={defaultActiveKey}
+    />
+  )
 }

@@ -47,7 +47,7 @@ export default function RecordDetailActionBar({
   editExtraActions,
   createExtraActions,
 }: {
-  mode: 'detail' | 'edit' | 'create'
+  mode: 'detail' | 'edit' | 'create' | 'customize'
   detailHref?: string
   formId?: string
   recordId?: string
@@ -73,6 +73,10 @@ export default function RecordDetailActionBar({
   editExtraActions?: ReactNode
   createExtraActions?: ReactNode
 }) {
+  if (mode === 'customize') {
+    return null
+  }
+
   const deleteAction =
     onDelete ? (
       <button

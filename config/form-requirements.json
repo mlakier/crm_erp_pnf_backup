@@ -113,9 +113,30 @@
     "method": true,
     "reference": false
   },
+  "creditMemoCreate": {
+    "customerId": true,
+    "invoiceId": false,
+    "subsidiaryId": false,
+    "currencyId": false,
+    "status": true,
+    "date": true,
+    "reason": false,
+    "notes": false
+  },
   "customerRefundCreate": {
     "customerId": true,
     "cashReceiptId": false,
+    "bankAccountId": false,
+    "amount": true,
+    "date": true,
+    "method": true,
+    "reference": false,
+    "notes": false,
+    "status": true
+  },
+  "vendorRefundCreate": {
+    "vendorId": true,
+    "billPaymentId": false,
     "bankAccountId": false,
     "amount": true,
     "date": true,
@@ -160,6 +181,16 @@
     "date": true,
     "dueDate": false,
     "status": true,
+    "notes": false
+  },
+  "billCreditCreate": {
+    "vendorId": true,
+    "billId": false,
+    "subsidiaryId": false,
+    "currencyId": false,
+    "status": true,
+    "date": true,
+    "reason": false,
     "notes": false
   },
   "billPaymentCreate": {
@@ -272,6 +303,8 @@
     "financialStatementSection": false,
     "financialStatementGroup": false,
     "financialStatementCategory": false,
+    "accountRole": false,
+    "rollforwardCategory": false,
     "subsidiaryIds": false,
     "includeChildren": false,
     "parentAccountId": false,
@@ -327,9 +360,9 @@
     "taxId": false,
     "registrationNumber": false,
     "parentSubsidiaryId": false,
-    "defaultCurrencyId": false,
+    "localCurrencyId": false,
     "functionalCurrencyId": false,
-    "reportingCurrencyId": false,
+    "groupCurrencyId": false,
     "consolidationMethod": false,
     "ownershipPercent": false,
     "retainedEarningsAccountId": false,

@@ -1,10 +1,28 @@
 import type { ReactNode } from 'react'
 import RecordBottomTabsSection from '@/components/RecordBottomTabsSection'
 
+function FooterEmptyState({ message }: { message: string }) {
+  return (
+    <div className="px-6 py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
+      {message}
+    </div>
+  )
+}
+
 export default function TransactionDetailFrame({
   stats,
   header,
   lineItems,
+  relatedMasterData,
+  relatedMasterDataLabel = 'Related Records',
+  relatedMasterDataCount = 0,
+  relatedMasterDataToolbarTargetId,
+  relatedMasterDataToolbarPlacement = 'panel',
+  relatedTransactionDocuments,
+  relatedTransactionDocumentsLabel = 'Related Documents',
+  relatedTransactionDocumentsCount = 0,
+  relatedTransactionDocumentsToolbarTargetId,
+  relatedTransactionDocumentsToolbarPlacement = 'panel',
   relatedRecords,
   relatedRecordsLabel = 'Related Records',
   relatedRecordsCount = 0,
@@ -29,6 +47,16 @@ export default function TransactionDetailFrame({
   stats?: ReactNode
   header: ReactNode
   lineItems: ReactNode
+  relatedMasterData?: ReactNode
+  relatedMasterDataLabel?: string
+  relatedMasterDataCount?: number
+  relatedMasterDataToolbarTargetId?: string
+  relatedMasterDataToolbarPlacement?: 'panel' | 'tab-bar'
+  relatedTransactionDocuments?: ReactNode
+  relatedTransactionDocumentsLabel?: string
+  relatedTransactionDocumentsCount?: number
+  relatedTransactionDocumentsToolbarTargetId?: string
+  relatedTransactionDocumentsToolbarPlacement?: 'panel' | 'tab-bar'
   relatedRecords?: ReactNode
   relatedRecordsLabel?: string
   relatedRecordsCount?: number
@@ -55,50 +83,57 @@ export default function TransactionDetailFrame({
     : supplementarySections
       ? [supplementarySections]
       : []
-  const shouldUseSharedBottomContainer = Boolean(showFooterSections && (communications || systemNotes))
+  const resolvedRelatedMasterData = relatedMasterData ?? relatedRecords
+  const resolvedRelatedMasterDataLabel = relatedMasterDataLabel ?? relatedRecordsLabel
+  const resolvedRelatedMasterDataCount = relatedMasterDataCount || relatedRecordsCount
+  const resolvedRelatedMasterDataToolbarTargetId = relatedMasterDataToolbarTargetId ?? relatedRecordsToolbarTargetId
+  const resolvedRelatedMasterDataToolbarPlacement = relatedMasterDataToolbarTargetId
+    ? relatedMasterDataToolbarPlacement
+    : relatedRecordsToolbarPlacement
+  const resolvedRelatedTransactionDocuments = relatedTransactionDocuments ?? relatedDocuments
+  const resolvedRelatedTransactionDocumentsLabel = relatedTransactionDocumentsLabel ?? relatedDocumentsLabel
+  const resolvedRelatedTransactionDocumentsCount = relatedTransactionDocumentsCount || relatedDocumentsCount
+  const resolvedRelatedTransactionDocumentsToolbarTargetId =
+    relatedTransactionDocumentsToolbarTargetId ?? relatedDocumentsToolbarTargetId
+  const resolvedRelatedTransactionDocumentsToolbarPlacement = relatedTransactionDocumentsToolbarTargetId
+    ? relatedTransactionDocumentsToolbarPlacement
+    : relatedDocumentsToolbarPlacement
+  const shouldUseSharedBottomContainer = Boolean(showFooterSections)
   const footerTabs = shouldUseSharedBottomContainer
     ? [
-        relatedRecords
-          ? {
-              key: 'related-records',
-              label: relatedRecordsLabel,
-              count: relatedRecordsCount,
-              content: relatedRecords,
-              toolbarTargetId: relatedRecordsToolbarTargetId,
-              toolbarPlacement: relatedRecordsToolbarPlacement,
-            }
-          : null,
-        relatedDocuments
-          ? {
-              key: 'related-documents',
-              label: relatedDocumentsLabel,
-              count: relatedDocumentsCount,
-              content: relatedDocuments,
-              toolbarTargetId: relatedDocumentsToolbarTargetId,
-              toolbarPlacement: relatedDocumentsToolbarPlacement,
-            }
-          : null,
-        communications
-          ? {
-              key: 'communications',
-              label: 'Communications',
-              count: communicationsCount,
-              content: communications,
-              toolbarTargetId: communicationsToolbarTargetId,
-              toolbarPlacement: communicationsToolbarPlacement,
-            }
-          : null,
-        systemNotes
-          ? {
-              key: 'system-notes',
-              label: 'System Notes',
-              count: systemNotesCount,
-              content: systemNotes,
-              toolbarTargetId: systemNotesToolbarTargetId,
-              toolbarPlacement: systemNotesToolbarPlacement,
-            }
-          : null,
-      ].filter((tab): tab is NonNullable<typeof tab> => tab !== null)
+        {
+          key: 'related-records',
+          label: resolvedRelatedMasterDataLabel,
+          count: resolvedRelatedMasterDataCount,
+          content: resolvedRelatedMasterData ?? <FooterEmptyState message="No linked master data records." />,
+          toolbarTargetId: resolvedRelatedMasterDataToolbarTargetId,
+          toolbarPlacement: resolvedRelatedMasterDataToolbarPlacement,
+        },
+        {
+          key: 'related-documents',
+          label: resolvedRelatedTransactionDocumentsLabel,
+          count: resolvedRelatedTransactionDocumentsCount,
+          content: resolvedRelatedTransactionDocuments ?? <FooterEmptyState message="No linked transaction records." />,
+          toolbarTargetId: resolvedRelatedTransactionDocumentsToolbarTargetId,
+          toolbarPlacement: resolvedRelatedTransactionDocumentsToolbarPlacement,
+        },
+        {
+          key: 'communications',
+          label: 'Communications',
+          count: communicationsCount,
+          content: communications ?? <FooterEmptyState message="No communications tracked for this record yet." />,
+          toolbarTargetId: communicationsToolbarTargetId,
+          toolbarPlacement: communicationsToolbarPlacement,
+        },
+        {
+          key: 'system-notes',
+          label: 'System Notes',
+          count: systemNotesCount,
+          content: systemNotes ?? <FooterEmptyState message="No system notes yet." />,
+          toolbarTargetId: systemNotesToolbarTargetId,
+          toolbarPlacement: systemNotesToolbarPlacement,
+        },
+      ]
     : []
 
   return (
@@ -114,11 +149,11 @@ export default function TransactionDetailFrame({
       {shouldUseSharedBottomContainer ? (
         <RecordBottomTabsSection
           defaultActiveKey={
-            relatedRecords
+            resolvedRelatedMasterDataCount > 0
               ? 'related-records'
-              : relatedDocuments
+              : resolvedRelatedTransactionDocumentsCount > 0
                 ? 'related-documents'
-                : communications
+                : communicationsCount > 0
                   ? 'communications'
                   : 'system-notes'
           }
@@ -126,8 +161,8 @@ export default function TransactionDetailFrame({
         />
       ) : (
         <>
-          {showFooterSections ? relatedRecords : null}
-          {showFooterSections ? relatedDocuments : null}
+          {showFooterSections ? resolvedRelatedMasterData : null}
+          {showFooterSections ? resolvedRelatedTransactionDocuments : null}
           {showFooterSections ? communications : null}
           {showFooterSections ? systemNotes : null}
         </>

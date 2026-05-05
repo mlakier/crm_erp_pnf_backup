@@ -13,6 +13,7 @@ import RecordHeaderDetails, {
 import TransactionLineItemsSection from '@/components/TransactionLineItemsSection'
 import PurchaseOrderPageActions from '@/components/PurchaseOrderPageActions'
 import PurchaseOrderRelatedDocuments from '@/components/PurchaseOrderRelatedDocuments'
+import RelatedRecordsSection from '@/components/RelatedRecordsSection'
 import CommunicationsSection from '@/components/CommunicationsSection'
 import RecordDetailPageShell from '@/components/RecordDetailPageShell'
 import SystemNotesSection from '@/components/SystemNotesSection'
@@ -144,6 +145,7 @@ export default async function PurchaseOrderDetailPage({
   ])
 
   if (!po) notFound()
+  const purchaseOrderCurrencyCode = po.currency?.code ?? po.currency?.currencyId ?? undefined
 
   const receivedQuantity = po.receipts.reduce((sum, receipt) => sum + receipt.quantity, 0)
   const billedQuantity = po.bills.reduce(
@@ -188,8 +190,8 @@ export default async function PurchaseOrderDetailPage({
           setBy: activity.userId ? activityUserLabelById.get(activity.userId) ?? activity.userId : 'System',
           context: parsed.context,
           fieldName: parsed.fieldName,
-          oldValue: formatSystemNoteValue(parsed.fieldName, parsed.oldValue, moneySettings),
-          newValue: formatSystemNoteValue(parsed.fieldName, parsed.newValue, moneySettings),
+          oldValue: formatSystemNoteValue(parsed.fieldName, parsed.oldValue, moneySettings, purchaseOrderCurrencyCode),
+          newValue: formatSystemNoteValue(parsed.fieldName, parsed.newValue, moneySettings, purchaseOrderCurrencyCode),
         }
       })
       .filter((note): note is Exclude<typeof note, null> => Boolean(note))
@@ -408,6 +410,7 @@ export default async function PurchaseOrderDetailPage({
       key: 'subsidiaryId',
       label: 'Subsidiary',
       value: po.subsidiaryId ?? '',
+      href: po.subsidiary ? `/subsidiaries/${po.subsidiary.id}` : null,
       editable: true,
       type: 'select',
       options: [{ value: '', label: 'None' }, ...subsidiaryOptions],
@@ -422,6 +425,7 @@ export default async function PurchaseOrderDetailPage({
       key: 'currencyId',
       label: 'Currency',
       value: po.currencyId ?? '',
+      href: po.currency ? `/currencies/${po.currency.id}` : null,
       editable: false,
       displayValue: po.currency ? `${po.currency.code ?? po.currency.currencyId} - ${po.currency.name}` : '-',
       helpText: 'Transaction currency for this purchase order.',
@@ -434,7 +438,7 @@ export default async function PurchaseOrderDetailPage({
       key: 'total',
       label: 'Total',
       value: computedTotal.toString(),
-      displayValue: fmtCurrency(computedTotal, undefined, moneySettings),
+      displayValue: fmtCurrency(computedTotal, purchaseOrderCurrencyCode, moneySettings),
       helpText: 'Current document total based on all purchase order line amounts.',
       fieldType: 'currency',
       subsectionTitle: 'Sourcing & Financials',
@@ -488,7 +492,7 @@ export default async function PurchaseOrderDetailPage({
       vendorId: `${po.vendor.vendorNumber ?? 'VENDOR'} - ${po.vendor.name}`,
       subsidiaryId: po.subsidiary ? `${po.subsidiary.subsidiaryId} - ${po.subsidiary.name}` : '',
       currencyId: po.currency ? `${po.currency.code ?? po.currency.currencyId} - ${po.currency.name}` : '',
-      total: fmtCurrency(computedTotal, undefined, moneySettings),
+        total: fmtCurrency(computedTotal, purchaseOrderCurrencyCode, moneySettings),
       createdAt: fmtDocumentDate(po.createdAt, moneySettings),
       updatedAt: fmtDocumentDate(po.updatedAt, moneySettings),
     },
@@ -496,6 +500,7 @@ export default async function PurchaseOrderDetailPage({
 
   const statsRecord = {
     total: computedTotal,
+    currencyCode: purchaseOrderCurrencyCode ?? null,
     lineCount: derivedLineRows.length,
     receiptCount: po.receipts.length,
     statusLabel: po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1).toLowerCase() : 'Unknown',
@@ -582,7 +587,7 @@ export default async function PurchaseOrderDetailPage({
     PurchaseOrderDetailFieldKey,
     PurchaseOrderDetailHeaderField
   >(headerSections, {
-    total: () => fmtCurrency(computedTotal, undefined, moneySettings),
+    total: () => fmtCurrency(computedTotal, purchaseOrderCurrencyCode, moneySettings),
   })
 
   const orderedVisibleLineColumns = getOrderedVisibleTransactionLineColumns(
@@ -622,7 +627,7 @@ export default async function PurchaseOrderDetailPage({
               vendorName={po.vendor.name}
               vendorEmail={po.vendor.email ?? null}
               status={po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1).toLowerCase() : 'Unknown'}
-              total={fmtCurrency(computedTotal, undefined, moneySettings)}
+              total={fmtCurrency(computedTotal, purchaseOrderCurrencyCode, moneySettings)}
               headerFields={exportHeaderFields}
               headerMap={{
                 purchaseOrderNumber: po.number,
@@ -630,7 +635,7 @@ export default async function PurchaseOrderDetailPage({
                 vendorName: po.vendor.name,
                 subsidiary: po.subsidiary ? `${po.subsidiary.subsidiaryId} - ${po.subsidiary.name}` : '',
                 status: po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1).toLowerCase() : 'Unknown',
-                total: fmtCurrency(computedTotal, undefined, moneySettings),
+                total: fmtCurrency(computedTotal, purchaseOrderCurrencyCode, moneySettings),
                 createdBy:
                   po.user?.userId && po.user?.name
                     ? `${po.user.userId} - ${po.user.name}`
@@ -660,7 +665,12 @@ export default async function PurchaseOrderDetailPage({
                 Customize
               </Link>
             ) : null}
-            <PurchaseOrderPageActions purchaseOrderId={po.id} detailHref={detailHref} editing={isEditing} />
+            <PurchaseOrderPageActions
+              purchaseOrderId={po.id}
+              detailHref={detailHref}
+              editing={isEditing}
+              customizing={isCustomizing}
+            />
           </>
         )
       }
@@ -741,9 +751,35 @@ export default async function PurchaseOrderDetailPage({
           )
         }
         relatedRecords={isCustomizing ? null : (
+          <RelatedRecordsSection
+            embedded
+            showDisplayControl={false}
+            tabs={[
+              {
+                key: 'vendor',
+                label: 'Vendor',
+                count: 1,
+                emptyMessage: 'No related vendor is linked to this purchase order.',
+                rows: [
+                  {
+                    id: po.vendor.id,
+                    type: 'Vendor',
+                    reference: po.vendor.vendorNumber ?? po.vendor.id,
+                    name: po.vendor.name,
+                    details: [po.vendor.email, po.vendor.phone].filter(Boolean).join(' | ') || '-',
+                    href: `/vendors/${po.vendor.id}`,
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        relatedRecordsCount={1}
+        relatedDocuments={isCustomizing ? null : (
           <PurchaseOrderRelatedDocuments
             embedded
             showDisplayControl={false}
+            moneySettings={moneySettings}
             requisitions={
               po.requisition
                 ? [
@@ -752,6 +788,7 @@ export default async function PurchaseOrderDetailPage({
                       number: po.requisition.number,
                       status: po.requisition.status,
                       total: toNumericValue(po.requisition.total, 0),
+                      currencyCode: purchaseOrderCurrencyCode,
                       title: po.requisition.title ?? null,
                       priority: po.requisition.priority ?? null,
                       createdAt: po.requisition.createdAt.toISOString(),
@@ -773,6 +810,7 @@ export default async function PurchaseOrderDetailPage({
               number: bill.number,
               status: bill.status,
               total: toNumericValue(bill.total, 0),
+              currencyCode: purchaseOrderCurrencyCode,
               date: bill.date.toISOString(),
               dueDate: bill.dueDate ? bill.dueDate.toISOString() : null,
               notes: bill.notes ?? null,
@@ -782,6 +820,7 @@ export default async function PurchaseOrderDetailPage({
                 id: payment.id,
                 number: payment.number,
                 amount: toNumericValue(payment.amount, 0),
+                currencyCode: purchaseOrderCurrencyCode,
                 date: payment.date.toISOString(),
                 method: payment.method ?? null,
                 status: payment.status,
@@ -791,18 +830,12 @@ export default async function PurchaseOrderDetailPage({
             )}
           />
         )}
-        relatedRecordsCount={
+        relatedDocumentsCount={
           (po.requisition ? 1 : 0) +
           po.receipts.length +
           po.bills.length +
           po.bills.reduce((sum, bill) => sum + bill.billPayments.length, 0)
         }
-        relatedDocuments={isCustomizing ? null : (
-          <div className="px-6 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-            No related documents are attached to this purchase order yet.
-          </div>
-        )}
-        relatedDocumentsCount={0}
         supplementarySections={null}
         communications={isCustomizing ? null : (
           <CommunicationsSection
@@ -818,7 +851,7 @@ export default async function PurchaseOrderDetailPage({
               counterpartyEmail: po.vendor.email ?? null,
               fromEmail: po.user?.email ?? null,
               status: po.status ?? 'Draft',
-              total: fmtCurrency(computedTotal, undefined, moneySettings),
+              total: fmtCurrency(computedTotal, purchaseOrderCurrencyCode, moneySettings),
               lineItems: derivedLineRows.map((row, index) => ({
                 line: index + 1,
                 itemId: row.itemId ?? '-',
@@ -869,13 +902,14 @@ function formatSystemNoteValue(
   fieldName: string,
   value: string | null | undefined,
   moneySettings?: Parameters<typeof fmtCurrency>[2],
+  currencyCode?: string,
 ) {
   if (!value || !value.trim()) return '-'
 
   if (SYSTEM_NOTE_CURRENCY_FIELDS.has(fieldName)) {
     const numericValue = Number(value)
     if (!Number.isNaN(numericValue)) {
-      return fmtCurrency(numericValue, undefined, moneySettings)
+        return fmtCurrency(numericValue, currencyCode, moneySettings)
     }
   }
 

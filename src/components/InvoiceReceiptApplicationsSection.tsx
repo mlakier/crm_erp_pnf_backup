@@ -20,6 +20,7 @@ export default function InvoiceReceiptApplicationsSection({
   requiresFullApplication = false,
   overpaymentHandling = '',
   moneySettings,
+  receiptCurrencyCode,
   title = 'Receipt Applications',
 }: {
   invoices: InvoiceApplicationCandidate[]
@@ -31,6 +32,7 @@ export default function InvoiceReceiptApplicationsSection({
   requiresFullApplication?: boolean
   overpaymentHandling?: string
   moneySettings?: Parameters<typeof fmtCurrency>[2]
+  receiptCurrencyCode?: string | null
   title?: string
 }) {
   const draftAmounts = useMemo(
@@ -91,6 +93,7 @@ export default function InvoiceReceiptApplicationsSection({
         totalAmount: invoice.total,
         openAmount: invoice.openAmount,
         allocatedAmount: applications.find((application) => application.invoiceId === invoice.id)?.appliedAmount ?? 0,
+        currencyCode: invoice.currencyCode ?? null,
       })),
     [appliedRows, applications],
   )
@@ -101,14 +104,14 @@ export default function InvoiceReceiptApplicationsSection({
   } else if (editing && normalizedReceiptAmount <= 0) {
     helperText = 'Enter the receipt amount above before allocating it across invoices.'
   } else if (editing && overappliedAmount > 0) {
-    helperText = `Applied amounts exceed the entered receipt amount by ${fmtCurrency(overappliedAmount, undefined, moneySettings)}.`
+    helperText = `Applied amounts exceed the entered receipt amount by ${fmtCurrency(overappliedAmount, receiptCurrencyCode ?? undefined, moneySettings)}.`
   } else if (editing && requiresFullApplication && unappliedAmount > 0) {
     helperText =
       overpaymentHandling === 'apply_to_future_invoices'
-        ? `This overpayment will remain on the customer account as unapplied cash: ${fmtCurrency(unappliedAmount, undefined, moneySettings)}.`
+        ? `This overpayment will remain on the customer account as unapplied cash: ${fmtCurrency(unappliedAmount, receiptCurrencyCode ?? undefined, moneySettings)}.`
         : overpaymentHandling === 'refund_pending'
-          ? `This overpayment is marked for refund: ${fmtCurrency(unappliedAmount, undefined, moneySettings)}.`
-          : `This receipt has an overpayment of ${fmtCurrency(unappliedAmount, undefined, moneySettings)}. Choose how to handle it above before posting.`
+          ? `This overpayment is marked for refund: ${fmtCurrency(unappliedAmount, receiptCurrencyCode ?? undefined, moneySettings)}.`
+          : `This receipt has an overpayment of ${fmtCurrency(unappliedAmount, receiptCurrencyCode ?? undefined, moneySettings)}. Choose how to handle it above before posting.`
   } else {
     helperText = 'Allocate the receipt total across one or more open customer invoices.'
   }
@@ -123,7 +126,7 @@ export default function InvoiceReceiptApplicationsSection({
       summary={
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: 'var(--badge-background)', color: 'var(--accent-primary-strong)' }}>
-            Applied {fmtCurrency(totalApplied, undefined, moneySettings)}
+            Applied {fmtCurrency(totalApplied, receiptCurrencyCode ?? undefined, moneySettings)}
           </span>
           {editing && normalizedReceiptAmount > 0 ? (
             <span
@@ -134,8 +137,8 @@ export default function InvoiceReceiptApplicationsSection({
               }}
             >
               {overappliedAmount > 0
-                ? `Overapplied ${fmtCurrency(overappliedAmount, undefined, moneySettings)}`
-                : `Unapplied ${fmtCurrency(unappliedAmount, undefined, moneySettings)}`}
+                ? `Overapplied ${fmtCurrency(overappliedAmount, receiptCurrencyCode ?? undefined, moneySettings)}`
+                : `Unapplied ${fmtCurrency(unappliedAmount, receiptCurrencyCode ?? undefined, moneySettings)}`}
             </span>
           ) : null}
         </div>

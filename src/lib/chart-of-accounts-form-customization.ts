@@ -11,6 +11,8 @@ export type ChartOfAccountsFormFieldKey =
   | 'financialStatementSection'
   | 'financialStatementGroup'
   | 'financialStatementCategory'
+  | 'accountRole'
+  | 'rollforwardCategory'
   | 'subsidiaryIds'
   | 'includeChildren'
   | 'parentAccountId'
@@ -73,6 +75,8 @@ export const CHART_OF_ACCOUNTS_FORM_FIELDS: ChartOfAccountsFormFieldMeta[] = [
   { id: 'financialStatementSection', label: 'FS Section', fieldType: 'text', description: 'Financial statement section used for rollups and presentation.' },
   { id: 'financialStatementGroup', label: 'FS Group', fieldType: 'text', description: 'More granular reporting group under the statement section.' },
   { id: 'financialStatementCategory', label: 'FS Category', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-COA-FS-CATEGORY', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-COA-FS-CATEGORY' }), description: 'Detailed reporting category such as Cash, AR, Inventory, AP, or FX.' },
+  { id: 'accountRole', label: 'Account Role', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-COA-ACCOUNT-ROLE', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-COA-ACCOUNT-ROLE' }), description: 'Operational role used for shared dropdown filters, defaults, and system account selection.' },
+  { id: 'rollforwardCategory', label: 'Rollforward Category', fieldType: 'list', sourceType: 'managed-list', sourceKey: 'LIST-COA-ROLLFORWARD-CATEGORY', source: getListSourceText({ sourceType: 'managed-list', sourceKey: 'LIST-COA-ROLLFORWARD-CATEGORY' }), description: 'Controlled rollforward grouping used to govern downstream balance movement reporting.' },
   { id: 'subsidiaryIds', label: 'Subsidiaries', fieldType: 'list', sourceType: 'reference', sourceKey: 'subsidiaries', source: getListSourceText({ sourceType: 'reference', sourceKey: 'subsidiaries' }), description: 'Subsidiaries where this GL account is available.' },
   { id: 'includeChildren', label: 'Include Children', fieldType: 'boolean', description: 'If enabled, child subsidiaries under selected subsidiaries also inherit account availability.' },
   { id: 'parentAccountId', label: 'Parent Account', fieldType: 'list', sourceType: 'reference', sourceKey: 'chartOfAccounts', source: getListSourceText({ sourceType: 'reference', sourceKey: 'chartOfAccounts' }), description: 'Rollup parent for hierarchical reporting.' },
@@ -106,6 +110,8 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     financialStatementSection: 'Reporting',
     financialStatementGroup: 'Reporting',
     financialStatementCategory: 'Reporting',
+    accountRole: 'Reporting',
+    rollforwardCategory: 'Reporting',
     cashFlowCategory: 'Reporting',
     subsidiaryIds: 'Structure',
     includeChildren: 'Structure',
@@ -131,6 +137,8 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     financialStatementSection: 2,
     financialStatementGroup: 1,
     financialStatementCategory: 2,
+    accountRole: 1,
+    rollforwardCategory: 2,
     cashFlowCategory: 1,
     subsidiaryIds: 1,
     includeChildren: 2,
@@ -156,7 +164,9 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     financialStatementSection: 0,
     financialStatementGroup: 1,
     financialStatementCategory: 1,
-    cashFlowCategory: 2,
+    accountRole: 2,
+    rollforwardCategory: 3,
+    cashFlowCategory: 4,
     subsidiaryIds: 0,
     includeChildren: 0,
     parentAccountId: 1,
@@ -176,7 +186,7 @@ export function defaultChartOfAccountsFormCustomization(): ChartOfAccountsFormCu
     sections: [...DEFAULT_CHART_OF_ACCOUNTS_FORM_SECTIONS],
     sectionRows: {
       Core: 3,
-      Reporting: 3,
+      Reporting: 5,
       Structure: 3,
       Controls: 4,
     },

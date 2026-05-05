@@ -8,6 +8,7 @@ type LinkedRecordFieldCatalogEntry = {
   source?: string
   description?: string
   path: string[]
+  linksToSourceRecord?: boolean
 }
 
 export type LinkedRecordReferenceSource = Omit<TransactionReferenceSourceMeta, 'fields'> & {
@@ -33,9 +34,35 @@ function normalizeLinkedRecordFieldType(
   }
 }
 
-function formatReferenceValue(value: unknown): string {
+function formatReferenceValue(
+  value: unknown,
+  fieldType: LinkedRecordFieldCatalogEntry['fieldType'],
+  options?: {
+    formatDate?: (value: Date) => string
+    formatCurrency?: (value: unknown, currencyCode?: string | null) => string
+    currencyCode?: string | null
+  },
+): string {
   if (value == null) return '-'
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (fieldType === 'date') {
+    if (value instanceof Date) {
+      return options?.formatDate ? options.formatDate(value) : value.toISOString()
+    }
+    return String(value)
+  }
+  if (fieldType === 'currency') {
+    return options?.formatCurrency
+      ? options.formatCurrency(value, options.currencyCode)
+      : String(value)
+  }
+  if (value instanceof Date) return value.toISOString()
+  return String(value)
+}
+
+function serializeReferenceValue(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
   if (value instanceof Date) return value.toISOString()
   return String(value)
 }
@@ -52,6 +79,14 @@ function readPath(record: unknown, path: string[]): unknown {
 export function buildLinkedReferencePreviewSources(
   sources: LinkedRecordReferenceSource[],
   recordsBySourceId: Record<string, unknown>,
+  formattingBySourceId?: Record<
+    string,
+    {
+      formatDate?: (value: Date) => string
+      formatCurrency?: (value: unknown, currencyCode?: string | null) => string
+      currencyCode?: string | null
+    }
+  >,
 ) {
   return sources.map((source) => ({
     ...source,
@@ -61,7 +96,11 @@ export function buildLinkedReferencePreviewSources(
       fieldType: field.fieldType,
       source: field.source,
       description: field.description,
-      previewValue: formatReferenceValue(readPath(recordsBySourceId[source.id], field.path)),
+      previewValue: formatReferenceValue(
+        readPath(recordsBySourceId[source.id], field.path),
+        field.fieldType,
+        formattingBySourceId?.[source.id],
+      ),
     })),
   }))
 }
@@ -70,37 +109,45 @@ export function buildLinkedReferenceFieldDefinitions(
   sources: LinkedRecordReferenceSource[],
   recordsBySourceId: Record<string, unknown>,
   recordHrefBySourceId?: Record<string, string | null | undefined>,
+  formattingBySourceId?: Record<
+    string,
+    {
+      formatDate?: (value: Date) => string
+      formatCurrency?: (value: unknown, currencyCode?: string | null) => string
+      currencyCode?: string | null
+    }
+  >,
 ): Record<string, RecordHeaderField> {
   return Object.fromEntries(
     sources.flatMap((source) =>
-      source.fields.map((field) => [
-        field.id,
-        {
-          key: field.id,
-          label: field.label,
-          value: formatReferenceValue(readPath(recordsBySourceId[source.id], field.path)),
-          helpText: field.description,
-          fieldType: normalizeLinkedRecordFieldType(field.fieldType),
-          sourceText: field.source,
-          href: isIdentifierLikeReferenceField(field) ? (recordHrefBySourceId?.[source.id] ?? null) : null,
-        } satisfies RecordHeaderField,
-      ]),
+      source.fields.map((field) => {
+        const rawValue = readPath(recordsBySourceId[source.id], field.path)
+        return [
+          field.id,
+          {
+            key: field.id,
+            label: field.label,
+            value: serializeReferenceValue(rawValue),
+            displayValue: formatReferenceValue(
+              rawValue,
+              field.fieldType,
+              formattingBySourceId?.[source.id],
+            ),
+            helpText: field.description,
+            fieldType: normalizeLinkedRecordFieldType(field.fieldType),
+            sourceText: field.source,
+            href: field.linksToSourceRecord ? (recordHrefBySourceId?.[source.id] ?? null) : null,
+          } satisfies RecordHeaderField,
+        ] as const
+      }),
     ),
-  )
-}
-
-function isIdentifierLikeReferenceField(field: Pick<LinkedRecordFieldCatalogEntry, 'id' | 'label'>) {
-  return (
-    field.label.includes('Id') ||
-    field.label.includes('#') ||
-    field.id.toLowerCase().includes('number')
   )
 }
 
 export const CUSTOMER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'customerDbId', label: 'DB Id', fieldType: 'text', source: 'Customers master data', description: 'Internal database identifier for the linked customer record.', path: ['id'] },
-  { id: 'customerNumber', label: 'Customer #', fieldType: 'text', source: 'Customers master data', description: 'Internal customer identifier from the linked customer record.', path: ['customerId'] },
-  { id: 'customerName', label: 'Customer Name', fieldType: 'text', source: 'Customers master data', description: 'Display name from the linked customer record.', path: ['name'] },
+  { id: 'customerNumber', label: 'Customer #', fieldType: 'text', source: 'Customers master data', description: 'Internal customer identifier from the linked customer record.', path: ['customerId'], linksToSourceRecord: true },
+  { id: 'customerName', label: 'Customer Name', fieldType: 'text', source: 'Customers master data', description: 'Display name from the linked customer record.', path: ['name'], linksToSourceRecord: true },
   { id: 'customerEmail', label: 'Email', fieldType: 'email', source: 'Customers master data', description: 'Primary customer email address.', path: ['email'] },
   { id: 'customerPhone', label: 'Phone', fieldType: 'text', source: 'Customers master data', description: 'Primary customer phone number.', path: ['phone'] },
   { id: 'customerAddress', label: 'Address', fieldType: 'text', source: 'Customers master data', description: 'Primary address from the linked customer record.', path: ['address'] },
@@ -113,12 +160,28 @@ export const CUSTOMER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'customerUpdatedAt', label: 'Last Modified', fieldType: 'date', source: 'Customers master data', description: 'Date/time the linked customer record was last modified.', path: ['updatedAt'] },
 ]
 
+export const VENDOR_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
+  { id: 'vendorDbId', label: 'DB Id', fieldType: 'text', source: 'Vendors master data', description: 'Internal database identifier for the linked vendor record.', path: ['id'] },
+  { id: 'vendorNumber', label: 'Vendor #', fieldType: 'text', source: 'Vendors master data', description: 'Internal vendor identifier from the linked vendor record.', path: ['vendorNumber'], linksToSourceRecord: true },
+  { id: 'vendorName', label: 'Vendor Name', fieldType: 'text', source: 'Vendors master data', description: 'Display name from the linked vendor record.', path: ['name'], linksToSourceRecord: true },
+  { id: 'vendorEmail', label: 'Email', fieldType: 'email', source: 'Vendors master data', description: 'Primary vendor email address.', path: ['email'] },
+  { id: 'vendorPhone', label: 'Phone', fieldType: 'text', source: 'Vendors master data', description: 'Primary vendor phone number.', path: ['phone'] },
+  { id: 'vendorAddress', label: 'Address', fieldType: 'text', source: 'Vendors master data', description: 'Primary address from the linked vendor record.', path: ['address'] },
+  { id: 'vendorTaxId', label: 'Tax Id', fieldType: 'text', source: 'Vendors master data', description: 'Tax identifier from the linked vendor record.', path: ['taxId'] },
+  { id: 'vendorUserDbId', label: 'User DB Id', fieldType: 'text', source: 'Vendors master data', description: 'Internal owner user identifier from the linked vendor record.', path: ['userId'] },
+  { id: 'vendorSubsidiaryDbId', label: 'Subsidiary DB Id', fieldType: 'text', source: 'Vendors master data', description: 'Internal subsidiary identifier from the linked vendor record.', path: ['subsidiaryId'] },
+  { id: 'vendorCurrencyDbId', label: 'Currency DB Id', fieldType: 'text', source: 'Vendors master data', description: 'Internal currency identifier from the linked vendor record.', path: ['currencyId'] },
+  { id: 'vendorInactive', label: 'Inactive', fieldType: 'boolean', source: 'Vendors master data', description: 'Indicates whether the linked vendor is inactive.', path: ['inactive'] },
+  { id: 'vendorCreatedAt', label: 'Created', fieldType: 'date', source: 'Vendors master data', description: 'Date/time the linked vendor record was created.', path: ['createdAt'] },
+  { id: 'vendorUpdatedAt', label: 'Last Modified', fieldType: 'date', source: 'Vendors master data', description: 'Date/time the linked vendor record was last modified.', path: ['updatedAt'] },
+]
+
 export const CONTACT_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'contactDbId', label: 'DB Id', fieldType: 'text', source: 'Contacts master data', description: 'Internal database identifier for the linked contact.', path: ['id'] },
-  { id: 'contactNumber', label: 'Contact #', fieldType: 'text', source: 'Contacts master data', description: 'Internal contact identifier from the linked contact record.', path: ['contactNumber'] },
+  { id: 'contactNumber', label: 'Contact #', fieldType: 'text', source: 'Contacts master data', description: 'Internal contact identifier from the linked contact record.', path: ['contactNumber'], linksToSourceRecord: true },
   { id: 'contactFirstName', label: 'First Name', fieldType: 'text', source: 'Contacts master data', description: 'First name from the linked contact record.', path: ['firstName'] },
   { id: 'contactLastName', label: 'Last Name', fieldType: 'text', source: 'Contacts master data', description: 'Last name from the linked contact record.', path: ['lastName'] },
-  { id: 'contactName', label: 'Contact Name', fieldType: 'text', source: 'Contacts master data', description: 'Display name from the linked contact record.', path: ['firstName'] },
+  { id: 'contactName', label: 'Contact Name', fieldType: 'text', source: 'Contacts master data', description: 'Display name from the linked contact record.', path: ['firstName'], linksToSourceRecord: true },
   { id: 'contactEmail', label: 'Email', fieldType: 'email', source: 'Contacts master data', description: 'Primary contact email address.', path: ['email'] },
   { id: 'contactPhone', label: 'Phone', fieldType: 'text', source: 'Contacts master data', description: 'Primary contact phone number.', path: ['phone'] },
   { id: 'contactAddress', label: 'Address', fieldType: 'text', source: 'Contacts master data', description: 'Address from the linked contact record.', path: ['address'] },
@@ -137,9 +200,9 @@ export const CONTACT_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
 
 export const USER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'ownerDbId', label: 'DB Id', fieldType: 'text', source: 'Users master data', description: 'Internal database identifier for the linked user.', path: ['id'] },
-  { id: 'ownerUserId', label: 'User Id', fieldType: 'text', source: 'Users master data', description: 'Internal user identifier from the linked user record.', path: ['userId'] },
+  { id: 'ownerUserId', label: 'User Id', fieldType: 'text', source: 'Users master data', description: 'Internal user identifier from the linked user record.', path: ['userId'], linksToSourceRecord: true },
   { id: 'ownerEmail', label: 'Email', fieldType: 'email', source: 'Users master data', description: 'Email address from the linked user record.', path: ['email'] },
-  { id: 'ownerName', label: 'Name', fieldType: 'text', source: 'Users master data', description: 'Display name from the linked user record.', path: ['name'] },
+  { id: 'ownerName', label: 'Name', fieldType: 'text', source: 'Users master data', description: 'Display name from the linked user record.', path: ['name'], linksToSourceRecord: true },
   { id: 'ownerRoleDbId', label: 'Role DB Id', fieldType: 'text', source: 'Users master data', description: 'Internal role identifier from the linked user record.', path: ['roleId'] },
   { id: 'ownerDepartmentDbId', label: 'Department DB Id', fieldType: 'text', source: 'Users master data', description: 'Internal department identifier from the linked user record.', path: ['departmentId'] },
   { id: 'ownerInactive', label: 'Inactive', fieldType: 'boolean', source: 'Users master data', description: 'Indicates whether the linked user is inactive.', path: ['inactive'] },
@@ -162,8 +225,8 @@ export const USER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
 
 export const OPPORTUNITY_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'opportunityDbId', label: 'DB Id', fieldType: 'text', source: 'Opportunities', description: 'Internal database identifier for the linked opportunity.', path: ['id'] },
-  { id: 'opportunityNumber', label: 'Opportunity #', fieldType: 'text', source: 'Opportunities', description: 'Identifier for the linked opportunity.', path: ['opportunityNumber'] },
-  { id: 'opportunityName', label: 'Opportunity Name', fieldType: 'text', source: 'Opportunities', description: 'Display name from the linked opportunity.', path: ['name'] },
+  { id: 'opportunityNumber', label: 'Opportunity #', fieldType: 'text', source: 'Opportunities', description: 'Identifier for the linked opportunity.', path: ['opportunityNumber'], linksToSourceRecord: true },
+  { id: 'opportunityName', label: 'Opportunity Name', fieldType: 'text', source: 'Opportunities', description: 'Display name from the linked opportunity.', path: ['name'], linksToSourceRecord: true },
   { id: 'opportunityAmount', label: 'Amount', fieldType: 'currency', source: 'Opportunities', description: 'Amount from the linked opportunity.', path: ['amount'] },
   { id: 'opportunityStage', label: 'Stage', fieldType: 'list', source: 'Opportunities', description: 'Stage from the linked opportunity.', path: ['stage'] },
   { id: 'opportunityCloseDate', label: 'Close Date', fieldType: 'date', source: 'Opportunities', description: 'Close date from the linked opportunity.', path: ['closeDate'] },
@@ -179,7 +242,7 @@ export const OPPORTUNITY_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] 
 
 export const QUOTE_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'quoteDbId', label: 'DB Id', fieldType: 'text', source: 'Quote transaction', description: 'Internal database identifier for the linked quote.', path: ['id'] },
-  { id: 'quoteNumber', label: 'Quote #', fieldType: 'text', source: 'Quote transaction', description: 'Identifier for the linked quote.', path: ['number'] },
+  { id: 'quoteNumber', label: 'Quote #', fieldType: 'text', source: 'Quote transaction', description: 'Identifier for the linked quote.', path: ['number'], linksToSourceRecord: true },
   { id: 'quoteStatus', label: 'Status', fieldType: 'list', source: 'Quote transaction', description: 'Status from the linked quote.', path: ['status'] },
   { id: 'quoteTotal', label: 'Total', fieldType: 'currency', source: 'Quote transaction', description: 'Total from the linked quote.', path: ['total'] },
   { id: 'quoteValidUntil', label: 'Valid Until', fieldType: 'date', source: 'Quote transaction', description: 'Valid-until date from the linked quote.', path: ['validUntil'] },
@@ -195,8 +258,8 @@ export const QUOTE_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
 
 export const SUBSIDIARY_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'subsidiaryDbId', label: 'DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal database identifier for the linked subsidiary.', path: ['id'] },
-  { id: 'subsidiaryNumber', label: 'Subsidiary #', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal subsidiary identifier.', path: ['subsidiaryId'] },
-  { id: 'subsidiaryName', label: 'Subsidiary Name', fieldType: 'text', source: 'Subsidiaries master data', description: 'Display name from the linked subsidiary.', path: ['name'] },
+  { id: 'subsidiaryNumber', label: 'Subsidiary #', fieldType: 'text', source: 'Subsidiaries master data', description: 'Internal subsidiary identifier.', path: ['subsidiaryId'], linksToSourceRecord: true },
+  { id: 'subsidiaryName', label: 'Subsidiary Name', fieldType: 'text', source: 'Subsidiaries master data', description: 'Display name from the linked subsidiary.', path: ['name'], linksToSourceRecord: true },
   { id: 'subsidiaryLegalName', label: 'Legal Name', fieldType: 'text', source: 'Subsidiaries master data', description: 'Legal name from the linked subsidiary.', path: ['legalName'] },
   { id: 'subsidiaryEntityType', label: 'Entity Type', fieldType: 'text', source: 'Subsidiaries master data', description: 'Entity type from the linked subsidiary.', path: ['entityType'] },
   { id: 'subsidiaryCountry', label: 'Country', fieldType: 'text', source: 'Subsidiaries master data', description: 'Country from the linked subsidiary.', path: ['country'] },
@@ -204,9 +267,9 @@ export const SUBSIDIARY_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] =
   { id: 'subsidiaryTaxId', label: 'Tax Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Tax id from the linked subsidiary.', path: ['taxId'] },
   { id: 'subsidiaryRegistrationNumber', label: 'Registration Number', fieldType: 'text', source: 'Subsidiaries master data', description: 'Registration number from the linked subsidiary.', path: ['registrationNumber'] },
   { id: 'subsidiaryParentDbId', label: 'Parent Subsidiary DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Parent subsidiary identifier from the linked subsidiary.', path: ['parentSubsidiaryId'] },
-  { id: 'subsidiaryDefaultCurrencyDbId', label: 'Default Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Default currency identifier from the linked subsidiary.', path: ['defaultCurrencyId'] },
+  { id: 'subsidiaryLocalCurrencyDbId', label: 'Local Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Local currency identifier from the linked subsidiary.', path: ['localCurrencyId'] },
   { id: 'subsidiaryFunctionalCurrencyDbId', label: 'Functional Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Functional currency identifier from the linked subsidiary.', path: ['functionalCurrencyId'] },
-  { id: 'subsidiaryReportingCurrencyDbId', label: 'Reporting Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Reporting currency identifier from the linked subsidiary.', path: ['reportingCurrencyId'] },
+  { id: 'subsidiaryGroupCurrencyDbId', label: 'Group Currency DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Group currency identifier from the linked subsidiary.', path: ['groupCurrencyId'] },
   { id: 'subsidiaryFiscalCalendarDbId', label: 'Fiscal Calendar DB Id', fieldType: 'text', source: 'Subsidiaries master data', description: 'Fiscal calendar identifier from the linked subsidiary.', path: ['fiscalCalendarId'] },
   { id: 'subsidiaryConsolidationMethod', label: 'Consolidation Method', fieldType: 'text', source: 'Subsidiaries master data', description: 'Consolidation method from the linked subsidiary.', path: ['consolidationMethod'] },
   { id: 'subsidiaryOwnershipPercent', label: 'Ownership %', fieldType: 'number', source: 'Subsidiaries master data', description: 'Ownership percentage from the linked subsidiary.', path: ['ownershipPercent'] },
@@ -223,9 +286,9 @@ export const SUBSIDIARY_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] =
 
 export const CURRENCY_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'currencyDbId', label: 'DB Id', fieldType: 'text', source: 'Currencies master data', description: 'Internal database identifier for the linked currency.', path: ['id'] },
-  { id: 'currencyNumber', label: 'Currency Id', fieldType: 'text', source: 'Currencies master data', description: 'Internal currency identifier.', path: ['currencyId'] },
-  { id: 'currencyCode', label: 'Currency Code', fieldType: 'text', source: 'Currencies master data', description: 'Currency code from the linked currency.', path: ['code'] },
-  { id: 'currencyName', label: 'Currency Name', fieldType: 'text', source: 'Currencies master data', description: 'Display name from the linked currency.', path: ['name'] },
+  { id: 'currencyNumber', label: 'Currency Id', fieldType: 'text', source: 'Currencies master data', description: 'Internal currency identifier.', path: ['currencyId'], linksToSourceRecord: true },
+  { id: 'currencyCode', label: 'Currency Code', fieldType: 'text', source: 'Currencies master data', description: 'Currency code from the linked currency.', path: ['code'], linksToSourceRecord: true },
+  { id: 'currencyName', label: 'Currency Name', fieldType: 'text', source: 'Currencies master data', description: 'Display name from the linked currency.', path: ['name'], linksToSourceRecord: true },
   { id: 'currencySymbol', label: 'Symbol', fieldType: 'text', source: 'Currencies master data', description: 'Currency symbol from the linked currency.', path: ['symbol'] },
   { id: 'currencyDecimals', label: 'Decimals', fieldType: 'number', source: 'Currencies master data', description: 'Decimal precision from the linked currency.', path: ['decimals'] },
   { id: 'currencyIsBase', label: 'Is Base', fieldType: 'boolean', source: 'Currencies master data', description: 'Whether the linked currency is the base currency.', path: ['isBase'] },
@@ -236,7 +299,7 @@ export const CURRENCY_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
 
 export const PURCHASE_ORDER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'purchaseOrderDbId', label: 'DB Id', fieldType: 'text', source: 'Purchase order transaction', description: 'Internal database identifier for the linked purchase order.', path: ['id'] },
-  { id: 'purchaseOrderNumber', label: 'Purchase Order #', fieldType: 'text', source: 'Purchase order transaction', description: 'Identifier for the linked purchase order.', path: ['number'] },
+  { id: 'purchaseOrderNumber', label: 'Purchase Order #', fieldType: 'text', source: 'Purchase order transaction', description: 'Identifier for the linked purchase order.', path: ['number'], linksToSourceRecord: true },
   { id: 'purchaseOrderStatus', label: 'Status', fieldType: 'list', source: 'Purchase order transaction', description: 'Status from the linked purchase order.', path: ['status'] },
   { id: 'purchaseOrderTotal', label: 'Total', fieldType: 'currency', source: 'Purchase order transaction', description: 'Total from the linked purchase order.', path: ['total'] },
   { id: 'purchaseOrderVendorDbId', label: 'Vendor DB Id', fieldType: 'text', source: 'Purchase order transaction', description: 'Internal vendor identifier from the linked purchase order.', path: ['vendorId'] },
@@ -250,7 +313,7 @@ export const PURCHASE_ORDER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry
 
 export const BILL_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'billDbId', label: 'DB Id', fieldType: 'text', source: 'Bill transaction', description: 'Internal database identifier for the linked bill.', path: ['id'] },
-  { id: 'billNumber', label: 'Bill #', fieldType: 'text', source: 'Bill transaction', description: 'Identifier for the linked bill.', path: ['number'] },
+  { id: 'billNumber', label: 'Bill #', fieldType: 'text', source: 'Bill transaction', description: 'Identifier for the linked bill.', path: ['number'], linksToSourceRecord: true },
   { id: 'billStatus', label: 'Status', fieldType: 'list', source: 'Bill transaction', description: 'Status from the linked bill.', path: ['status'] },
   { id: 'billTotal', label: 'Total', fieldType: 'currency', source: 'Bill transaction', description: 'Total from the linked bill.', path: ['total'] },
   { id: 'billDate', label: 'Bill Date', fieldType: 'date', source: 'Bill transaction', description: 'Bill date from the linked bill.', path: ['date'] },
@@ -268,7 +331,7 @@ export const BILL_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
 
 export const SALES_ORDER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'salesOrderDbId', label: 'DB Id', fieldType: 'text', source: 'Sales order transaction', description: 'Internal database identifier for the linked sales order.', path: ['id'] },
-  { id: 'salesOrderNumber', label: 'Sales Order #', fieldType: 'text', source: 'Sales order transaction', description: 'Linked sales order identifier.', path: ['number'] },
+  { id: 'salesOrderNumber', label: 'Sales Order #', fieldType: 'text', source: 'Sales order transaction', description: 'Linked sales order identifier.', path: ['number'], linksToSourceRecord: true },
   { id: 'salesOrderStatus', label: 'Status', fieldType: 'list', source: 'Sales order transaction', description: 'Status from the linked sales order.', path: ['status'] },
   { id: 'salesOrderTotal', label: 'Total', fieldType: 'currency', source: 'Sales order transaction', description: 'Total from the linked sales order.', path: ['total'] },
   { id: 'salesOrderCustomerDbId', label: 'Customer DB Id', fieldType: 'text', source: 'Sales order transaction', description: 'Internal customer identifier from the linked sales order.', path: ['customerId'] },
@@ -282,7 +345,7 @@ export const SALES_ORDER_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] 
 
 export const INVOICE_FULL_REFERENCE_FIELDS: LinkedRecordFieldCatalogEntry[] = [
   { id: 'invoiceDbId', label: 'DB Id', fieldType: 'text', source: 'Invoice transaction', description: 'Internal database identifier for the linked invoice.', path: ['id'] },
-  { id: 'invoiceNumber', label: 'Invoice #', fieldType: 'text', source: 'Invoice transaction', description: 'Linked invoice identifier.', path: ['number'] },
+  { id: 'invoiceNumber', label: 'Invoice #', fieldType: 'text', source: 'Invoice transaction', description: 'Linked invoice identifier.', path: ['number'], linksToSourceRecord: true },
   { id: 'invoiceStatus', label: 'Status', fieldType: 'list', source: 'Invoice transaction', description: 'Status from the linked invoice.', path: ['status'] },
   { id: 'invoiceTotal', label: 'Total', fieldType: 'currency', source: 'Invoice transaction', description: 'Total from the linked invoice.', path: ['total'] },
   { id: 'invoiceDueDate', label: 'Due Date', fieldType: 'date', source: 'Invoice transaction', description: 'Due date from the linked invoice.', path: ['dueDate'] },

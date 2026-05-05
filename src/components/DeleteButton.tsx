@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-type DeleteButtonProps = {
+export type DeleteButtonProps = {
   id: string
   resource?: string
   endpoint?: string

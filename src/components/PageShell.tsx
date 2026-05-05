@@ -1,9 +1,6 @@
 import Link from 'next/link'
-import ColumnSelector from '@/components/ColumnSelector'
-import ExportButton from '@/components/ExportButton'
+import ListSearchActions from '@/components/ListSearchActions'
 import PaginationFooter from '@/components/PaginationFooter'
-import { loadCompanyInformationSettings } from '@/lib/company-information-settings-store'
-import { loadCompanyCabinetFiles } from '@/lib/company-file-cabinet-store'
 import type { ReactNode } from 'react'
 
 export type Column = { id: string; label: string; tooltip?: string }
@@ -67,22 +64,6 @@ export default async function PageShell(props: PageShellProps) {
     children,
   } = props
 
-  let companyLogoUrl: string | null = null
-  if (showLogo) {
-    const [companySettings, cabinetFiles] = await Promise.all([
-      loadCompanyInformationSettings(),
-      loadCompanyCabinetFiles(),
-    ])
-    const val = companySettings.companyLogoPagesFileId
-    const match =
-      cabinetFiles.find((f) => f.id === val) ??
-      cabinetFiles.find((f) => f.originalName === val) ??
-      cabinetFiles.find((f) => f.storedName === val) ??
-      cabinetFiles.find((f) => f.url === val) ??
-      (!val ? cabinetFiles[0] : undefined)
-    companyLogoUrl = match?.url ?? null
-  }
-
   const buildHref = (overrides: Record<string, string>) => {
     const s = new URLSearchParams()
     if (params.q) s.set('q', params.q)
@@ -102,15 +83,12 @@ export default async function PageShell(props: PageShellProps) {
     return basePath + '?' + s.toString()
   }
 
+  void showLogo
+
   return (
     <div className="min-h-full px-8 py-8">
-      {/* Header: logo | title+count | +New */}
+      {/* Header: title+count | +New */}
       <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          {companyLogoUrl ? (
-            <img src={companyLogoUrl} alt="Company logo" className="h-16 w-auto rounded" />
-          ) : null}
-        </div>
         <div className="text-center flex-1">
           <h1 className="text-xl font-semibold text-white">{title}</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{total} total</p>
@@ -157,8 +135,7 @@ export default async function PageShell(props: PageShellProps) {
             <input type="hidden" name="status" value={statusFilter} />
             <input type="hidden" name="page" value="1" />
             {sort ? <input type="hidden" name="sort" value={sort} /> : null}
-            <ExportButton tableId={tableId} fileName={tableId} />
-            <ColumnSelector tableId={tableId} columns={columns} />
+            <ListSearchActions tableId={tableId} exportFileName={tableId} columns={columns} />
           </div>
         </form>
 
